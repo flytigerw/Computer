@@ -1,0 +1,32 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 19<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+
+Let <code class=math>m(n)</code> be the number of multiplications.
+When
+<code class=math>n &lt;= 1</code>, <code class=math>m(n) = 0</code>.
+When <code class=math>n &gt; 1</code>, <code class=math>m(n) = 1 + m(n - 1)</code>.
+Using repeated substitution, we get
+<br><br>
+<pre>
+<code class=math>m(n) = 1 + m(n - 1)
+     = 2 + m(n - 2)
+     = 3 + m(n - 3)
+     = ...
+     = n - 1 + m(1)
+     = n - 1, n &gt; 1
+</code>
+</pre>
+</FONT>
+</BODY>
+</HTML>

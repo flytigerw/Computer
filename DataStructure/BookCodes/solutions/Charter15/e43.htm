@@ -1,0 +1,332 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data StructureAlgorithm& Applications in C++<BR>
+Chapter 15 Exercise 43<BR>
+<BR>
+</H1>
+
+
+Following the first insertion we get the following tree.
+<br><pre class=figure>
+                    20
+</pre>
+No rotation is done because the inserted element is already the root.
+The next insert yields the following tree.
+<br><pre class=figure>
+                    20
+                   /
+                  10
+</pre>
+A type L rotation is done with <code class=var>10</code> as the
+splay node. The result is the following tree.
+<br><pre class=figure>
+                     10
+                       \
+                        20
+</pre>
+When <code class=var>5</code> is inserted, the following tree results.
+<br><pre class=figure>
+                      10
+                     /  \
+                    5    20
+</pre>
+The splay node is
+<code class=var>5</code> and a type L rotation is done to get
+the following tree.
+<br><pre class=figure>
+                          5
+                           \
+                           10
+                             \
+                             20
+</pre>
+When <code class=var>30</code> is inserted the tree becomes
+<br><pre class=figure>
+                          5
+                           \
+                           10
+                             \
+                             20
+                               \
+                               30
+</pre>
+An RR rotation is done to get the following tree.
+<br><pre class=figure>
+                          5
+                           \
+                           30
+                           /
+                          20
+                         /
+                        10
+</pre>
+Next a type R rotation is done to get the following tree.
+<br><pre class=figure>
+                       30 
+                      / 
+                     5
+                      \
+                      20
+                      /
+                     10
+</pre>
+When <code class=var>40</code> is inserted we get the following tree.
+<br><pre class=figure>
+                       30 
+                      /  \
+                     5   40
+                      \
+                      20
+                      /
+                     10
+</pre>
+A type R rotation
+is done to make the splay node (<code class=var>40</code>) the root.
+The resulting tree is
+<br><pre class=figure>
+                        40
+                        /
+                       30 
+                      /
+                     5
+                      \
+                      20
+                      /
+                     10
+</pre>
+When <code class=var>25</code> is inserted we get the
+following tree.
+<br><pre class=figure>
+                        40
+                        /
+                       30 
+                      /
+                     5
+                      \
+                      20
+                     /  \
+                   10    25
+</pre>
+An RR rotation is done to get the following tree.
+<br><pre class=figure>
+                        40
+                        /
+                       30 
+                      /
+                     25
+                    /
+                   20
+                  /
+                 5
+                  \
+                  10
+</pre>
+Now an LL rotation is done to get the tree
+<br><pre class=figure>
+                     25
+                    /  \
+                   20  30
+                  /      \
+                 5       40
+                  \
+                  10
+</pre>
+When <code class=var>8</code> is inserted we get the
+following tree.
+<br><pre class=figure>
+                     25
+                    /  \
+                   20  30
+                  /      \
+                 5       40
+                  \
+                  10
+                  /
+                 8
+</pre>
+First an RL rotation is done. The new tree is
+<br><pre class=figure>
+                     25
+                    /  \
+                   20  30
+                  /      \
+                 8       40
+                / \
+               5  10
+</pre>
+Then an LL rotation
+is done to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                   8
+                  / \
+                 5  20
+                   /  \
+                  10  25
+                        \
+                        30
+                          \
+                          40
+</pre>
+Inserting <code class=var>35</code> results in the following tree.
+<br><pre class=figure>
+                   8
+                  / \
+                 5  20
+                   /  \
+                  10  25
+                        \
+                        30
+                          \
+                          40
+                          /
+                         35
+</pre>
+An RL rotation is done to get the following tree.
+<br><pre class=figure>
+                   8
+                  / \
+                 5  20
+                   /  \
+                  10  25
+                        \
+                        35
+                       /  \
+                      30  40
+</pre>
+Now an RR rotation is done. The resulting tree is
+<br><pre class=figure>
+                   8
+                  / \
+                 5  35
+                   /  \
+                  25  40
+                 /  \
+                20  30
+               /
+              10
+</pre>
+Finally a type R rotation is done
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                   35
+                  / \
+                 8  40
+               /  \
+               5  25 
+                 /  \
+                20  30
+               /
+              10
+</pre>
+When <code class=var>7</code> is inserted the following tree results.
+<br><pre class=figure>
+                   35
+                  / \
+                 8  40
+               /  \
+              5    25 
+               \  /  \
+               7 20  30
+                /
+               10
+</pre>
+First an LR rotation is done to get the following tree.
+<br><pre class=figure>
+                   35
+                  / \
+                 7  40
+               /  \
+              5    8 
+                    \
+                    25
+                   /  \
+                 20   30
+                 /
+                10
+</pre>
+Next a type L rotation is done to move the splay node to the
+root level. The resulting tree is
+<br><pre class=figure>
+                   7
+                  / \
+                 5   35
+                    /  \
+                   8   40
+                    \
+                    25
+                   /  \
+                 20   30
+                 /
+                10
+</pre>
+The tree following the insertion of <code class=var>23</code> is shown
+below.
+<br><pre class=figure>
+                   7
+                  / \
+                 5   35
+                    /  \
+                   8   40
+                    \
+                    25
+                   /  \
+                 20   30
+                /  \
+              10   23
+</pre>
+An LR rotation is done to get the following tree.
+<br><pre class=figure>
+                   7
+                  / \
+                 5   35
+                    /  \
+                   8   40
+                    \
+                    23
+                   /  \
+                 20   25
+                /       \
+              10        30
+</pre>
+Another LR rotation is done. The new tree is
+<br><pre class=figure>
+                   7
+                  / \
+                 5   23
+                    /  \
+                   /    \
+                  /      \
+                 8       35
+                  \     /  \
+                  20   25   40
+                 /      \
+               10       30
+</pre>
+Now a type R rotation is done and the splay node becomes the root.
+The new tree is shown below.
+<br><pre class=figure>
+                     23
+                    /  \
+                   /    \
+                  /      \
+                 7       35
+                / \     /  \
+               5   8   25   40
+                    \   \
+                    20  30
+                    /
+                   10
+                  
+                  
+</pre>
+
+
+</FONT>
+</BODY>
+</HTML>

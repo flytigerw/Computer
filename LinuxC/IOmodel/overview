@@ -1,0 +1,110 @@
+
+1.traditonal blocking I/O model:A process performs I/O on just one fd at a time,and each I/O sysCall blocks until the data is transferred
+  Ex:read() or write() on pipe
+  Disk files are special case.The kernel employs the buffer cache to speed disk I/O requests.
+  A write() to disk returns as soon as the requested data has been transferred to kernel buffer cache,rather than waiting until the data is written to disk(unless O_SYNC falg was set)
+  A read() will transfer data from kernel buffer cache to user buffer and if the required data is not in the kernel buffer cache,then the kernel makes the process sleep while disk read is performered
+
+  Some apps require extra functions:
+   1)Check whether I/O is possible on a fd without blocking if it's not possible
+   2)Monitor multiple fds to see if I/O is possible on any of them
+
+  We can use nonblocking I/O mode and multiple processes or threads to address the needs
+   1)Nonblocking I/O
+     It's enabled by specifying O_NONBLOCK file flag
+     If the I/O can't be immediately completed,then it returns an error instead of blocking
+     It allows us to periodically check whether I/O is possible on a fd
+     Ex:We can make an input fd nonblocking and then periodically perform nonblocking reads
+        If we need to monitor multiple files,we can mark them all nonblocking and poll each of them in turn
+        Such polling is undersiable
+        On the hand hand,if the polling is done infrequently,then the latency before an app responds to an I/O may be unacceptably long
+        On the other hand,polling in a tight loop waste CPU time
+     
+     2)We can create a child process to perform the blocking I/O and the parent continues to carry on other tasks
+       If we need to handle I/O on multiple fds,then we can create one child for one fd
+       The problems with this solution are expense and complexity ---> Creating and maintaining processes place a load on the system and the child process needs some form of IPC to inform its parent about the status of I/O operations
+
+       Using threads rather than processes is less demanding of resources
+       But threads still need to communicate to one another about the status of I/O operations
+       The programing can be complex
+       One place where the threads are particularly useful is if the app needs to call third-party library funcs which perform blocking I/O
+       We can make the call in a separate thread
+
+2.Alternatives to address the needs
+  1)I/O multiplexing
+    It allows a process to monitor multiple fds to find out whether I/O is possible on any of them 
+    select() and poll()
+  2)Signal-driven I/O
+    The kernel sends a process a signal when input is a available or data can be written on a specified fd
+    The process can continue carry on other tasks and is notified when I/O becomes possible via receipt of the siganl
+    When monitoring multiple fds,signal-driven I/O provides significantly better performance than select() and poll()
+
+  3)epoll
+    It's a Linux-specific feature
+    Like poll() and select(),it allows a process to monitor multiple fds to see if I/O is possible on any of them
+    Like signal-driven I/O,it provides better performance when monitoring large number of fds
+
+  They all achieve the same result:Monitor one or several fds simultaneously to see if they are ready to perform I/O
+  The transition of a fd into ready state can be triggered by some type of event:The input of data,The completition of socket connection,The availability of space in a previously full socket send buffer
+
+  Monitoring multiple fds is useful in apps such as network server that must monitor multiple client sockets or apps that must simultaneously read input from a terminal or a pipe or socket
+  
+  None of these techniques performs I/O.
+  They merely tell us a fd is ready
+
+  POSIX AIO --> asynchronous I/O
+  It allows a process to queue an I/O operation to a file and later be notified when the operation is complete
+  The advantage is that the initial I/O returns immediately so that the process is not tied up waiting for data to be tranferred to the kernel 
+  This allows process to perform tasks in parallel with the I/O
+  More details can be searched with BaiDu
+
+----------------------------------------------------------------------------------------------------------------------
+3.Comparison of these three techniques 
+  1)select() and poll()
+    They are long-standing interfaces that have been on UNIX for many years
+    Their primary advantage is the portability but the disadvantage is that they don't scale well when monitoring large numbers of fds  
+  2)epoll
+    It allows a process to efficiently monitor large number of fds
+    The disadvantage is that it's Linux-specific API
+  3)signal-driven I/O
+    Like epoll,it allows a process to efficiently monitor large number of fds
+    But epoll have following advantages over it
+     a.It avoids the complexities of dealing with signals
+     b.It can specify the type of monitoring we want to perform ------> ready for writing or ready for reading
+     c.It can select level-triggered or edge-triggered notification
+    
+    select() and poll() are more portable while signal-driven I/O and epoll() provide better performance.
+    So we can write an abstract software layer using these techniques
+    libevent is such a software layer that provides an abstraction for monitoring fd events
+
+4.The readiness notification for a fd
+  1)Level-triggered
+    A fd is considered to be ready if it's possible to perfom an I/O sysCall without blocking
+    We can check the readiness of a fd at any time
+    It means that when we determine that a fd is ready,then we can perform I/O on the fd and the repeat the monitoring operation to see if the fd is still ready 
+    Because we can perform I/O monitoring operation at any time,it's not necessary to perform I/O as much as possible(read bytes as many as possible) on the fd each time we are notified that a fd is ready
+
+  2)Edge-triggered
+    Notification is provided if there is new I/O activity(new input) on a fd since it was last monitored
+    We receive notification when an I/O event occurs
+    We don't receive any furthur notification until another I/O event occurs
+    Furthurmore,when we are notified by an I/O event,we usually don't know hom much I/O is possible(How many bytes available for reading)
+    Therefore,programs using this notification are designed according to the following rules
+     a.After the notification of an I/O event,the program should at some point perform IO as much as possible on the fd
+     b.If the program employs a loop on the fd to perform I/O as much as possible,and the fd is marked as blocking,then eventually,an I/O sysCall will block when no more I/O is possible
+       For this reason,each fd is placed in nonblocking mode and afer the notification of an I/O event,I/O operations are repeatedly performed until the revelant sysCall fails with error EAGAIN or EWOULDBLOCK
+
+----------------------------------------------------------------------------------------------------------------------
+  Techniques              Level-triggered        Edge-triggered 
+   select() and poll()           yes
+   signal-driven I/O                                 yes
+   epoll()                       yes                 yes
+
+5.Example of using nonblocking I/O with alternative I/O models
+  1)Nonblocking I/O is usually used in conjunction with I/O models that provide edge-triggered notification of I/O models
+  2)If multiple processes(threads) are performing I/O on the same fds,then from a particular proceess's point view,a fd's readiness may change between the time the fd was notified being ready and the time of subsequent I/O call
+    Consequently,a blocking I/O would block,thus preventing process from monitoring other fds
+
+  3)Even after a level-triggered select() or poll() informs us a fd for a stream socket is ready for writing,if we write large enough data in a single write() or send(),then the call will nevertheless block
+
+  

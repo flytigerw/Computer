@@ -1,0 +1,246 @@
+
+
+
+
+
+1.考虑:统计给定集合中大于指定年龄的对象的数目
+  现有工具:1)二元谓词greater
+             输入:object + n
+             功能:return (object.age() > n) ? true : false;
+           2)算法std::count_if
+             输入:集合+一元谓词 
+             谓词要求:(object)->bool 
+
+ 如何对已有的二元谓词进行改造,生成满足情景的一元谓词呢?
+ 将二元谓词的输入变量n 改造为 内部状态变量,并依据情景为其指定初始值 --> 可用functor和lambda实现
+ 比如:std::count_if(objects.cbegin(),objects.cend(),
+                  [n = 10]
+                  (const Object& obj){
+                    return obj.age() > n;
+                  }
+             );
+  
+ 这种将已知函数的一个或多个参数设定为特定值而生成新函数的应用 称为 偏函数应用
+
+2.将二元函数转为一元偏函数的通用方法
+  template<typename Function,
+           typename SecondArgType>
+   class bind2nd{
+
+     private:
+        Function m_binary_funciton;
+        SecondArgType m_second_arg;
+
+     public:
+        bind2nd(Function binary_function,SecondArgType second_arg):
+            m_binary_funciton(binary_function),
+            m_second_arg(second_arg){}
+
+        template<typename FirstArgType>
+          auto operator()(FirstArgType&& first_arg) const                          //转为一元谓词
+            ->decltype(m_binary_funciton(std::forward<FirstArgType>(first_arg),    //返回类型依赖参数类型.
+                                         m_second_arg))                            //所以采用尾置返回类型进行推断
+          {
+              return m_binary_funciton(std::forward<FirstArgType>(first_arg),
+                  m_second_arg));
+          }
+   }
+
+   在实例化类模板时要显示指定 模板参数的类型 ----> 代码冗余,而且有些类型并不易知.比如lambda的类型
+   解决:利用 模板函数在调用时会自动推导参数类型 这一机制
+   模板函数bind2nd的作用:生成bind2nd_impl类的实例
+
+   template<typename Function,
+            typename SecondArgType>
+   bind2nd_impl<Function,SecondArgType>
+   bind2nd(Function&& function,SecondArgType&& second_arg){
+
+     return bind2nd_impl<Function,SecondArgType>(forward<Function>(function),
+                                                 forward<SecondArgType>(second_arg));
+
+   }
+
+   使用例子:
+   auto greater_than_42 = bind2nd(greater<int>(),42)
+
+
+3.std::bind() --> 67页+PPT
+  核心:
+  1)提前绑定函数参数              -->   将输入变量转为内部的状态变量
+  2)通过占位符预留输入变量的通道  -->   可实现函数参数的逆转
+  3)生成新的函数对象
+
+4.std::bind()使用了复杂的模板元编程技术.编译器的负担沉重且难以对其优化
+  可用lambda代替std::bind()
+  代替规则:
+  1)参数绑定    --->    若绑定到变量上,则用[]进行捕获         -->  生成lambda的状态变量
+                        若绑定到常量上,则直接在lambda体中使用 -->  也可用[a=1]的形式,但没必要
+  
+  2)占位符      --->    lambda的输入变量
+  例子见 74 页
+                              
+
+5.多元函数的柯里化:转为一元FunObj              --> FunObj1
+                   FunObj1返回一个一元FunObj   --> FunObj2
+
+                   FunObj2 捕捉 FunObj1的输入变量,生成状态变量              --> 让FunObj2看起来就像一个二元FunObj
+                    其也返回一个一元FunObj     --> FunObj3
+
+                   FunObj3 捕捉 FunObj2的状态变量+输入变量,生成两个状态变量 --> 让FunObj3看起来就像一个三元FunObj
+                   .....
+  柯里化后的函数的结构为一元FunObj的嵌套结构
+  FunObj1 
+   FunObj2 
+    FunObj3 
+     ....
+      FunObjN   --> N-1个状态变量,1个输入变量.
+                    进行实际的函数处理
+   
+  例子:
+  1)二元函数:
+    bool greater(double first,double second){
+      return first > second;
+    }
+    柯里化后的一元FunObj:
+    auto greater_curried(double first){ 
+      
+        return [=](double second){ 
+            return first > second;
+          };
+    }
+
+  2)三元函数:
+    void print_person(const person_t& person,
+                      std::ostream& out,
+                      person_t::output_format_t format)
+    柯里化后的三元FunObj:
+    auto print_person_curried(const person_t& person){ 
+
+      return [&](std::ostream& out){ 
+
+        return [&](person_t::output_format_t format){ 
+          print_person(person,out,format);      //实际的函数处理
+        }
+      
+      }
+      
+    }
+  
+  一直嵌套编写lambda比较繁琐
+  辅助函数make_curried()可以生成任意函数的柯里化版本    --->    使用例子见77页
+
+
+  对于多参数函数,可以固定某些输入变量,然后编写上层API      --> 输入变量数减少,函数功能被限定
+  但输入变量的取值可能甚多,而且在固定时,输入变量可自由组合 --> 上层API数膨胀
+  函数的柯里化可用于解决API的膨胀
+  例子:
+  对数据库进行查询,需要的基本输入变量:
+  1)与数据库的连接:connection
+  2)查询的表名:table_name
+  3)查询条件:query_condition
+  每个变量有多种取值,多个变量可以自由组合
+  比如在此情景中:与数据库的连接分为本地连接和远程连接
+                 表名则不计其数
+  
+  假如用户对某张表有大量的查询请求,怎样为其设计API?
+  1)自行编写:
+    query01(query_condition){ 
+      query_impl(connection,table_name,query_condition);      //connection和table_name已指定
+    }
+    缺点:若connection和table_name参数可以发生改变,则需要另写API   --> 容易导致API膨胀
+
+  2)对query_impl进行柯里化
+    auto query = make_curried(query_impl);
+    auto query01 = query(connection,table_name);
+    可根据生成各种函数对象,而不会增加API的复杂性
+  
+  也可以使用std::bind()绑定函数中的任意参数,然后生成新的函数对象.
+  但必须知道参数的个数,对于未绑定的参数则 使用占位符 来预留输入变量通道
+
+  柯里化的缺点:只能从左到右顺序绑定函数参数 --> 所以左边的参数应对应相对较底层的概念
+          优点:不需要额外处理未绑定的参数
+
+
+6.需求:读取一个文本文件,找到n个使用频率最高的单词,并按使用频率进行排序输出
+  用函数式编程思维来解决该问题:
+  1)将大问题分解为多个子问题
+  2)为每个子问题定义一个处理函数 --> 需要确立函数的功能以及输入与输出
+  3)用管道将函数组合起来         --> 函数A的输出 可顺着管道轻松地流向 函数B的输入
+
+  在此例中,子问题为:
+  1)读取文本文件
+    read_file:(const string& filename) -> vector<string>
+    功能:读取文件,生成字符串列表
+
+  2)统计每个单词的频数
+    count_words:(vector<string>) -> unordered_map<string,unsigned int>
+    功能:遍历所有单词,统计每个单词出现的次数
+         用hash表存储 <单词,出现次数> 键值对
+
+    对其进行抽象:统计集合中各个元素出现的次数
+    用模板表示泛型的抽象
+    template<typename C
+             typename T = typename C::value_type>
+    unordered_map<T,unsigned int> count_occurrences(const C& collection)
+
+
+  3)对hash中的键值对进行翻转 --> <出现次数,单词>
+    reverse_pairs:(unordered_map<string,unsigned int>) -> vector<pair<unsigned int,string>>
+    
+
+  4)对翻转后的键值对列表按照出现次数排序
+    sort_by_occurrences:
+
+  5)输出
+
+
+
+7.函数提升:增加函数能处理的输入类型
+  提升会产生新的FunObj.其输入类型就是我们想要增加的处理类型.
+  FunObj会对输入先进行"适当转换",然后调用原函数进行处理
+
+  比如:(没做类型检查)
+  1)旧函数进行提升,使其能处理指针类型
+  template<typename Function>
+    auto pointer_lift(Function f){
+      //产生新的FunObj
+      return [f](auto* item){         //接收指针
+          if(item)
+            f(*item);       对输入进行"适当转换"
+        }
+    }
+
+  2)使其能处理集合类型
+  template<typename Function>
+    auto collection_lift(Function f){
+
+      return [f](auto& collecion){    //接收集合
+        for(auto& item: connection)   //对输入进行"适当转换"
+          f(item);
+      }
+
+    }
+
+
+
+8.reverse_pairs的实现:
+  本质:对集合中所有的元素(键值对)做相同的处理(翻转)
+       然后将结果收集到新的集合中                       --> This is exactly what std::transform() does
+
+  //处理泛型键值对集合      --->      函数提升
+  //模板约束
+  template<typename C,
+           typename P1 = typename remove::cv<typename C::value_type::first_type>::type,   --> 去出顶层const
+           typename P2 = typename C::value_type::second_type
+          >
+  vector<pair<P2,P1>> reverse_pairs(const C& c){ 
+    vector<pair<P2,P1>> result(c.size());
+
+    std::transform(std::begin(items),std::end(items),
+                   std::begin(result),
+                   [](const pair<const P1,P2>& p){          //翻转处理
+                      return make_pair(p.second,p.first);
+                    });
+    return result;
+  }
+

@@ -1,0 +1,138 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 9, Exercise 21<BR>
+<BR>
+</H1>
+The restrictions on car moves are
+<dl compact>
+<dt> 1.
+<dd>
+A car may be moved from the front (i.e., right end)
+of the input track to the rear
+of one of the holding tracks or to the left end of the output track.
+<dt> 2.
+<dd>
+A car may be moved from the
+front of a holding track to the left end of the output track.
+</dl>
+<br>
+With these restrictions Program 9.6 does indeed succeed in rearranging cars
+whenever a <code class=var>k</code> track rearrangement is possible.
+<br><br>
+To prove this suppose that there is a rearrangeable
+<code class=var>k</code> track input permutation
+on which Program 9.6 fails.
+Let <code class=var>S =
+s<sub>1</sub>,
+s<sub>2</sub>,
+s<sub>3</sub>, ...,</code>
+be a sequence of
+car moves that uses at most <code class=var>k</code> tracks
+and succeeds in rearranging the cars.
+Consider the car moves <code class=var>F =
+f<sub>1</sub>,
+f<sub>2</sub>,
+f<sub>3</sub>, ...,
+f<sub>q</sub></code>
+made by Program 9.6 up to the
+point it declared failure.
+Our proof strategy is to successively transform
+<code class=var>S</code>
+into the sequences
+<code class=var>S<sub>1</sub>,
+S<sub>2</sub>,
+S<sub>3</sub>, ...,
+S<sub>p</sub></code>
+such that each sequence is a valid way to rearrange the cars using
+at most <code class=var>k</code> tracks and the front part of
+<code class=var>S<sub>p</sub></code>
+is the same as
+<code class=var>F</code>.
+Now, since the move
+<code class=var>s<sub>q+1</sub></code>
+is valid for
+<code class=var>S<sub>p</sub></code>, it must be valid for
+<code class=var>F</code> because the
+track configurations are identical at this time in both
+<code class=var>S<sub>p</sub></code> and
+<code class=var>F</code>.  So, Program 9.6
+could not fail with the sequence
+<code class=var>F</code>, contradicting the
+assumption that the program did fail.
+
+<br><br>
+To obtain
+<code class=var>S<sub>p</sub></code> as above,
+find the smallest <code class=var>i</code>,
+<code class=var>i &lt;=
+q</code>
+such that
+<code class=var>s<sub>i</sub></code>
+is different from
+<code class=var>f<sub>i</sub></code>.
+If such an
+<code class=var>i</code> does not exist
+<code class=var>S</code> is the sequence
+<code class=var>S<sub>p</sub></code> and we are done.
+So assume that
+<code class=var>i</code> exists.
+<br><br>
+
+<code class=var>s<sub>i</sub></code>
+cannot be a move that moves a car to the output track as Program 9.6
+moves cars to the output track as soon as it is possible to do so and
+<code class=var>s<sub>i</sub></code>
+and
+<code class=var>f<sub>i</sub></code> are different.
+If
+<code class=var>f<sub>i</sub></code> moves car
+<code class=var>u</code> to
+the output track, then we may alter the move sequence
+<code class=var>S</code> to do the same now and delete from
+<code class=var>S</code> its later move that moves car
+<code class=var>u</code> to the output track.  This change in
+<code class=var>S</code> does not affect the correctness of the
+move sequence and yields the rearrangement sequence
+<code class=var>S<sub>1</sub></code>.
+<br><br>
+
+If neither <code class=var>s<sub>i</sub></code> nor
+<code class=var>f<sub>i</sub></code> moves a car
+to the output track, both move the next input car to a holding track; but
+the holding track <code class=var>a</code> the car is moved to by
+<code class=var>S</code> is different from the holding track <code class=var>b</code>
+it is moved to by
+<code class=var>F</code>.  Change
+<code class=var>s<sub>i</sub></code> to move the
+car to the holding track <code class=var>b</code> instead and
+change all future moves of
+<code class=var>S</code> that move a car to track
+<code class=var>a</code> to move the car to track
+<code class=var>b</code> and vice versa.  The new sequence is
+<code class=var>S<sub>1</sub></code>.
+Notice that these changes
+preserve the property that cars on a track are in increasing order
+from front to rear and so the sequence
+<code class=var>S<sub>1</sub></code> remains a valid rearrangement
+sequence.
+<br><br>
+
+By performing the above transformations first on
+<code class=var>S</code> to get
+<code class=var>S<sub>1</sub></code>, then on
+<code class=var>S<sub>1</sub></code>, to get
+<code class=var>S<sub>2</sub></code>, and so on,
+we eventually obtain
+<code class=var>S<sub>p</sub></code> and we are done.
+
+
+</FONT>
+</BODY>
+</HTML>

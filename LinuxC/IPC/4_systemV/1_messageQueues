@@ -1,0 +1,187 @@
+1.Message queue allows processes to exchange data in the form of messages
+  It's similar to pipe and FIFO but also differs in important ways
+  1)The handle used to refer to a message queue is the identifier returned by a call to msgget()
+    It's not the same as the fd 
+
+  2)Communication via message queue is message-oritented
+    It's not possible to read part of the message,leaving the remainder in the queue,or read multiple messages at a time
+    It contrasts with pipe which provides undifferentiated stream of bytes.The reader can read an arbitrary number of bytes at a time,irrespective of the size of data blocks written by writer
+
+  3)In addition to containing data,each messages has an integer type
+    Messages can retrieved from a queue either by the fifo order or type
+
+2.Create and open a message queue
+  int msgget(key_t key,int msgflg)
+  It creates a new message or obain the id of an existing queue
+  1)key
+    Usually IPC_PRIVATE or a key returned by ftok()
+
+  2)msgflg
+    It'a bit mask that specifies permissions to be placed on a new message queue or checked against an existing queue
+    IPC_CREAT and IPC_EXCL  ---> They are similar to O_CREAT and O_EXCL
+
+  3)msgget() begins by searching a set of all existing message queues for one with specified key
+    If a matching queue is found,then the id of that matching queue is returned unless both IPC_CREAT and IPC_EXCL were specified in which case an error is returned
+    If no matching queue is found and IPC_CREAT is specified,a new queue is created and its id is returned
+
+3.Exchange messages
+  1)int msgsnd(int msgqid,const void* msgp,size_t msgsz,int msgflg)
+    a.msgp
+      It points to programmer-defined structrue used to hold the message to be sent or received 
+      It has the general form
+      struct myMsg{
+        long mtype;
+        char mtext[];
+      }
+      A zero-length mtext is permitted
+      It's useful if the information to be conveyed can be encoded soly in the message type 
+    
+    b.msgsz
+      It specifies the number of bytes contained in the mtext field
+
+    c.msgflg
+      IPC_NOWAIT
+      It performs a nonblocking send 
+      Normally,if the message queue is full,msgsnd() blocks until enough space is avaliable to allow message to be placed on the queue
+      If this flag is set,it fails with errno EAGAIN
+      
+    d.A msgsnd() blocks because the message queue is full and may be interrupted by signal handler
+      In this case,msgsnd() always fails with errno EINTR
+      msgsnd() is among system calls that are never automatically restarted regardless of the setting of SA_RESTART
+
+  2)ssize_t msgrcv(int msqid,void* msgq,size_t maxmsgsz,long msgtyp,int msgflg)
+    It reads a message from a message queue and copies its contents to the buffer pointed by msgq
+    a.maxmsgsz
+      It specifies the maximum space avaliable in the mtext field of the msgq buffer 
+      If mtext exceeds the maxmsgsz,then by default,no message will be removed from the message queue and msgrcv() fails with errno E2BIG
+
+    b.We can select message according to mtype field value
+      1)It equals 0
+        The first message from the queue is removed and returned to the calling process
+
+      2)It's greater than 0
+        The first message in the queue whose mtype equals msgtyp is removed and returned
+
+      3)It's less than 0
+        Treat the waiting messages as a priority queue 
+        The first message of lowest mtype less than or equals the absolute value of msgtyp is removed and returned
+    
+    c.msgflg
+      1)IPC_NOWAIT
+        Perform a nonblocking receive
+        Normally if no message matching msgtyp is in the queue,then msgrcv() blocks until such a message becomes avaliable
+        Specifying this flag causes msgrcv() instead immediately return with errno ENOMSG
+
+      2)MSG_EXCEPT
+        The first message from the queue whose mtype is not equal to msgtyp is removed and returned
+        It's Linux-specific and is made avaliable only if the _GNU_SOURCE is defined
+
+      3)MSG_NOERROR
+        By default,if the size of mtext exceeds maxmsgsz,msgrcv() fails with errno E2BIG
+        Specifying this flag causes msgrcv() instead remove the message from the queue,truncate its size to maxmsgsz and returns it to the caller
+
+4.Message queue control operations
+  int msgctl(int msgqid,int cmd,struct msgqid_ds* buf)
+  1)cmd
+    a.IPC_RMID
+      Immediately remove the message queue object and its associated msgqid_ds data structure
+      All messages remaining in the queue are lost 
+      Any blocked reader and writer are immediately awakened with msgsnd() or msgrcv() and fails with errno EIDRM 
+
+    2)IPC_STAT
+      Place a copy of msqid_ds data structrue in the buffer pointed to by buf
+
+    3)IPC_SET
+      Update the msqid_ds data structure
+
+5.Message queue associate data structrue
+struct msgqid_ds{
+  fields see in pdf 948
+}
+  We can obtain some information about the message queue through the msqid_ds
+
+6.Message queue limits
+  Linux impose a series of system-wide limit on message queue
+  1)MSGMNI
+    Number of message queue identifiers
+  2)MSGMAX
+    Number of bytes that can be written in a single message
+  3)MSGMNB
+    Number of bytes that can be held in a message queue at a time
+    It's used to initialize the msg_qbytes of the msqid_ds data structrue
+    
+  4)MSGTQL
+    Number of messages that can placed on all message queues on the system
+  
+  Linux limits the number of messages on an individual queue to the value specified by queue's msg_qbytes
+  This limitation is relevent only if we are writing zero-length message to a queue
+  It's necessary to prevent an infinite number of zero-length messages being written to the queue
+  Although it contains no data,each zero-length message consumes a small amount of memory for system bookkeeping overhead
+
+  We can use Linux-Specific IPC_INFO operation to retrieves a structure of type msginfo which contains the value of various message queue limits
+  Ex:struct msginfo limit;
+     msgctl(0,IPC_INFO,(struct msqid_ds*)&limit);
+
+7.Display all message queue on the system
+  We can obtain a list of all IPC objects on the system via either a set of files in /proc or a set of Linux-specific ctl(msgctl(),semctl(),shamctl()) operations
+  1)MSG_INFO,SEM_INFO,SHM_INFO
+    It serves two purposes
+    a.Return a structure detailing all resources consumed by all message queues on the system
+    b.Return the index of maximum item in the entries array pointing to data structrues for message queue
+    SEM_INFO and SHM_INFO are applied to semaphore and shared memory,respectively
+
+  2)MSG_STAT,SEM_STAT,SHN_STAT 
+    Like IPC_STAT operation,they retrieve associated data structrue for IPC object
+    But they differ in two respects
+    a.Instead of expecting the IPC-id as the first argument of ctl call,they expect an index into the entries array
+    b.ctl calls return the IPC-id corresponding to the index
+
+  We must define _GNU_SOURCE test macro to obtain the defination of the above constants
+  
+  To list all message queues on the system,we need to do the following
+  1)Use a MSG_INFO to find out the maximum index of entries array for message queues
+  2)Perfom a loop for all the values from 0 up to max index,employing a MSG_STAT for each value
+    During the loop,we ignore the errors that may occur if an item of the entires array is empty(EINVAL) or if we don't have enough permissions on the object to which it refers(EACCES)
+    
+8.Use a single message queue for server and clients
+  It may be suitable when messages exchanged between server and clients are small
+  Folloing points need attention
+  1)Since multiple processes may read the messages at the same time,we must use the message type(mtype) to allow each process to select those messages intended for it
+    One way to accomplish this to use the client's PID as message type for the messages sent from server to clients
+    Messages sent from clients to server must also be distinguished by unique message type
+    For this purpose,we can use the number 1,which,being the pid of init process,could never be the PID of client
+  
+  2)Message queue has a limited capacity
+    If multiple simultaneous clients could fill the message queue,then it would result in a deadlock situation where no new client requests can be submitted and the server is blocked from writting any responses
+    Another prolem is that some macilious may intentionally fail to read messages which would later lead to the queue becoming clogged with unread messages
+
+9.Use one message queue per client
+  It's perferrable where large messages need to be exchanged
+  Folloing points need attention
+  1)Each client must create its own message queue typically using IPC_PRIVATE key and inform the server of the queue's id,usually by transmitting the id as part of client message to the server
+  2)If we expect to have a large number of simultaneous clients,we may need to raise the MSGMNI limit
+
+10.Disadvantages of System V message queue
+   UNIX system provides a series of mechanisms for transmitting data from one process to another process on the same system
+   1)In the form of undelimited stream:pipe,FIFO,UNIX domain stream sockets
+   2)In the form of delmited messages:message queues,UNIX domain datagram sockets
+
+   The distinctive feature of System V message queues is the ability to attach a numeric type to each messsage
+   It's useful in two scenarios
+   a.Reading process may select messages by type
+   b.They may employ a priority-queue strategy
+
+   Disadvantages:
+   a.Messages are referred to by id rather than fd
+     It means a variety of fd-based I/O techniques(epoll()) can't be applied to message queues
+     Writing programs that simultaneously handle inputs from both message queues and fd-based IO mechanisms requires code that is more complext thant code that deals with fd alone
+
+   b.The use of key rather than filenames to identify message queues result in additional programming complexity and also requires the use of ipcls and ipc rm instead of ls and rm
+     The ftok() usually generatees unique key,but it's not guaranteed 
+     IPC_PRIVATE guarantees unique id but leaves us with the task of making it visiable to other processes that require it
+
+  c.Message queues are connectionless and the kernel doesn't maintai a count of the number of the processes referring to queue as is done with pipes
+    So when it is safe for an app to delete a message queue? Premature deletion of queue result in the immediate loss of data
+    And How can an app ensure that an unused queue is deleted
+  
+  d.

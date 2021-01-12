@@ -1,0 +1,33 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 23<BR>
+<BR>
+</H1>
+
+The worst case for <code class=code>quickSort</code> occurs when
+each time a segment is split, either the left or right resulting
+segment is empty.  In this case,
+<code class=var>t(n) = cn + t(n-1)</code> for
+<code class=var>n &gt; 1</code> and
+<code class=var>t(1) = d</code>, where
+<code class=var>c</code> and
+<code class=var>d</code> are constants.  Using the substitution metod, we get<br><br>
+<code class=var>t(n) = cn + t(n-1)<br>
+= c[n + (n-1)] + t(n-2)<br>
+= c[n + (n-1) + (n-2)] + t(n-3)<br>
+.<br>
+.<br>
+.<br>
+= c[n + (n-1) + (n-2) + ... + 2] + t(1)<br>
+= c[n(n+1)/2 - 1] + d<br>
+= Theta(n<sup>2</sup>)</code>
+
+</FONT>
+</BODY>
+</HTML>

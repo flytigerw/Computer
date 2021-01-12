@@ -1,0 +1,54 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 17<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithRemoveRange.h</code>. Test code is
+included in <code class=code>arrayListWithRemoveRange.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithRemoveRange : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithRemoveRange(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void removeRange(int start, int end);
+};
+
+template&lt;class T&gt;
+void arrayListWithRemoveRange&lt;T&gt;::removeRange(int start, int end)
+{// Remove the elements with index between start and end - 1.
+
+
+   if (start &lt; 0 || end &gt; listSize)
+      throw illegalIndex();
+
+   if (start &gt;= end)
+      // nothing to remove
+      return;
+
+   // shift elements with higher index
+   copy(element + end, element + listSize, element + start);
+
+   // destroy uneeded elements
+   int newSize = listSize - end + start;
+   for (int i = newSize; i &lt; listSize; i++)
+      element[i].~T(); 
+
+   listSize = newSize;
+}
+</pre>
+<hr class=coderule>
+The complexity of the method is <code class=code>O(listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

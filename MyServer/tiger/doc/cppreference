@@ -1,0 +1,253 @@
+
+1.memory_order specifies how memory accesses,including regular,non-atomic memory accesses are to be ordered around an atomic operation
+
+2.在多核系统中，当多个线程同时地读写多个共享变量时
+  线程A所观察到的变量值修改顺序可能和线程B对变量值的修改顺序不一致
+  比如:线程B的修改顺序:x,y
+       线程A所看到的修改顺序:y,x
+
+
+3.Memory order
+  1)memory_order_relaxed
+    只保证了操作本身的原子性,但并不保证原子变量中各个操作的顺序性以及不能对指令重排做出限制
+    例子:
+      thread1                               thread2
+    A:r1 = y.load(relaxed);              C:r2 = x.load(relaxed);
+    B:x.store(r1,relaxed);               D:y.store(42,relaxed);
+
+    明显:在thread1中操作A sequenced-before B
+         在thread2中操作C sequenced-beofre D
+    在y的操作序列中:D可能位于A之前,也可能位于A之后.
+    在x的操作序列中:C可能位于B之前,也可能位于B之后
+    结果就可能导致: r1 == r2 == 42  
+    原因:
+     1)发生了指令重排:thread2的执行顺序为:DC.thread1依旧为AB
+       D执行完后切换到thread1
+     2)x的modification order为:BC
+     3)y的modification order为:DA
+     4)总的执行顺序为:DABC
+
+    其最典型的一个应用是用于递增智能指针的计数器 --> 只需要考虑操作的原子性，不需要考虑指令重排(reordering)以及与操作的顺序性(synchronization)
+    而递减智能指针的计数器可能涉及到析构操作 --> (synchronization)
+
+    例2见下
+  2)memory_order_consume 
+    针对原子变量的load操作(读取操作)
+    x.load(memory_order_consume) ---> 为load操作添上consume标签
+    consume标签作用:
+     在当前线程中,若操作A位于x.load(consume)后面,且操作A依赖于此次x.load(consume)所读取到的值
+                  那么操作A就不能重排到x.load(...)前面
+     Note that currently (2/2015) no known production compilers track dependency chains: consume operations are lifted to acquire operations
+     The specification of release-consume ordering is being revised, and the use of memory_order_consume is temporarily discouraged.
+
+  3)memory_order_acquire
+    比consume稍微宽松一点,不要求A依赖于x.load(acquire)读取到的值
+    在当前线程T1中，A不能重排到x.load(acquire)的前面
+    若在其他线程T2中实施了x.store(release)操作，则在x.store(release)之前的写操作(针对T1和T2的共享变量)都对T1的x.load(acquire)可见
+    这个可见的意思为:一旦T1中x1.load(acquire)操作读取到T2中x1.store(release)的值,T2中x.store(release)之前的写操作(包括x.store(release))都已经完成
+
+    可见acquire两大作用
+     a.限制重排
+       保证后面的语句不会被重排到x.load(acquire)
+     b.与release构成Release-Acquire模型
+       该模型强调写要排在读的前面
+
+  4)memory_order_release
+    acquire的对立面
+    针对原子变量的store操作(写操作)
+     在当前线程中T1,若操作A位于x.store(acquire)前面,那么A就不能重排到x.store(acquire)后面
+    //若在其他线程T2中实施了x.load(consume)操作,若T2中含有操作m,其依赖于x.load(consume)读取到的值(该操作不会被重排到consume前面),那么当x.load(consume)完成后,操作m就可以知道T1通过x.store()向内存中写入的值
+
+
+  Release-Acquire模型的例子:
+  共享变量:atomic<string*> ptr;
+           int data;
+  生产者:                                       消费者:
+   A:string* p = new string("hello");            string* p2;
+   B:data = 42;                                D:while(!(p2 = ptr.load(std::memory_order_acquire)))
+   C:ptr.store(p,memory_order_release)         E:assert(*p2 == "hello") assert(data == 42)
+  解读:
+   1)生产者和消费者围绕共享变量ptr建立了Release-Acquire模型
+     那么acquire就会等待release完成后才能成功 ---> 等待采用自选等待 ---> 故使用while循环
+   2)消费者的acquire完成后,那么生产者中release之前的针对共享变量的写操作都已完成(包括release) --> 即BC语句写操作都已完成 ---> E中的断言肯定会成功
+   该模型的另一个典型应用:互斥量(mutex,atomic spinlock)
+   共享变量为lock
+   比如:线程A释放锁 ---> 对lock写入      ---> 采用release操作
+        线程B获取锁 ---> 对lock读取判断  ---> 采用acquire操作
+   once threadB gets the lock,everything took place in the critical section(shared section) in the context of threadA has to be visiable to threadB
+
+   Release-Consume模型的例子:
+  生产者:                                       消费者:
+   A:string* p = new string("hello");            string* p2;
+   B:data = 42;                                D:while(!(p2 = ptr.load(std::memory_order_consume)))
+   C:ptr.store(p,memory_order_release)         E:assert(*p2 == "hello") 
+                                               F:assert(data == 42)
+   解读:
+   生产者和消费者围绕ptr建立了Release-Consume模型
+   消费者中，后续依赖ptr.load()的值的语句为E，那么E肯定在C之后发生
+   consume只保证后续依赖于ptr.load()的语句不会被重排到前面 ----> F语句可能重拍到D之前 ---> F断言失败 
+   该模型的其他典型应用:
+   1)读取一些很少写的数据(比如路由表,配置)
+   2)Publisher-Subscriber situations with pointer-mediated pulication
+     When the producer publishes a pointer through which the consumer can access information,there is no need to make everything else the producer wrote to memory visiable co consumer(which may be an expensive oepration on weakly-ordered architectures)
+
+  5)memory_order_acq_rel
+    针对原子变量的CAS操作.
+    其既有acquire operation的特点:CAS操作之后的语句不能重排到前面
+      也有release operation的特点:CAS操作之前的语句不能重排到后面
+    综合起来有:No memory reads or writes  in the current thread can be reordered across this operation
+    重排可以，但不能越界
+    若其他线程T2,T3分别对该共享的原子变量施加了load(release)和store(acquire)操作.则T1,T2,T3围绕该变量互相构成Release-Acquire模型
+
+    例子:
+    共享变量: vector<int> data; atomic<int> flag = 0;
+    T1:
+    int excepted = 1;
+    A:while(!flag.CAS(expected,2,memory_order_acq_rel)){
+      excepted = 1;
+    }
+    T2:
+      data.push_back(42)；
+    B:flag.store(1,memory_order_release);
+
+    T3:
+    C:while(flag.load(memory_order_acquire) < 2);
+      assert(data.at(0) == 42)
+    解析:
+     T1,T2,T3围绕flag互相构成Release-Acquire模型
+     acquire发生在release之后
+     所以C肯定排在B之后 --> C之后的断言也肯定会成功
+     其次C也排在A之后,A排在B之后
+     整体的顺序为:BAC
+   
+   6)memory_order_seq_cst
+     3),4),5)的结合体 ----> load operation会打上acquire标签,store operation会打上release标签,CAS操作会打上acq_rel标签---> 保证了操作的顺序一致性 
+     All threads observe all modifications in the same order
+     It establishes a single total modification order of all atomic operations that are tagged
+     This model may be necessary for multiple-producer multiple-consumer situations where all consumers must observe the actions of all producers occuring in the same order
+     Total sequential ordering requires a full memory fence CPU instruction on all multi-core systems
+     It may become performance bottleneck since it forces the affected memory accesses to propagate to every core
+
+
+3.一些术语
+  1)Sequenced-beforer
+    Within the same thread, evaluation A may be sequenced-before evaluation B, as described in evaluation order.
+    没搞懂 ----> 理论太多
+
+  2)Carries dependency 
+    A 在 B 之前求值 ---> A is sequenced-before B
+    A carries dependency into B(B depends on A)的情况:
+     a.表达式B的求值 需要 表达式A的返回值
+       except:
+       B is call to std::kill_depency
+       A is the left operand of the built-in && || , operators
+    
+     b.expr A writes to a scalar Obejct M,expr B reads from M
+       最简单的例子:
+       M = A
+       B = M
+    
+    c.依赖传递
+      X依赖A,B依赖X ---> B依赖A
+
+  3)Modification order
+    对一个原子变量可能施加多个写入(修改)操作，这些操作形成一个order
+    The following four requirements are guaranteed for all atomic operations
+    假如有原子变量M,操作A,B
+    a.Write-Write coherence
+      A和B都会修改M
+      如果A happens-before B
+      那么在modification order中:A位于B之前
+    b.Read-Read coherence 
+      A和B都会读取M
+      操作X会写入M,Y操作修改M,在modification order中,X位于Y的前面
+      如果A happens-before B,而且A读取到的值来自X
+      那么B读取到的值要么来自于A，要么来自Y的side effect  ---> 感觉就是Y的写入
+
+    c.Read-Write coherence 
+      A读取M,B写入M
+      操作X在modification order中位于B之前
+      如果A happens-before B
+      那么A读取到的值来自于X的side effect
+
+    d.Write-Read coherence 
+      A读取M
+      假如有操作X,Y.在modification order中Y位于X后面
+      如果X的side effect是会写入M,且X happens-before A
+      那么B读取到的值要么来自于X的写入，或者Y的side effect
+  
+  4)Release sequence
+    如果A是原子变量M上一个release operation,若M的modification order的在A之后的最长子序列包括了以下操作:
+    a.Atomic CAS made to M by any thread 
+    那么该子序列就称为:release sequence headed by A
+
+  5)Dependency-ordered before
+    Between threads, evaluation A is dependency-ordered before evaluation B if any of the following is true:
+    a.M是共享的原子变量,
+      A是线程T1中M上的一个release operation,
+      B是线程T2中M上的一个consume operation,且B reads a value written by any part of the release sequence headed (until C++20) by A
+    b.A dependency-ordered before X and B depends on X  ---> 依赖传递
+
+  6)Inter-thread happens-before
+    比如:线程A有操作x,线程B有操作y
+    x发生y之前的情况:
+    a.x synchronizes-with y
+      synchronizes with:用于描述对内存的修改操作对其他线程可见
+       如果x和y建立了这种关系，那么在运行时，x之前的内存操作对y之后的操作都可见 ---> 比如Release-Acquire模型
+    
+    b.x is dependency-ordered before y
+      共享变量ABC
+      T1:                                T2:
+      x:A.store(release)               y:r1 =  B.load(consume)
+        B = 15
+        C.CAS(15,16)
+      B和C就属于release sequence headed by A
+
+      B和C就是
+    c.x synchronizes-with some evaluation A, and A is sequenced-before y
+      比如:
+      共享量:M
+      T1:                            T2:
+      x:M.store(release)            A:M.load(acquire)
+                                    y:c = 1
+      显然x和A建立synchronizes-with关系
+
+    d.A is sequenced-before some evaluation X, and X inter-thread happens-before B
+    e.x inter-thread happens-before some evaluation A, and A inter-thread happens-before y -->传递性
+   
+  7)happens-before
+    Regardless of threads, evaluation A happens-before evaluation B if any of the following is true:
+    1) A is sequenced-before B               线程内
+    2) A inter-thread happens before B       线程间
+
+  假如操作A,B共享变量X
+  如果A修改X,B读取或修改X
+  如果AB之间有一个不是atomic operation,那么就会造成data race
+  比如A是原子操作而B不是
+  当B没有读完而被切换，A进行写入，再切回B ---> B读取旧的数据
+  如果A和B之间形成happens before关系,那么就不会出现data race
+    
+
+
+
+
+
+
+
+
+
+Relaxed模型例二:
+std::atomic<int> cnt = {0}
+void f(){
+  for(int n=0;n<1000;n++)
+    cnt.fetch(1,memory_order_relaxed);
+}
+
+//开辟10个线程，每个线程负责递增cnt -----> 不需要考虑reordering以及synchronization,只关注于操作本身的原子性即可
+int main(){
+  std::vector<std::thread> v;
+  for(int n=0;n<10;n++)
+    v.emplac_back(f);
+  for(auto& t:v)
+    t.join();
+}

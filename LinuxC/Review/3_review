@@ -1,0 +1,30 @@
+1.Parent and child communicate using pipe
+  int fds[2];
+  switch(fork()){
+    case -1:
+     //fork error 
+    case 0:
+     //child reads from the pipe ---> close write end
+     if(close(fds[1]) == -1)
+       errExit("close");
+     //read()....
+     break;
+    default: 
+     //parent wirtes into the pipe 
+     if(close(fds[0]) == -1)
+       errExit("close");
+     //write()....
+  }
+
+2.Reasons to close unused fds
+  1)Reader should close write fd
+    Normally,when the writer completes its output,then the reader will see EOF once it has read any outstanding data in the pipe
+    If the reader didn't close the write fd,then the kernel konws there is at least one write fd for the pipe.And the reader won't see EOF when it has read all data from the pipe, instead,it will be blocked waiting for data
+    In theory,the reader can write into the pipe even if it's blocked reading ----> It can be interrupted by a signal which writes into the pipe
+
+  2)Writer should close read fd
+    Normally,when the writer writes into a pipe for which there is no process has an open fd,then it will receive SIGPIPE signal which kills the process by default
+    The writer can also arrange to catch or ignore the SIGPIPE in which case the write() fails with error EPIPE
+    If the writer didn't close the read fd,then when the reader close its read fd,the writer can still write into the pipe.Eventually the pipe will be full and furthur writes will be blocked indefinitely
+  3)Only after all fds in processes are closed that the pipe is destoryed and its resource is released for reuse by other processes
+

@@ -1,0 +1,134 @@
+
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 17, Exercise 3<BR>
+<BR>
+</H1>
+
+<code class=code>$100</code> bills, <code class=code>$50</code> bills, <code class=code>$20</code>, bills, <code class=code>$10</code> bills, <code class=code>$5</code> bills, <code class=code>$1</code> bills,
+quarters, dimes, nickels, and pennies are called
+<strong>currency denominations</strong>.
+Dimes, nickels, and pennies are <strong> smaller denominations</strong>
+than quarters and all $ denominated bills; nickels and pennies are
+smaller denominations than
+dimes, quarters, and all $ denominated bills; etc.
+<br><br>
+
+The algorithm of Example 18.4 can be used regardless of the number
+of denominations available.  We may combine several stages into one
+to arrive at the restatement: <em>consider the denominations in decreasing order
+(i.e., in the order <code class=code>$100</code>, <code class=code>$50</code>, <code class=code>$20</code>, ...); when a denomination is considered
+give out as many of it as possible without exceeding the total amount of change
+to be given out</em>.
+<br><br>
+
+The greedy algorithm always generates change with the fewest number
+of coins and bills.  A proof of this follows.
+
+Let <code class=var>H</code>,
+<code class=var>F</code>,
+<code class=var>T</code>,
+<code class=var>TEN</code>,
+<code class=var>FIVE</code>,
+<code class=var>ONE</code>,
+<code class=var>Q</code>,
+<code class=var>D</code>,
+<code class=var>N</code>, and
+<code class=var>P</code>, respectively, be the number of
+<code class=code>$100</code> bills, <code class=code>$50</code> bills, <code class=code>$20</code> bills, <code class=code>$10</code> bills, <code class=code>$5</code> bills, <code class=code>$1</code> bills,
+quarters, dimes, nickels, and pennies in the change generated
+by the greedy algorithm.
+Let <code class=var>h</code>,
+<code class=var>f</code>,
+<code class=var>t</code>,
+<code class=var>ten</code>,
+<code class=var>five</code>,
+<code class=var>one</code>,
+<code class=var>q</code>,
+<code class=var>d</code>,
+<code class=var>n</code>, and
+<code class=var>p</code>, respectively, be the corresponding numbers
+for the change generated
+by an optimal algorithm.
+<br><br>
+We make the following observations:
+<OL>
+<LI>
+From the way the greedy algorithm works, it follows that the
+total amount of change given in lower denominations is less than the value
+of the next higher denomination.  That is, the change given in pennies is less
+than <code class=code>5</code> cents; the change given in pennies and nickels is less than <code class=code>10</code> cents;
+the change given in dimes, nickels, and pennies is less than <code class=code>25</code> cents; etc.
+Therefore,
+<code class=var>F &lt; 2</code>,
+<code class=var>T &lt; 3</code>,
+<code class=var>TEN &lt; 2</code>,
+<code class=var>FIVE &lt; 2</code>,
+<code class=var>ONE &lt; 5</code>,
+<code class=var>Q &lt; 4</code>,
+<code class=var>D &lt; 3</code>,
+<code class=var>N &lt; 2</code>, and
+<code class=var>P &lt; 5</code>.
+<LI>
+For the optimal change, we can establish
+<code class=var>f &lt; 2</code>,
+<code class=var>t &lt; 3</code>,
+<code class=var>ten &lt; 2</code>,
+<code class=var>five &lt; 2</code>,
+<code class=var>one &lt; 5</code>,
+<code class=var>q &lt; 4</code>,
+<code class=var>d &lt; 3</code>,
+<code class=var>n &lt; 2</code>, and
+<code class=var>p &lt; 5</code>.
+To see this, note that if
+<code class=var>f &gt;= 2</code>, we can replace two <code class=code>$50</code> bills with
+a <code class=code>$100</code> bill and provide the change using one less bill and the same
+number of coins.
+This is not possible as <code class=var>h+f+t+ten+five+one+q+d+n+p</code> is the fewest number
+of bills and coins with which the change can be provided.
+If
+<code class=var>t &gt;= 3</code>, we can replace
+three <code class=code>$20</code> bills with
+a <code class=code>$50</code> bill and a <code class=code>$10</code>
+bill and provide the change using one less bill and
+the same number of coins; if
+<code class=var>ten &gt;= 2</code>, we can replace two <code class=code>$10</code> bills with
+a single <code class=code>$20</code> bill and provide the change using a fewer total number
+of bills and coins; etc.
+Hence, the total amount of change given in
+lower denominations is less than the value
+of the next higher denomination.
+</OL>
+<br><br>
+Now if <code class=var>H != h</code>, then either the greedy or the optimal
+solution must provide <code class=code>$100</code> or more in lower denominations.
+This violates the above observations.  So,
+<code class=var>H = h</code>.  Further,
+if <code class=var>F != f</code>, then either the greedy or the optimal
+solution must provide <code class=code>$50</code> or more in lower denominations.
+This also violates the above observations.  So,
+<code class=var>F = f</code>.  We can show
+<code class=var>T = t</code>,
+<code class=var>TEN = ten</code>,
+<code class=var>FIVE = five</code>,
+<code class=var>ONE = one</code>,
+<code class=var>Q = q</code>,
+<code class=var>D = d</code>,
+<code class=var>N = n</code>,
+and
+<code class=var>P = p</code>
+in a similar way.
+Therefore, the greedy and optimal solutions are the same.
+Hence the greedy algorithm always provides change using the fewest number
+of bills and coins.
+
+</FONT>
+</BODY>
+</HTML>

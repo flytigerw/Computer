@@ -1,0 +1,148 @@
+1 多线程可通过全局变量来共享信息
+  但对于全局变量的访问应该是互斥的
+  critical section : 访问某一共享资源的代码片段 --> 这一代码片段的执行应为atomic --> 其他线程不应中断片段的执行
+  使用mutex保证任意共享资源的原子访问
+
+2 mutex
+  两种状态
+  a.locked  --> 试图对已locked mutex再次lokc会导致线程阻塞或者报错失败
+                一旦线程lock mutex,那么该线程就是该mutex的所有者，只有它才能unlock this mutex
+  b.unlonced
+
+3 静态分配mutex
+  staic pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;  ---> 带有默认属性
+  
+4 动态分配mutex
+  int pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr)
+  适用场景:
+   a.动态分配于堆中的mutex  -- 比如动态数据结构链表的node都含有mutex
+   b.互斥量是栈中分配的自动变量
+   c.指定mutex的attributes
+  使用完以后，应该手动销毁  -- 静态分配则不需要
+  int pthread_mutex_destory(pthread_mutex_t* mutex)
+  若mutex驻留在动态分配的内存区域中，则应在free前将其destory
+  若mutex自动分配，则应在宿主函数返回前destory 
+  destory后mutex可以再init
+
+5 mutex操作API
+  a.int pthread_mutex_lock(pthread_mutex_t* mutex)
+    If the mutex is currently blocked by another thread,then it blocks until the mutex is unblocked
+    If the calling thread itself has locked the mutex,then for the default type of mutex,the result may be:1)the thread deadlocks 2)the class fails,returning the error EDEADLK
+
+  b.int pthread_mutex_unlock(pthread_mutex_t* mutex)
+    unlock未加锁的mutex或者其他线程的mutex --> 错误
+
+  c.pthread_mutex_trylock()
+    try to lock mutex. if mutex is locked,then return failure with errno=EBUSY
+
+  d.pthread_mutex_timedlock()
+    增加abstime --> 设置线程等待获取mutex的最大阻塞时间  --> timeout时.errno=ETIMEDOUT
+  在良好的多线程程序中，线程对mutex的持有时间应该尽可能短，以避免妨碍其他线程的并发执行
+  周期性地使用pthread_mutex_trylock()询问是否可以lock mutex的风险: 队列中的其他线程通过pthread_mutex_lock()相继lock mutex而导致该线程始终与mutex无缘
+
+6 互斥量的性能
+  使用mutex对性能并不显著影响
+  参考futex()  -- fast user space mutex
+
+7 deadlock
+  多个线程 lock 同一组mutex 时可能的情况: A和B已经分别lock mtxA,mtxB
+                                         而A和B接下来又都分别想要mtxB,mtxA
+                                         形成局面:互相持有对方想要的资源，互相等待对方释放资源 --> deadlock
+  解决:
+  a.定义mutex的处理顺序
+    总是顺序地lock同一组的mutex   --> 比如A和B都顺序地lock mtxA,mtxB
+  b.lock the first mutex using lock()
+    lokc the remaining mutex using try_lock()
+    If any try_lock() fails with EBUSY,then the thread releases all mutexes nad tries again
+
+8 mutex属性之 -- 类型
+  a.PTHREAD_MUTEX_NORMAL
+  b.PTHREAD_MUTEX_ERRORCHECK
+    mutex的所有操作都会执行错误检查
+    运行较慢，可作为调试使用
+  c.PTHREAD_MUTEX_RECURSIVE
+    维护一个锁计数器
+    同一线程每lock一次就+1,unlock则-1,-到0时才release
+  Linux provides nonstandard static initializers for above mutex types(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),so that the pthread_mutex_init() is not required to initialize these mutex types for statically allocated mutexes
+
+  创建一个error-checking mutex
+  pthread_mutex_t mtx;
+  pthread_mutexattr_t mtxAttr;
+  int s;
+  //initial mutexAttr
+  s = pthread_mutexattr_init(&mtxAttr);
+  if(s != 0) ...
+
+  //set attribute 
+  s = pthread_mutexattr_settype(&mtxAttr,PTHREAD_MUTEX_ERRORCHECK);
+  if(s != 0) ...
+
+  //initial mutex with attribute
+  s = pthread_mutex_init(mtx,&mtxAttr);
+  if(s != 0) ...
+  .............
+  //destory mutexAttr
+  s = pthread_mutexattr_destory(&mtxAttr);
+  if(s != 0) ...
+
+9 A mutex prevents multiple threads from accessing the shared resources at the same time
+  A condition variable allows one thread to inform other threads of the changes in the state of the shared resources  and allows other threads to wait for such notification
+ 
+
+10 静态分配条件变量
+   static pthread_count_t cond = PTHREAD_COND_INITIALIZER;
+
+11 动态分配条件变量,类似mutex
+   int pthread_cond_init(pthread_cond_t* cond, const pthread_condattr_t* attr)
+   不用时销毁
+   int pthread_cond_destory(pthread_count_t* cond)
+12 主要操作
+   a.int pthread_cond_wait(pthread_cond_t* cond,pthread_mutex_t* mutex);
+     阻塞线程，直到收到cond的通知
+     执行步骤:
+     1)unlock mutex         --- 其他线程可以访问共享资源
+     2)阻塞调用线程，等待通知
+     3)lock mutex
+   b.int pthread_cond_timedwait(pthread_cond_t* cond,pthread_mutex_t* mutex,const struct timespec* abstime);
+     设置阻塞时间上限
+   
+   c.int pthread_cond_signal(pthread_count_t* cond)
+     唤醒某一阻塞在该cond的线程
+     It doesn't matter which one the waiting threads is woken up
+     This scenario typiaclly applies when all waiting threads are designed to perform the same task
+   
+   d.int pthread_cond_broadcast(pthread_count_t* cond)
+     适用于等待线程执行的任务不同 --> 各线程关联于条件变量的判定条件不同
+
+代码格式:
+  //lock mutex to ensure the access of shared variable is safe
+  s = pthread_mutex_lock(&mtx);
+  if(s != 0)
+   errExitEN(s,"pthread_mutex_lock");   
+  
+  while(Check the  shared variable is not in state we want)  --> so we're going to blcok the thread and wait for notify 
+    pthread_cond_wait(&cond,mtx);   --> it will block the thread and unlock the mutex so that other threads can access                                         the shared variable and change the state
+                                    --> the two actions are atomic --> other threads can't lock the mutex when falling                                                                        into the waiting state
+                                    --> Once notified,it locks the mutex again for accessing the shared resources exclusively
+  
+  //unlock mutex 
+  s = pthread_mutex_unlock(&mtx)
+  if(s != 0)
+    errExitEN(s,"pthread_mutex_lock");
+
+13 unlock与signal的顺序
+   应先unlock再signal
+   若先signal ->context switch,线程醒来，会lock mutex ->而mutex未unlock ->又被阻塞休眠,context switch
+   会有两次多余的context switch
+   
+   wait morphing:将阻塞于 接收信号的线程从 cond var的等待队列 转移 至mutex等待队列 
+
+14 测试条件变量的判断条件 
+   每个条件变量都有与之相关的 判断条件。涉及一个或者多个shared variable 
+   只能用while进行判断控制
+   There are no guarantees about the state of the predicate on return from pthread_cond_wait() 
+   原因:线程A修改shared variable使其为desired state --> unlock mutex --> sginal --> 唤醒条件变量等待队列中的线程B
+        理想:线程B lock mutex
+        但是:其他线程可能抢先lock mutex,并修改shared variable,unlock mutex--> 然后线程B再lock mutex即从pthread_cond_wait中返回,但此时shared variable并不是我们想要的状态，所以应再次进行判断
+   
+   也可以防止虚假唤醒 ---> 没有线程向cond发送信号，但等待此cond的线程仍然可能醒来

@@ -1,0 +1,71 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 16, Exercise 43<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt> (a)
+<dd>
+Define the length of a (directed) path to be the
+number of edges on it.  Let <code class=var>d(v,w)</code> be the length
+of a shortest (directed) path from <code class=var>v</code>
+to <code class=var>w</code> in
+<code class=var>G</code>.
+<code class=var>d(v,v) = 0</code> and
+for every vertex <code class=var>w</code> reachable from
+<code class=var>v</code>,
+<code class=var>d(v,w) &lt;</code>
+<code class=var>n</code>, where
+<code class=var>n</code> is the number of vertices in
+<code class=var>G</code>.  We
+shall prove the theorem by contradiction.  Suppose that
+the pseudocode of Figure 17.17
+does not label some vertex <code class=var>i</code>
+for which <code class=var>d(v,i) &lt;</code>
+<code class=var>n</code>.
+Let <code class=var>j</code> be an unlabeled vertex with minimum
+<code class=var>d(v,j)</code>.  Clearly,
+<code class=var>d(v,j) &lt;</code>
+<code class=var>n</code>.  We may assume that
+<code class=var>d(v,j) &gt; 0</code> as
+<code class=var>d(v,j) = 0</code>
+only if <code class=var>j = v</code> and
+<code class=var>v</code> is labeled right in the beginning.
+<br><br>
+
+Since <code class=var>d(v,j) &gt; 0</code>, there is a vertex
+<code class=var>t</code> adjacent to
+<code class=var>j</code> for which
+<code class=var>d(v,t) =
+d(v,j) - 1</code>.  By assumption, vertex
+<code class=var>t</code> is labeled by the time
+breadth first search terminates.  So, <code class=var>t</code> must have been added
+to the queue at some time.  Since the queue is empty
+at termination, <code class=var>t</code> must have been deleted from
+the queue
+at some time.
+Immediately following this
+deletion,  the as yet unlabeled vertices adjacent from <code class=var>t</code> get labeled.
+Therefore, vertex <code class=var>j</code> must be labeled when the pseudocode terminates.
+This contradicts the assumption that <code class=var>j</code> is unlabeled when the
+pseudocode terminates.
+<br><br>
+
+<dt> (b)
+<dd>
+By the time the execution of <code class=code>dfs</code>
+completes, there is no newly labeled vertex that has an unlabeled
+vertex adjacent from it.  As a result, there are no unlabeled vertices
+reachable from <code class=code>v</code>.  Hence all reachable
+vertices have been labeled <code class=var>label</code>.
+
+</FONT>
+</BODY>
+</HTML>

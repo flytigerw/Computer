@@ -1,0 +1,196 @@
+
+1.On Linux,the default model for scheduling processes for use of CPU is round-robin time-sharing
+  Each process in turn is permitted to use the CPU for a brief period of time --> Time Slice
+  This model satisfies two important requirements of interactive multitasking system
+   1)Fairness
+     Each process gets a share of CPU
+   2)Responsiveness
+     A process doesn't need to wait long periods before receiving the use of CPU
+
+   Under this model,processes can't exercise direct control over when and for how long they will be able to use the CPU
+   Each process will receive a roughly equal share of CPU
+
+   nice value indirectly influences the kernel's scheduling algotithm
+   Each process has nice value range -20(high priority) to +19(low priority)
+   The default is 0
+   The nice value is inherited by child via fork() and preserved across exec()
+
+2.Processes are not scheduled in a strict hierachy of nice value
+  Rather nice value acts as weighting factor that causes kernel scheduler to favor process with high priority
+  Process with low priority does't mean that it will be completely starved of CPU but it will receive relatively less CPU time
+  
+3.Funcs to retrive and change process's values
+  int getpriority(int which,id_t who)
+  int setpriority(int which,id_t who,int prio)
+  1)which and who are used to identify the process
+    which determines how who is interpreted
+    a.PRIO_PROCESS
+      Operate on process whose PID equals who
+      If who is 0,use the caller's PID
+    
+    b.PRIO_PGRP
+      Operate on all the members of PGRP whose PGID equals who
+      If who is 0,use the caller's PGRP
+    
+    c.PRIO_USER
+      Operate on all processes whose real userID equals who
+      If who is 0,use the caller's read userID
+
+     getpriority():If multiple process match the specified cirteria,then the nice value of the process with the highest priority is returned
+     Since it may legitimately returns -1 on a successful call,we must test an error by setting errno to 0 prior to the call,and then checking for a -1 return status and nonzero errno value later
+     
+     setpriority():Attempts to set the nice value out of the permitted range[-20~+19] are silently bounded to the range
+   
+    A priviledged process can change the priority of any process
+    The unpriviledged process can change the priority of another process if its effective or real userID matches the effective or real userID of target process
+
+    Linux provides RLIMIT_NICE,which permits unpriviledged process to increase its nice value
+    An unpriviledged process can rise its nice value to the maximum specified by the formula 20-rlim_inr where the rlim_inr is the current RLIMIT_NICE soft resource limit
+    From this formula and the knowledge that the nice value has the range [-20~+19],we can deduce that the effective useful range of RLIMIT_NICE is [1~40]
+
+4.The standard kernel scheduling algorithm provides adequate performance and responsiveness for the mixture of interactive and background process run a system
+  But the real-time apps have more stringent requirements
+  1)A real-time app must provide a guaranteed maximum response time which is typically quite small
+    To satisfy this requirement,the kernel must provide facility for a high-priority process to obtain the control of CPU in a timely fashion,preempting any process that may currently be running
+  2)A high-priority process must be able to maintain exclusive access to CPU until it completes or voluntarily relinquishes the CPU
+  3)A real time app shoule be able to control the precise order in which its component processes are scheduled
+
+  Real time scheduling policies:SCHED_RR and SCHED_FIFO
+  Prcesses operating under either of the two policies always have priority than processes scheduled using round-robin time-sharing policy which is specified by constant SCHED_OTHER
+  Each of the real-time policies allows for a range of priority levels and Linux provides 99
+  The priorities in each policy are equivalent
+
+  On multipleprocessor Linux system,each CPU has a separate run queue and processes are prioritized per CPU run queue 
+  Real-time app that emply multiple processes can use CPU affinity API to avoid problems that might result from this scheduling behaviour
+
+5.Scheduling policies
+  1)SCHED_RR(Round-robin)
+    Under this policy,the processes with equal priority are executed in round-robin time-sharing fashion
+    The process employing this policy maintains the control of CPU until:
+    a.It reaches the end of the time slice
+    b.It voluntarily relingquishes the CPU either by performing blocking sysCall or by calling sched_yield()
+    c.It terminates
+    d.It's preempt by high-priority process
+
+    For the first two events,when the process running under this poliy lose contol of CPU,it's placed at the back of the queue for its priority level
+    In the final case,the preempted process remain the head of the queue for its priority level
+    
+    In both SCHED_RR and SCHED_FIFO policies,the currently running process may be preempted by the following reasons
+    a.A higher priority process that was blocked became unblocked
+    b.The priority of another process was raised to higher level than currently running process
+   c.The priority of currently running process was decreased to lower level than some other runnable process
+
+   The SCHED_RR policy is similar to the standar round-robin time-sharing policy
+   The most notable difference is the existence of strictly distinct priority levels,with high-priority process always take precedence over low-priority process
+   By contrast,a low nice value does't give process exclusive access to CPU.
+   Process with low priority always receive at least some CPU time
+
+   In addition,the SHCED_RR policy allows us to precisely control the order in which the processes are scheduled
+
+  2)SCHED_FIFO policy
+    First In First Out policy is similar to SCHED_RR policy
+    The difference is that it has no time slice
+    Once a SCHED_FIFO process gains access to CPU,it executes until:
+    a.It voluntarily relinquishes the CPU ---> placed at the back
+    b.It terminates
+    c.It is preempted by high-priority process ---> remain the head
+
+6.Real time process scheduling API
+  1)Priority ranges
+    int sched_get_priority_min(int policy)
+    int sched_get_priority_max(int policy)
+    
+    Policy:SCHED_RR or SCHED_FIFO
+    Return:1-99 on LINUX
+    Insead of hard-coding priority to an app,we should specify priority relative to the return value of above funcs
+    Such as sched_get_priority_min(Policy)+1
+
+  2)Modify and Retrieve Policies and Priorities
+    int sched_setscheduler(pid_t pid,int policy,const struct sched* param)
+    It can change both scheduling policy and priority of process
+
+    a.Policy:In pdf 742
+    b.Param:
+    struct sched_param{
+      int sched_priority;
+    }
+     It's specified as a structure to allown an implementation include additional implementation-specific fields which may be useful if an implementation provides additional scheduling polices
+    
+    c.A successful sched_setscheduler() call moves the process specified by pid to the back of the queue for its priority level
+    d.The scheduing policy and priority are inheried by child via fork() and preserved across exec()
+  
+  3)Retrieve scheduling policy and priority 
+    int sched_getscheduler(pid_t pid)
+    int sched_getparam(pid_t pid,struct sched_param* param)
+    
+    a.Pid
+      0--->calling process
+    Both funcs can be used by unpriviledged process to retrieve priority or policy of any other process regradless of credentials
+
+
+   int sched_setparam(pid_t pid,const struct sched_param* param)
+   It provides a subset of functionality of sched_setscheduler()
+   It modifies the priority of process while leaving the policy unchanged
+   
+   
+7.Unpriviledged process can change scheduling policy and priority according to the following rules
+  1)If the process has a nonzero RLIMIT_RTPRIO soft limit,then it can make arbitrary changes to policy and priority,subject to the constraint that the upper limit on the real time policy it may set is the maximum of its current realtime priority and the value of RLIMIT_RTPRIO soft limit
+
+  2)RLIMIT_RTPRIO is 0
+    The only change it can make is to lower its realtime priority and switch realtime policy to nonrealtime policy
+
+  3)SCHED_IDEL is special
+    Process running under this policy can't make any changes to policy regardless of RLIMIT_RTPRIO 
+
+  4)Policy and priority can be changed by anoter unpriviledged process,as long as the effective userID matches the either effective or real userID of the target process
+
+  5)RLIMIT_RTPRIO determines only what changes can be made to its or the special target process's scheduling policy and priority 
+    It doesn't give the process the abilit to change the policy and priority of other process 
+
+8.The real time process with SCHED_RR and SCHED_FIFO policy may look up the system by hogging the cpu to preempt the low priority process
+  There are a few ways to avoid this possibility
+  1)Establish a suitably low soft CPU resource time limit(RLIMIT_CPU)
+    If process consumes too much CPU time,it will be sent a SIGXCPU signal which will kill the process by default
+
+  2)Set an alarm timer using alarm()
+    If the process continues running for the time that exceeds the number of seconds specified by alarm(),then it will be killed by SIGALRM signal
+
+  3)Create a watchdog process with high real time priority 
+    This process can loop repeatedly,sleeping for a specified interval,waking and monitoring the status of other processes
+    Such monitoring could include measuring the value of CPU time clock for each process and checking its scheduling policy and priority by sched_getscheduler() and sched_getparam()
+    If a process is deem to be misbehaving,then the watchdog thread could lower its priority,stop or terminate it by signal
+
+  4)Linux provides nonstandard resource time limit:RLIMIT_RTTIME for controlling the amount of CPU time that can be consumed in a single burst by the process running under a realtime scheduling policy
+    Specified in microseconds,RLIMIT_RTTIME limits the amount of the CPU time that process may consume without performing a sysCall that blocks
+    The count of consumed CPU time is not reset if the process is preempted by high-priority process,is scheduled off because its time slice expired,or calls sched_yield()
+    If the process reach its CPU time limit,as with RLIMIT_CPU,it will be sent SIGXCPU signal which will kill the process by default
+
+9.SCHED_RESET_ON_FORK can be ORed in policy when calling sched_setscheduler() to prevent child created by fork() from inheriting the scheduling policy and priority 
+  The rules are as follows:
+  1)The child process is reset to standard round-robin time-sharing policy,SCHED_OTHER
+  2)If the parent process has a negative nice value,then the nice value of the child is reset to 0
+  This flag is designed to be used in media-playback apps
+  It permits the creation of a single process that has realtime scheduling policy that can't be passed to children
+  It can prevent the creation of fork bombs that try to evade the ceiling set by the RLIMIT_RTTIME resource limit by creating multiple children running under realtime policy
+
+  Once the SCHED_RESET_ON_FORK has been enable for a process,only priviledge process can disable it
+  When a child process is created,this flag is disabled
+
+10.Relinquish the CPU
+   A realtime process can voluntarily relinquish the CPU in two ways
+   1)Perform a sysCall that blocks
+   2)int sched_yield()
+     If there are any other queued runnable processes in the same priority level as the calling process,then the calling process is placed at the back of queue and the process at the head of the queue is scheduled to CPU
+     The use of sched_yield() for nonrealtime process is undefined
+
+11.The SCHED_RR time slice
+    int sched_rr_get_interval(pid_t pid,struct timespec* tp)
+    To find out the length of time slice allocated to a SCHED_RR process
+    a.pid
+     0-->calling process
+    b.tp
+    struct timespec{
+      time_t tv_sec;      //seconds
+      long   tv_nsec;     //Nanoseconds
+    }
+12.

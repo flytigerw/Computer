@@ -1,0 +1,29 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 4, Exercise 1<BR>
+<BR>
+</H1>
+
+In each iteration of the <code class=code>do-while</code>
+loop, the amount added to <code class=code>elapsedTime</code>
+may deviate from the actual run time of
+<code class=code>doSomething</code> by up to 100 ms (or 100 ticks).
+This error is additive over the iterations and so does not
+decline as a fraction of total time.
+<br><br>
+For example, suppose that <code class=code>doSomething</code>
+takes almost 100 ms. to execute.
+In the worst case, the clock reading will change just before each
+execution of the assignment <code class=code>startTime = clock()</code> and the amount added to
+<code class=code>elapsedTime</code> is zero on each iteration of the
+<code class=code>do-while</code> loop; the <code class=code>do-while</code>
+loop does not terminate.
+
+</FONT>
+</BODY>
+</HTML>

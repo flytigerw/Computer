@@ -1,0 +1,112 @@
+1.侵入式数据结构
+  以双向链表为例.
+  链表节点包含两部分:结构+数据
+  将二者分离.
+  定义结构的基类:ListNode
+  用户类继承结构并提供数据 ---> 将结构侵入到用户类中
+
+  稳定的结构上承载泛型的数据 
+  
+  template<class T>
+    SList: 维护ListNode
+  要保证T继承ListNode  
+    static_assert((std::is_base_of<ListNode,T>::value),"T Must be base of ListNode");
+  数据成员:
+   头尾指针+数据个数  ---> 对象之间的操作采用移动语义.比如合并,赋值
+
+2.TSQueue
+  基于LisNode(双向链表)的线程安全队列
+  用户可以选择是否开启线程安全 ---> 锁是否有效
+  typedef typename std::conditional<ThreadSafe,LFLock,FakeLock>::type LockType;
+  conditional<cond,A,B>::type ---> 若cond成立，则使用A类型，否则使用B类型
+  线程安全时，采用LFLock
+  LFLock不支持 = 操作
+  那么设置TSQueue拥有的lock呢?
+  引入一层间接性，用指针指向lock，只要更改指针指向即可
+
+  如何保证安全性? ---> 容器中的元素是共享的，读写之前先加锁
+
+3.WaitQueue 
+  用于条件变量
+  
+
+智能指针:
+  1.强引用影响对象的引用计数 ---> 影响对象的生命周期
+    弱引用则不影响对象的引用计数 --> 其职责在于检测所引用的对象是否已经被释放，从而避免非法访问内存
+
+  2.侵入式的引用计数要求 资源对象本身维护引用计数，同时提供增减引用计数的管理接口
+    通常侵入式方案会提供配套的侵入式引用计数智能指针。
+    该智能指针通过调用资源对象的引用计数接口来增减引用计数
+    优点:
+     1)一个资源对象不管被多少个侵入式智能指针包含，从始至终只有一个引用计数变量
+       不需要在每个使用智能指针对象的地方都new一个计数对象 ---> 使用内存较少，也比较安全
+     2)因为引用计数存储在对象本身，所以在函数调用的时候可以直接传递资源对象地址，而不用担心引用计数值丢失
+    缺点:
+     资源类必须有引用计数变量，并且该变量的增减可以被 侵入式智能指针模板基类操作 --> 很麻烦
+     非侵入的引用计数在资源对象外部维护独立的引用计数 ---> shared_ptr
+
+  3.shared_ptr的操作包括 资源对象指针的修改 + 引用计数修改两部分 
+    引用计数修改是原子操作，但整个操作并不是 ----> 线程不安全
+          
+4.侵入式的智能指针
+  将引用计数器侵入到用户类中 --> 用户类继承引用计数器 --> 用户类也就有了操作计数器的接口
+  根据接口定义相应的操作类
+  比如:
+  template<class T>
+   IncursivePtr
+  数据成员:
+ T* ptr    ---> 指向用户类对象 ---> 调用其给出的计数器操作接口
+特点:
+   用用户类资源进行构造，递增引用计数
+   拷贝构造时，递增引用计数
+   移动构造时，引用计数不变
+   拷贝赋值时 A = B，--A,++B  ---> 引用计数
+   移动赋值时,clear A,swap(A,B),引用计数不变
+   析构时，递减用户类的引用计数
+   
+   引用计数体系
+   1)RefConuter
+     内含原子变量，作为计数器
+     以及deleter ----> 引用计数为0时调用 ---> 负责资源的回收+其他自定义操作
+     提供increment(),decrement(),get_count()接口
+     用户类继承RefCounter
+     那么用户类资源就可以托管到IncursivePtr管理 ---> 自动保证引用计数的正确 
+     使用IncursivePtr+RefCounter就可以实现简单的智能指针 --->保证资源的正确释放
+     但没有考虑弱引用语义
+   2)WeakCounter
+     用于实现WeakPtr ---> 记录但不持有
+     内含原子变量，作为弱引用计数器，供WeakPtr操作
+     提供lock()接口供WeakPtr调用转为强引用指针
+     WeakPtr的功能之一:检测底层资源是否还存在
+     所以还有原子变量ref_count，记录资源是否存在.=1表明资源存在.
+     lock():
+       由于要检测资源是否存在，所以需要先读取ref_count.若存在，则++ref_count ---> 强引用计数+1 
+       涉及到读写两个步骤，采用CAS操作规避并发时的data race
+   3)RefCounter + WeakCounter共同构成SharedRefCounter
+     提供强和弱两种语义
+     用户类要继承SharedRefCounter才能兼具强弱引用语义
+     
+    
+    假如有容器C,元素类型为T*,当从容器中删除时，若T继承了RefCounter,那么就应该decrement()
+    有通用函数
+  template<typename T,typename ...Args>
+    typename std::enable_if<std::is_base_of<RefCounter,T>::value,std::shared_ptr<T>>::type 
+    Decrement(T* ptr){
+      ptr->decrement();
+    }
+  template <typename T>
+    typename std::enable_if<!std::is_base_of<RefCounter, T>::value>::type
+    Decrement(T * ptr){
+    //do nothing
+    }
+    可以判断T是否继承了RefCounter
+
+
+5.Template<class T>
+    IDCounter
+  内含static atomic变量id---> 静态唯一，原子保护
+  构造时，id++
+  假如有用户类X,现在需要为类X维护一个静态计数器 ---> 每个实例对象都有一个ID 
+  只需: class X : IDCounter<X>即可
+  每次X构造时，内部的IDCounter也会构造 ---> id++
+  

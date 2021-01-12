@@ -1,0 +1,195 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 47<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+We do this by using induction on <code class=var>n</code>.
+<br><br>
+<font color=blue>
+Induction Base
+</font><br>
+When <code class=var>n = 0</code> the binary tree has no internal
+node and <code class=var>1</code> external node.
+For this tree <code class=var>E = I = n = 0</code>.
+Therefore, <code class=var>E = I + 2n</code>.
+
+<br><br>
+<font color=blue>
+Induction Hypothesis
+</font><br>
+Let <code class=var>m</code> be any integer <code class=var>&gt;= 0</code>.
+Assume that <code class=var>E = I + 2m</code> for all binary trees that
+have <code class=var>m</code> internal nodes.
+
+<br><br>
+<font color=blue>
+Induction Step
+</font><br>
+We will show that <code class=var>E = I + 2n</code> for all binary trees
+that have <code class=var>m + 1</code> internal nodes.
+Consider any binary tree <code class=var>T</code> that has
+<code class=var>m + 1</code> internal nodes.
+Remove any one of the internal nodes that is a leaf.
+The resulting tree, <code class=var>T'</code> has
+<code class=var>m</code> internal nodes.
+From the induction hypothesis it follows that
+<code class=var>E' = I' + 2m</code> where
+<code class=var>E'</code> and
+<code class=var>I'</code> are, respectively, the external and
+internal path lengths of
+<code class=var>T'</code>.
+
+<br><br>
+Suppose that the removed leaf was at level <code class=var>level</code>
+of <code class=var>T</code>.
+It follows that
+<code class=var>E = E' + level + 2</code> and that
+<code class=var>I = I' + level</code> where
+<code class=var>E</code> and
+<code class=var>I</code> are, respectively, the external and
+internal path lengths of
+<code class=var>T</code>.
+Therefore,
+<br>
+<code class=var>E = E' + level + 2
+<br>
+  = I' + 2m + level + 2
+<br>
+  = I - level + 2m + level + 2
+<br>
+  = I + 2(m + 1)
+</code>
+
+<br><br>
+<dt>(b)
+<dd>
+The internal path length of a binary tree that has <code class=var>n</code>
+internl nodes is <code class=var>sum (i=1 to n) level<sub>i</sub></code>
+where <code class=var>level<sub>i</sub></code> is the length of the
+path from the root to internal node <code class=var>i</code>.
+In a complete binary tree one <code class=var>level<sub>i</sub></code> is
+<code class=var>0</code>,
+two <code class=var>level<sub>i</sub></code>s are
+<code class=var>1</code>,
+four <code class=var>level<sub>i</sub></code>s are
+<code class=var>2</code>,
+eight <code class=var>level<sub>i</sub></code>s are
+<code class=var>4</code>, and so on.
+Further, there is no binary tree that has more
+<code class=var>level<sub>i</sub></code>s equal to
+<code class=var>j</code> for any nonnegative
+integer <code class=var>j</code>.
+Therefore, a complete binary tree minimizes the internal path length.
+
+<br><br>
+<dt>(c)
+<dd>
+
+We will prove this equality by using induction on <code class=var>n</code>.
+<br><br>
+<font color=blue>
+Induction Base
+</font><br>
+When <code class=var>n = 0</code> the right side evaluates to
+<code class=var>1*0 - 2<sup>1</sup> + 2 = 0</code>,
+which equals the internal path length of a binary tree
+that has no internal nodes.
+
+<br><br>
+<font color=blue>
+Induction Hypothesis
+</font><br>
+Let <code class=var>m</code> be any integer <code class=var>&gt;= 0</code>.
+Assume that the equality is correct for all binary trees that
+have <code class=var>n = m</code> internal nodes.
+
+<br><br>
+<font color=blue>
+Induction Step
+</font><br>
+We will show that <code class=var>I = (n+1)p - 2<sup>p+1</sup> + 2</code>
+for all binary trees
+that have <code class=var>n = m + 1</code> internal nodes.
+Consider any binary tree <code class=var>T</code> that has
+<code class=var>m + 1</code> internal nodes.
+Remove any one of the internal nodes that is a leaf.
+The resulting tree, <code class=var>T'</code> has
+<code class=var>m</code> internal nodes.
+We consider the two cases
+(1) <code class=var>p = floor(log<sub>2</sub>(m+2)) =
+floor(log<sub>2</sub>(m+1))</code>
+and
+(2) <code class=var>p = floor(log<sub>2</sub>(m+2)) =
+floor(log<sub>2</sub>(m+1)) + 1</code>.
+<br><br>
+<font color=blue>Case 1:</font>
+<br>
+From the induction hypothesis it follows that the internal path length of
+<code class=var>T'</code> is
+<code class=var>(m+1)p - 2<sup>p+1</sup> + 2</code>. The internal path length
+of
+<code class=var>T</code> is <code class=var>p</code> more than that
+of
+<code class=var>T'</code>. Therefore, the internal path length of
+<code class=var>T</code> is
+<br>
+<code class=var>(m+1)p - 2<sup>p+1</sup> + 2 + p
+<br>
+= (m+2)p - 2<sup>p+1</sup> + 2 
+</code>.
+<br><br>
+<font color=blue>Case 2:</font>
+<br>
+From the induction hypothesis it follows that the internal path length of
+<code class=var>T'</code> is
+<code class=var>(m+1)(p-1) - 2<sup>p</sup> + 2</code>. The internal path length
+of
+<code class=var>T</code> is <code class=var>p-1</code> more than that
+<code class=var>T'</code>. Furthermore,
+<code class=var>2<sup>p</sup> = m + 2</code>.
+Therefore, the internal path length of
+<code class=var>T</code> is
+<br>
+<code class=var>(m+1)(p-1) - 2<sup>p</sup> + 2 + p - 1
+<br>
+= (m+1)p - (m+1) - (m+2) + 2 + p - 1
+<br>
+= (m+2)p - 2(m+2) + 2
+<br>
+= (m+2)p - 2<sup>p+1</sup> + 2
+</code>
+<br><br>
+<dt>(d)
+<dd>
+From part (a) we see that a binary tree than has minimum internal
+path length also has minimum external path length. Therefore,
+part (b) implies that complete binary trees have minimum external path length also.
+Now from part (c) we get <code class=var>(n+1)p  - 2<sup>p+1</sup> + 2n + 2</code>
+as the minimum value of <code class=var>E</code>.
+
+<br><br>
+<dt>(e)
+<dd>
+From parts (a) and (b) it follows that a complete binary tree has
+the smallest average external path. From part (d) we
+see that this smallest average external path length is
+<code class=var>((n+1)p  - 2<sup>p+1</sup> + 2n + 2)/(n + 1) =;
+p - 2<sup>p+1</sup>/(n + 1) + 2 = Omega(log n)</code>.
+<br><br>
+Therefore the average external path length of every binary tree
+that has <code code>n</code> internal nodes is
+<code class=var>Omega(log n)</code>.
+
+</FONT>
+</BODY>
+</HTML>

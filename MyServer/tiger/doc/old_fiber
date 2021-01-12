@@ -1,0 +1,30 @@
+协程模块设计要领
+
+1.Fiber的元素组成
+  标识: string m_name
+        uint64_t m_id
+
+  //执行任务相关
+  上下文环境:  ucontext_t  m_ctx 
+  要执行的任务:functional<void()> m_task
+  执行任务时需要的栈:void* m_stack,ize_t m_stack size
+
+  状态:State ---> 用于Debug
+
+2.主协程:维护子协程队列
+         挑选一个子协程，切换运行
+
+  子协程:创建时，将自己纳入队列中
+         创建后，用户调用start() ----> 设置cur_fiber,运行任务
+         Fiber运行完成后应该关注到的点:
+         1)Fiber的生命周期
+           用户持有Fiber::ptr
+         2)切回到main_fiber
+           run执行结束后，会进行context切换
+
+
+  
+
+
+
+

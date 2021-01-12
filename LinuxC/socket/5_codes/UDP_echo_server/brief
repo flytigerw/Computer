@@ -1,0 +1,27 @@
+
+1.echo service:return a copy of whatever the client sends to it
+
+2.echo service operates on both UDP and TCP port 7.It's a reserved port,so it must be run with superuser priviliges
+
+3.The UDP echo server continuously reads datagram,returning a copy of each datagram to the sender.
+  Since the server only needs to handle a single message at a time,a iterative server design suffices.
+
+4.As for client program,it expects the name of the host on which the server resides as its first cmd-line argumnet 
+  It executes a loop in which it sends each of its remaining cmd-line argumnets to the server as seperate datagrams,and reads and prints each response datagram sent back by the server
+
+5.Concurrent TCP echo server
+  Multiple clients can be serviced simultaneously
+  Main points:
+  1)Since the server create new process for each client connection,we must ensure the zombies are raped
+    Do it within a SIGCHLD handler
+  2)The main body of the server consists of a for loop to accept client connection and then use fork() to create child process that invokes handleRequest() to handle the client
+    In the meantime,the parent continues around the for loop to accept next client connection 
+  3)We can place an upper limit on the amount of child process that the server can create
+    In order to prevent an attacker from attempting a remote fork bomb by using the service to create so many child process on the server system that the server becomes unusable
+    Once the limit is reached,we can temporarily stop accepting connections or alternatively accept the connection and immediately close it 
+  4)After each fork(),the fd for listening and connected sockets are duplicated in the child
+    It means both parent and child can communicate with client using the connected socket
+    But only the child needs to perfom such communication.
+    So parent should close the fd for connected socket immediately after the fork().Otherwise the parent may eventually run out of the fds
+    Since the child does't accept the connection,it closes its duplicate of the fd for the listening socket 
+

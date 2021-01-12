@@ -1,0 +1,56 @@
+1.语法点
+  1)extern "C"{codes} -----> codes支持gcc编译器
+  2)intptr_t:可容纳指针变量值大小的有符号整数
+             可以被安全的在void*和整数间转换
+             用于跨平台的64位程序.比如将一个指针作为整数来运算时，转为intptr_t才是安全的
+  3)int getpagesize()
+    Return the number of bytes in a page.
+    This is the system's page size,which is not necessarily the same as the hardware page size. 
+
+    
+  4)void *protect_page_addr = ((std::size_t)stack & 0xfff)      //高20位清0
+                              ? (void*)(((std::size_t)stack & ~(std::size_t)0xfff) + 0x1000) 
+                              : stack;
+    取当前协程栈内最近的整数页边界地址 ex:0xf7234008 ---> 0xf7235000
+
+  5)int mprotect(void *addr, size_t len, int prot);
+    addr：按页对其的内存基址
+    len：保护的内存页大小，因此保护的地址范围应该是[addr, addr+len-1]
+    prot：保护类型
+        PROT_NONE  The memory cannot be accessed at all.
+        PROT_READ  The memory can be read.
+        PROT_WRITE The memory can be modified.
+        PROT_EXEC  The memory can be executed
+  6)对fiber创建N字节的栈空间(K页)
+    也需要对栈顶的一些额外部分进行保护 ---> 总共K+1页
+
+  7)boost.any  
+    比如:vector<any> ---> 容器可容纳任意对象
+
+2.Context对象
+  数据成员:
+   private:
+     1)fcontext_t m_ctx --> 底层boost库的上下文标识 --> 该Context对象的上下文标识
+     2)要执行的函数任务
+     3)栈相关:栈地址，栈大小，保护页
+     4)自己所属的Fiber对象
+       Fiber* m_fiber
+  
+  static thread_local:
+     Context对象由线程创建.每个线程都有一个main fcontex_t ---> jump_fcontext()时保存在ofc中
+     线程中的每个Context对象都要能够找到main fcontext_t,以便进行切换
+
+  构造函数:
+   1)分配栈空间 ---> 使用malloc分配堆空间当做栈
+   2)调用make_fcontext()创建一个上下文
+   3)进行栈保护 ---> 为什么要保护栈呢?
+   
+  成员函数:
+    1)swap_in()
+      从线程的main fcontext跳转到到该Context对象的上下文 ---> 底部调用jump_fcontext() ----> 参考汇编
+      从汇编可知,jump_fcontext()的第二参数为启动函数，第三参数为启动函数的参数
+      而在此传递了m_fiber作为参数,具体在Fiber对象中进行讲解
+      
+    2)swap_out()
+      从当前Context对象的上下文跳回到main fcontext
+ 

@@ -1,0 +1,81 @@
+
+
+
+侵入式的智能指针
+ 定义引用计数器基类，其管理引用计数器，提供操作计数器的接口
+ 根据接口，定义智能指针类来操作引用计数器
+ 用户类继承引用计数器基类
+
+ 那么动态申请的用户类资源就可以托管到智能指针
+
+1.RefCounter
+  强引用计数器基类
+  特点:可控制对象的销毁
+
+  基本成员:
+  1)atomic<long> count
+    计数器,记录当前有多少个IncursivePtr在共享资源
+    初始为0
+
+    采用atomic的原因:
+
+  2)Deleter
+    上层可自定义析构器
+    在对象析构时，完成某些特定功能，比如通知其他类进行记录
+    默认为delete
+
+  3)atomic<long>* p_count;
+    作用见下文
+
+
+  接口:
+  1)decrement()
+    递减计数器，若递减至0，则析构资源
+  2)其他....
+
+2.IncursivePtr
+  与RefCounter配套的 强引用语义智能指针
+  使用方式:
+   比如有用户类A，其继承RefCounter
+   将动态申请的A资源托管给IncursivePtr
+   IncursivePtr p1(new A(args)) ---> ++count -> 1
+
+   拷贝构造生成p2
+   IncursivePtr p1(p2)          ---> ++count -> 2
+
+   p1销毁，--count -> 1 --> 不会释放资源
+   p2销毁，--count -> 0 --> 释放资源
+
+   p1和p2的销毁可能在不同线程中并发执行，二者共享RefCounter
+   可以将RefCounter中的count设为原子变量，保证并发安全
+
+--------------------------------------------
+  怎样避免用户自己擅自调用RefCounter中的引用计数器操作接口，而导致引用计数器的不平衡?
+  将RefCounter中的接口和数据设为private，将IncursivePtr设为RefCounter的友元
+--------------------------------------------
+
+
+3.WeakCounter
+  弱引用计数器
+  与WeakPtr搭配实现弱引用语义
+  WeakPtr功能:
+   1)检测底层资源是否存在
+     即使底层资源被销毁了，弱引用计数器也应还存在着，以供检测之用
+     所以，WeakCounter只能组合到用户类中，且用户类不掌控WeakCounter的生命周期
+
+     可定义基类:SharedRefCounter
+     继承RefCounter   --->  内嵌强引用计数器
+     组合WeakCounter  --->  组合弱引用计数器
+     用户类只要继承SharedRefCounter，就可以获得强弱两种语义
+
+     怎样在SharedRefCounter被销毁时(强引用计数器递减到0),告知WeakCounter底层资源已经不存在呢?
+     1)lkk
+
+     
+   2)转为IncursivePtr
+     若转型失败，说明底层资源已经不存在
+
+     
+    
+
+ 

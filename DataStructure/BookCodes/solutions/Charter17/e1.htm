@@ -1,0 +1,84 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 17, Exercise 1<BR>
+<BR>
+</H1>
+
+
+Quarters, dimes, nickels, and pennies are called
+<strong>currency denominations</strong>.
+Dimes, nickels, and pennies are <strong> smaller denominations</strong>
+than quarters; nickels and pennies are smaller denominations than
+dimes; etc.
+<br><br>
+Let <code class=var>Q</code>,
+<code class=var>D</code>,
+<code class=var>N</code>, and
+<code class=var>P</code>, respectively, be the number of
+quarters, dimes, nickels, and pennies in the change generated
+by the greedy algorithm.
+Let <code class=var>q</code>,
+<code class=var>d</code>,
+<code class=var>n</code>, and
+<code class=var>p</code>, respectively, be the number of
+quarters, dimes, nickels, and pennies in the change generated
+by an optimal algorithm.
+<br><br>
+We make the following observations:
+<OL>
+<LI>
+From the way the greedy algorithm works, it follows that the
+total amount of change given in lower denominations is less than the value
+of the next higher denomination.  That is, the change given in pennies is less
+than <code class=var>5</code> cents; the change given in pennies and nickels is less than <code class=var>10</code> cents;
+and the change given in dimes, nickels, and pennies is less than <code class=var>25</code> cents.
+Therefore,
+<code class=var>D &lt; 3</code>,
+<code class=var>N &lt; 2</code>, and
+<code class=var>P &lt; 5</code>.
+<LI>
+For the optimal change, we can establish
+<code class=var>d &lt; 3</code>,
+<code class=var>n &lt; 2</code>, and
+<code class=var>p &lt; 5</code>.
+To see this, note that if
+<code class=var>d &gt;= 3</code>, we can replace three dimes by
+a quarter and a nickel and provide the change using one less coin.
+This is not possible as <code class=var>q+d+n+p</code> is the fewest number
+of coins with which the change can be provided.
+If
+<code class=var>n &gt;= 2</code>, we can replace two nickels by
+a dime and provide the change using one less coin; and if
+<code class=var>p &gt;= 5</code>, we can replace five pennies by
+a nickel and provide the change using four fewer coins.
+Hence, the total amount of change given in
+lower denominations is less than the value
+of the next higher denomination.
+</OL>
+<br><br>
+Now if <code class=var>Q != q</code>, then either the greedy or the optimal
+solution must provide <code class=var>25</code> cents or more in lower denominations.
+This violates the above observations.  So,
+<code class=var>Q = q</code>.  Further,
+if <code class=var>D != d</code>, then either the greedy or the optimal
+solution must provide <code class=var>10</code> cents or more in lower denominations.
+This also violates the above observations.  So,
+<code class=var>D = d</code>.  We can show
+<code class=var>N = n</code>
+and
+<code class=var>P = p</code>
+in a similar way.
+Therefore, the greedy and optimal solutions are the same.
+Hence the greedy algorithm always provides change using the fewest number
+of coins.
+
+</FONT>
+</BODY>
+</HTML>

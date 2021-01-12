@@ -1,0 +1,255 @@
+1 Internet domain stream sockets are implemented on top of TCP
+  datagram sockets --- UDP
+
+2 Sending an UNIX domain datagram will block if the queue of data of the receiver is full with TCO
+  By contrast,with UDP,if the incoming datagram would overflow the receiver's queue,the datagram will be silently dropped
+
+3 Different hardware architectures store the bytes of a multibyte integer in different orders
+  Big endian:the most signifcant byte is at the lowest address
+  IP address and port number are both multibyte integer.Since they must be transimitted and understood by all hosts in a network,a standard ordering must be used.
+  The ordering is network byte order and happens to be big endian
+  
+  Some functions:convert host names and servie names into the corresponding numeric forms which can be copied directly into relevant fields of a socket structure
+  We may sometimes make direct use of integer constants rather than names for IP address and port number
+  Eg:
+  Hard-code port number into program
+  Specify port number as cmd-line argument to a program
+  Use constants such as INADDR_ANY when specifying IPv4 address
+  These values are represented in C according to the conventions of the host machine
+  So we must convert these values into network byte order before storing them in the socket structure
+
+4 Functions defined for converting integers in either direction between host and network byte order
+
+  uint16_t htons(uint16_t host_uint16) ---> host to network small
+  uint32_t ntohl(uint32_t ne_uint32)   ---> network to host long
+  
+  These functions are always used to ensure portability even though they are actually useful on systems where host byte order differs from network byte order
+  On systems where host byte order is the same as network byte order,these funcs simply return arguments unchanged
+
+5 We must be aware of the fact that different computer architecture use different conventions for representing various data
+  Big endian or Little endian?
+  The rules for aligning the fields of a structure to address boundaries
+  
+  Due to the differences in data representation,apps that exchange data over network must adopt some common convention for encoding data.
+  Sender must encoding data according to the convention,while the receiver decodes following the same convention
+  Marshalling:Putting data into a standard format for transmission across the network. XML
+
+6 A simpler approach than marshalling is to encode all data in text form,with each separate data delimited by designated character,typically newline character 
+  The advantage of the approach is that we can use telnet to debug an App
+  Ex:
+  CMD:telnet host+port
+  Then:type lines of text to be tranmitted to the app and view the response sent by the app
+
+  readLine() is used when encoding data transmitted on a stream socket as newline-delimited text form
+  ssize_t readLine(int fd,void* buffer,size_t n)
+  a.A line from the fd is stored in buffer as string which is always null-terminated
+  
+7 IPv4 socket address
+struct sockaddr_in4{
+  sa_family_t sin_family;//AF_INET
+  in_port_t   sin_port;  //16 bits
+  struct in_addr sin_addr;//IPv4 address
+  unsigned char __pad[X]; //pad to size of sockaddr's structure
+}
+
+//IPv4 address  unsigned 32bits
+struct in_addr{
+  in_addr_t s_addr;
+}
+
+ IP addr and Port number are in network byte order
+
+IPv6 socket address
+struct sockaddr_in6{
+  sa_family_t sin6_family;//always AF_INET6
+  in_port_t   sin6_port;
+  uint32_t    sin6_flowinfo;
+  struct in6_addr sin6_addr;
+  uint32_t    sin6_scope_id;
+}
+
+IPv6 address 128bits
+struct in6_addr{
+  uint8_t s6_addr[16];
+}
+
+8 Computers represent IP addr and Port number in binary
+  Humans find names easier to remember than numbers
+  Programs can continue to use the symbolic name even though the underlying numeric value changes
+  Hostname is a symbolic identifier for a system that is connected to network
+  Servicename is the symbolic representation of the port number
+
+  Host address can be represented as:binary value,symbolic hostname,dotted-decimal
+  Port number can be reprensted as binary value and symbolic service name
+ 
+
+  Funtions defined for converting between these formats that can be applied to both IPv4 and IPv6
+
+  int inet_pton(int domain,const char* src_str,void* addrptr)
+  1)p stands for presentatioan(human-readable string) and n stands for network(binary form) 
+  2)The converted address is placed in the structure pointed to by addrptr,which should point to an in_addr or in6_addr structure,according to the value specified in domain
+  3)Returns 1 on successful conversion,0 if src_str is not in representation format and -1 on error
+    
+   const char* inet_ntop(int domain,const void*addrptr,char* dst_str,size_t len)
+   1)It performs the reverse conversion
+   2)Resulting null-terminated string is placed in the buffer pointed to by dst_str
+   3)len specify the size of the buffer.If len is too small,func returns NULL with error=ENOSPC
+     Constants to indicate the maximum lengths of presentation string
+#define INET_ADDRSTRLEN 16 -->IPv4
+#define INET6_ADDRSTRLEN 46 ->IPv6
+
+9 Domain Name System(DNS)
+  DNS allows cooperating servers to maintain a distributed database that maps binary IP to host names and vice versa.
+  DNS is essential to the operation of the Internet,since centralized management of enormous set of hostnames would be impossible
+  /etc/services maps port numbers to symbolic service name
+  /etc/hosts maps IP address to hostname --- scales poorly
+
+  Key Ideas of DNS
+  1)Hostnames are organized into a hierachical namespaces
+    Each node in the DNS hierachy has a label,which may be up to 63 characters
+    At the root of the hierachy is an unnamed node,the "anonymous node"
+  
+  2)A node's domain name consists of all the names from that node up to the root concatenated together,with each name separated by .
+    Ex:google.com is the domain name for node google
+  
+  3)A fully quafilied domain name(FQDN) identifies a host within the hierachy.
+    Ex:www.kernel.org.
+    FQDN is distinguished by being terminated by . 
+    Although the . is omitted
+
+  4)No single organization or system manages the entire hirerachy
+    There is a hierachy of DNS servers,each of which manages a branch of the tree
+    Each branch has a primary master name server and one or more slave name servers which provide backup in case the primary one crashes
+    Branch may itself be devided into separately managed smaller branches
+  
+  5)When calling getaddrinfo() to obtain the IP address for a hostname,the getaddrinfo() employs a suite of lib funcs to communicate with local DNS server.
+    If the local DNS server could't supply the required information,then it communicates within the hierachy in order to obtain the information 
+    This process may take a noticeable amount of time.So DNS servers usually employ caching techniques for frequently used domain names
+
+
+10 DNS resolution requests fall into two categories:recursive and iterative
+   1)recursive
+     The requester asks the server to handle the entire taks of resolution,including task of communicating with any other DNS servers
+   2)iterative
+      Suppose the local DNS server is asked to resolve the name www.otago.ac.nz
+      First,it communicates with one of a small set of root name servers that every DNS server is required to know about
+      We can obtain the server list by CMD dig . NS
+      Given the name www.tago.ac.nz,the root name server refers the local DNS server to one of the nz DNS servers
+      The local DNS server then queries the nz server with the name ww.otago.ac.nz and receives a response referring it to the ac.nz server
+      Finally the local DNS server queries the otago.ac.nz server with the name www.otago.ac.nz and obtain the required IP address
+
+11 The rules on how a domain name is completed are defined in /etc/resolv.conf
+   By default,the resolver will at least try completion using the domain name of the local host
+
+12 int getaddrinfo(const char* host,const char* service,const struct addrinfo*hints,struct addrino** result)
+   1)Given a host name and service name,the func returns a list of socket address structure,each of which contains an IP address and Port number 
+   2)The func dynamically allocates a linked list of addrinfo structure that includes a pointer to a socket address structure corresponding to host and service
+   
+   3) struct addrinfo{
+      int ai_flags;     //Input flags:only used in hints argument
+      int ai_family;    //AF_INET,AF_INET6
+      int ai_socktype;  
+      int ai_protocol; 
+      size_t ai_addrlen;
+      char* ai_canonname; //Canonical name of host:only used in the first addrinfo structure and the AI_CANINNAME flag is employed in hints.ai_flags
+      struct sockaddr* ai_addr; //in_addr for IPv4 and in6_addr for IPv6
+      struct addrinfo* ai_next; //Linked List
+   }
+
+   4)The result is a linked list of addrinfo because there may be multiple combinations of host and service corresponding to the criteria specified in host,service and hints arugumnets
+     Ex:If the hints.ai_socktype=0
+        Then two structures may be returned -one for a SOCK_DGRAM socket and the other for SOCK_STRAM socket if the given service was avaliable for both TCP and UDP
+     
+     The three argumnegts:ai_family,ai_socktype and ai_protocol supply the values required for arguments used when calling sokcet() to create a socket for this address 
+
+     5)hints argument
+       Specify further criteria for selecting the socket address structure returned by getaddrinfo()
+       
+      Only the ai_flags,ai_family,ai_socktype,and ai_protocol fields can be set
+      The other fields are unused and should be initialized to 0 or NULL
+
+      ai_family:AF_UNSPEC --> can get back all types of socket address structures
+      
+      ai_socktype:0 --> any socket type is acceptable
+
+      ai_flags:It's a bit mask that modifies the behaviour of getaddrinfo()
+       1.AI_ADDRCONFIG 
+        return IPv4 or Ipv6 address only if there is at least one IPv4 or IPv6 address configured for local system
+       2.AI_CANONNAME
+        If the host is not null,return a pointer to a null-terminated string containing the canonical name of the host
+        The pointer is the ai_canonname field of the first addrinfo structure
+
+       3.AI_NUMERICHOST
+        Force interpretation of host as a numeric address string
+        This is used to prevent name resolution where in case it is unnecessary,since name resolution can be time-consuming
+
+       4.AI_NUMERICSERV
+        Interpret serice as a numeric port number
+
+       5.AI_PASSIVE
+        Return socket address structure suitable for a passive open socket(linstening sokcet)
+        The host should be null and the IP address component of result will conain a wildcard IP address(INADDR_ANY)
+        If this flag is not set,the result will be suitable for use with connect() and sendto(). If host is NULL,the IP address in the result will be set to the loopback IP address(INADDR_LOOPBACK)
+        6.AI_V4MAPPED
+        If AF_INET6 is specified in the ai_family field of hints,then the IPv4-mapped IPv6 address structure will be returned in result if no matching IPv6 address could be found
+        If AI_ALL is specified in conjunction with AI_V4MAPPED,then both IPv4 and IPv6 address structures will be returned in result,with IPv4 address being returned as IPv4-mapped IPv6 address
+      
+      6)service can be set to NULL in which case the port number returned in result is set 0
+        It's not permitted to set both host and servie to NULL
+
+      7)hints can be set to NULL in which case ai_socktype is and ai_protocol are assumed as 0,ai_flags is assumed as (AI_V4MAPPED|AI_ADDRCONFIG) and ai_family is assumed as AF_UNSPEC
+
+
+11 getaddrinfo() dynamically allocates memory for result -> it's a linked list
+   Consequently it should be deallocate when it's no longer needed
+   The freeaddrinfo() can conveniently perform this deallocaion in a single step
+
+   void freeaddrinfo(struct addrinfo* resulf)
+   
+   If we want preserve a copy,then we must duplicate it before calling freeaddrinfo()
+
+12 getaddrinfo() return error 
+   at 1261 in pdf
+   
+   const char* gai_strerror(int errcode)
+   return a string describing the error
+
+13 int getnameinfo(const struct* addr,socklen_t addrlen,char* host,size_t hostlen,char* service,size_t servlen,int flags)
+   1)The converse of getaddrinfo()
+     Given socket address structure,it returns strings containing host and service name or numeric equivalents if the name can't be resolved
+   
+   2)The addr and addrlen values are typically obtained from a call to accept(),recvfrom()
+
+   3)Two constants to assist in sizing the host and service buffers
+     NI_MAXHOST and NI_MAXSERV
+     Define one of the feature text macros _BSD_SOURCE,_GNU_SOURCE to obtain the defination of the two macros 
+   
+   4)flags
+     1.NI_DGRAM
+       By default,the func returns the name corresponding to a stream socket service
+       The flag forces the name of datagram socket to te returned
+       Usually the service names are the same for both UDP and TCP ports
+     
+     2.NI_NAMEREQD
+       By defualt,if the hostname can't be resolved,then a numeric string is returned in host
+       If this flag is specified,an error(EAI_NAME)is returned instead
+     
+     3.NI_NOFQDN
+       By default,the fully qulified domain name for the host is returned
+       This flag causes only the first of the name to be returned
+     
+     4.NI_NUMERICHOST
+       Force a numeric host string to be returned
+       This is useful when we want to avoid a possibly time-consuming call to DNS server
+     
+     5.NI_NUMERICSERV
+       Force a decimal port number string to be returned 
+       It's useful where in case we don't know that the port number does't correspond to a service name
+       Ex:If an ephemeral port number is assigned to the socket by kernal and we want to avoid the inefficiency of unnecessarily seraching /etc/services
+
+14 When using sockets to communicate between apps on the same system,we have the choice of using either UNIX domain and Internet sockets
+   1)Using Internet socket is often the simplest approach,since it will work on both a single host and across a network
+   2)Some reasons why we may choose UNIX domain socket
+     a.On some implementations,UNIX domain socket is faster than Internet domain socket
+     b.We can use directory permissions to control access to UNIX domain sockets,so that only apps with specified USERID or GROUPID can connect to listening stream socket or send datagram to datagram socket.It provides a simple method of authenticating clients
+     c.We can pass open fd and sender credentials

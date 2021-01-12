@@ -1,0 +1,40 @@
+Data Structures, Algorithms, & Applications in C++, 2nd Ed.
+Errata
+
+
+Positive line numbers are from the top of a page, negative numbers are from the page bottom. 
+
+Page 20, line 5. away should be way. 
+Page 34, Program 1.26. char * -> string. 
+Page 40, Program 1.32. The loop index i should be delared in the loop control statement as in for (int i = k; ...) rather than outside the if statement. 
+Page 45, program 1.35. Remove int k form parameter list, k:m should be 0:m; remove comment // Assume k <= m. 
+Page 51, line 17. conditional -> condition 
+Page 51, lines 18-20. three conditionals -> two conditions; remove a == 0; remove the rrequirement for test data for which a == 0.0 and a != 0.0. 
+Page 51, Example 1.19, line 2. a[0:n] should be a[0:n-1]. 
+Page 58, line -2. "arrays and class" --> "dynamically allocated arrays and dynamically allocated class" 
+Page 67, Example 2.8. x^n should be x^i. 
+Page 94, Ex 34. ``element reference moves'' --> ``element moves''. 
+Page 95, line -1 and page 116, Example 3.24. binary_Search -> binary_search. 
+Page 145, last paragraph. O(n) = O(n) should be O(n). 
+Page 152, Program 5.8, function output(), cout -> out. 
+Page 156, Program 5.11, operator->(), delete &*. 
+Page 159, Exercise 25(a). O(size) should be O(listSize). 
+Page 176, copy constructor. This should begin by checking for copy to itself (this is the same as theList); if so return; otherwise, delete all nodes in this. Then proceed with the actual copying. As a result of this change, the complexity becomes O(max{listSize, theList.listSize}) 
+Page 180, line -3, he -> the 
+Page 192, line -11, 
+Page 199, Program 6.14 and Page 200, Program 6.16, studentRecord x should be const studentRecord&. 
+Page 200, Program 6.16, The return statement for != should be return (score != x.score). 
+Page 200, lines -4 & -3, delete the sentence Now the first for loop takes Theta(1) time. 
+Page 200, line -2, delete remaining; change second to first. 
+Page 200, line -1, change third to second. 
+Page 202, line 7, (first -> (second; lines 8 and 11, second -> third; line 12, first -> second. 
+Page 202, line 13, delete or error. 
+Page 206, line -18, smallest -> shortest. 
+Page 208, Figure 6.13, Step 3, x != rx -> p != rx. 
+Page 218 Ex 67(c), Ex 69, and Page 219, Ex 70, Java -> C++. 
+Pages 322-327, Figures 9.2-9.7. theBack and theFront should be queueFront and queueBack, respectively. 
+Page 328, Program 9.3. Insert: delete [] queue; just before the last line: queue = neqQueue 
+Page 386, lines --9 and -7, 16 should be 8. 
+Page 392, Theorem 10.1. 1/alpha should be 1/p. 
+Page 444, line -9. (w) -> (s) 
+Page 724, Program 18.3. Add delete [] b to end of program. 

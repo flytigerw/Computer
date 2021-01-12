@@ -1,0 +1,9 @@
+system:
+   port: 9900
+   value: 15
+   int_vec: [10, 20]
+   str_int_map:
+     k1: 30
+     k2: 40
+     k3: 50
+     k4: 70

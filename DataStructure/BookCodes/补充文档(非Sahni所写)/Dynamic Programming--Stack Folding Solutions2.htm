@@ -1,0 +1,126 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 54, Exercise 2<BR>
+<BR>
+</H1>
+
+First, we handle a few special cases.
+When the number of components is zero, the folding is possible
+regardless of the value of <code class=var>W</code>;
+when we have one or more components, the folding cannot be done
+when <code class=var>W &lt; w</code>; and
+when <code class=var>n = 1</code> and <code class=var>W &gt;= w</code>,
+there are no fold points possible.
+All other cases as handled by computing the <code class=var>H</code> values.
+<br><br>
+First, the <code class=var>H<sub>i,1</sub></code> and
+<code class=var>H<sub>n,j</sub></code> values are computed.
+Next,
+Equation 54.2 is be used to compute the
+remaining
+<code class=var>H<sub>i,j</sub></code>s. The computation order is
+<code class=var>i = n-1</code>,
+<code class=var>n-2</code>, ..., <code class=var>1</code>.
+For each
+<code class=var>i</code>, the order for the <code class=var>j</code>s
+is
+<code class=var>2, 3, 4, ... s</code>.
+For each <code class=var>H<sub>i,j</sub></code>, we try values of
+<code class=var>k</code> in the order
+<code class=var>i</code>,
+<code class=var>i+1</code>, ...,
+<code class=var>n-1</code>.
+<br><br>
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+boolean equalWidthFolding(int h[], int r[], int w,, int n
+                          int theWidth, int theH[][], int kay[][]
+{// Fold components with heights h[1 .. n] into a
+ // rectangle of width theWidth.
+ // w is width of each component.
+ // r is array of space to be left at column ends.
+ // theH[i][j] is H_(i,j).
+ // Values of theH[1..n][1..theWidth/w] and
+ // kay[1..n][1..theWidth/w] are computed by this method.
+ // Return true iff the folding is possible.
+   int s = theWidth / w;  // max number of stacks
+   if (n &lt; 1)
+      return true;
+   if (s &lt; 1)
+      return false;
+   if (n &lt; 2)
+      return true;
+
+   // set boundary values of theH
+   int hsum = 0;
+   for (int i = n; i &gt; 0; i--)
+   {
+      hsum += h[i];
+      theH[i][1] = hsum + r[i];
+   }
+   for (int j = 1; j &lt;= s; j++)
+      theH[n][j] = h[n] + r[n];
+
+   // compute remaining values using Eq. 54.4
+   for (int i = n - 1; i &gt; 0; i--)
+      for (int j = 2; j &lt;= s; j++)
+      {
+         hsum = 0;
+         int minH = theH[1][1];   // upper bound
+         int theK = 0;
+         for (int k = i; k &lt; n; k++)
+         {
+            hsum += h[k];
+            int maxTerm = max(hsum + r[i] + r[k + 1],
+                                   theH[k + 1][j - 1]);
+            if (maxTerm &lt; minH)
+            {
+               minH = maxTerm;
+               theK = k;
+            }
+         }   
+         theH[i][j] = minH;
+         kay[i][j] = theK;
+      }
+   return true;
+}
+
+void traceback(int kay[][], int theWidth, int w, int n)
+{// Output fold points.
+   int s = theWidth / w;     // max number of stacks
+
+   // find first nonzero kay[1][], this is also the number of stacks
+   int j;
+   for (j = s; j &gt; 1; j--)
+      if (kay[1][j] &gt; 0)
+         break;
+
+   if (j &lt; 2 || n &lt; 2)
+      cout << "There are no fold points" << endl;
+   else
+   {// there is at least one fold point
+      cout << "The fold points are " << endl;
+      int i = 1;
+      while (j &gt; 1)
+      {
+         i = kay[i][j] + 1;
+         cout << i + " ";
+         j--;
+      }
+      cout << endl;
+   }
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

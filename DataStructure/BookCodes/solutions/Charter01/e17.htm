@@ -1,0 +1,69 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C+</BR>
+Chapter 1, Exercise 17<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+We have at least two options on how to proceed. The new functions
+can be placed directly
+into the class <code class=code>currency</code> or
+we can place the new functions in a class
+<code class=code>enhancedCurrency</code> which is
+derived from
+<code class=code>currency</code>.
+We shall take the former approach.
+
+The code for the new functions is given below as well as in the file
+<code class=code>enhancedCurrencyNew.h</code>.
+<BR>
+</P>
+<HR class = coderule>
+<PRE class = code>
+void input()
+{
+   // input the amount as a double
+   cout &lt;&lt; "Enter the currency amount as a real number" &lt;&lt; endl;
+   double theValue;
+   cin &gt;&gt; theValue;
+   
+   // set the value
+   setValue(theValue);
+}
+   
+currency subtract(const currency& x)
+{// Return *this - x.
+   currency result;
+   result.amount = amount - x.amount;
+   return result;
+}
+   
+currency percent(float x)
+{// Return x percent of *this.
+   currency result;
+   result.amount = (long) (amount * x / 100);
+   return result;
+}
+   
+currency multiply(float x)
+{// Return this * x.
+   currency result;
+   result.amount = (long) (amount * x);
+   return result;
+}
+   
+currency divide(float x)
+{// Return this / x.
+   currency result;
+   result.amount = (long) (amount / x);
+   return result;
+}
+</CODE>
+<HR><BR>
+</FONT>
+</BODY>
+</HTML>

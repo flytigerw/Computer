@@ -1,0 +1,67 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in Java<BR>
+Chapter 4, Exercise 5<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+
+This exercise has been substantially done in Exercises 2, 3, and 4.
+<dl compact>
+<br><br>
+<dt> (a)
+<dd>
+The worst-case data for bubble sort is a descending sequence (see
+solution to Exercise 3) and for selection sort is an ascending sequence
+terminated by a small value (see Exercise 4).
+<br><br>
+<dt>(c)
+<dd>
+The table can be derived from the data given in the solutions to
+Exercises 2, 3, and 4.
+<br><br>
+<dt> (d)
+<dd>
+Insertion sort has the best worst-case performance
+followed by selection sort.  Bubble sort has the
+poorest worst-case performance.
+<br><br>
+<dt>(e)
+<dd>
+The overhead time included in the insertion sort and bubble sort measurements
+is the same.  This is given in Figure 4.4 of the text.
+The selection sort overhead time is slightly
+larger.
+<br><br>
+<dt> (f)
+<dd>
+The conclusions remain the same.
+<br><br>
+<dt> (g)
+<dd>
+Since the worst case complexity of each of the sort methods is
+<code class=math>Theta(n<sup>2</sup>)</code>
+we can estimate the worst case time needed to
+sort <code class=math>n</code> numbers using that to sort
+<code class=var>1000</var> numbers.
+<code class=math>t(n) / t(1000)</code> approxmately equals
+<code class=math>n<sup>2</sup> / (1000)<sup>2</sup></code>.  So,
+<code class=math>t(n)</code> approximately equals
+<code class=math>n<sup>2</sup>t(1000) / 10<sup>6</sup></code>.  In particular,
+<code class=math>t(2000)</code> approximately equals
+<code class=math>4t(1000)</code>, <code class=math>t(4000)</code> approximately
+equals <code class=math>16t(1000)</code>, and
+<code class=math>t(10000)</code> approximately equals
+<code class=math>100t(1000)</code>.  Using these formulas
+and the measured values of <code class=math>t(1000)</code>,
+we can estimate the required
+times.
+
+</FONT>
+</BODY>
+</HTML>

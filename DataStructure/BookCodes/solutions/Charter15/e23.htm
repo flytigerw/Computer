@@ -1,0 +1,432 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 23<BR>
+<BR>
+</H1>
+
+
+This key sequence represents the worst case for the unbalanced binary search
+trees of Chapter 14 because this sequence results
+in trees whose height equals the number of elements.
+Let's see how red-black trees handle this insert sequence.
+<br><br>
+We use the node format <code class=var>[color, key]</code>,
+where <code class=var>color</code> is the node color.
+The first two inserts result in the following
+balanced trees.
+<br>
+<pre class=figure>
+[b, 15]                [b, 15]
+                     /
+                 [r, 14]
+</pre>
+Immediately after the insertion of <code class=var>13</code>, we
+have the unbalanced tree
+<br><pre class=figure>
+                [b, 15] gu
+               /
+         [r, 14] pu
+        /     
+     [r, 13] u
+</pre>
+The imbalance is an LLb imbalance because both <code class=var>u</code> and
+<code class=var>pu</code> are left children and the other child of
+<code class=var>gu</code> is an external node.
+The tree following an LLb rotation is shown below.
+<br><pre class=figure>
+              [b, 14]
+             /       \
+         [r, 13]     [r, 15]
+</pre>
+When <code class=var>12</code> is inserted we get the following unbalanced tree:
+<br><pre class=figure>
+           gu [b, 14]
+             /       \
+      pu [r, 13]     [r, 15]
+        /              
+   u [r, 12]
+</pre>
+The imbalance is an LLr imbalance because both <code class=var>u</code> and
+<code class=var>pu</code> are left children and the other child of
+<code class=var>gu</code> is a red node.
+The tree following an LLr color flip is shown below (note that the
+color of the root remains black).
+<br><pre class=figure>
+           gu [b, 14]
+             /       \
+      pu [b, 13]     [b, 15]
+        /              
+   u [r, 12]
+</pre>
+The insertion of <code class=var>11</code> gives us the unbalanced tree
+<br><pre class=figure>
+              [b, 14]
+             /       \
+      gu [b, 13]     [b, 15]
+        /              
+  pu [r, 12]
+      /
+  u [r, 11]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get the balanced tree
+<br><pre class=figure>
+              [b, 14]
+             /       \
+         [b, 12]     [b, 15]
+       /       \
+   [r, 11]      [r, 13]
+</pre>
+Following the insertion of <code class=var>10</code> we have the unbalanced tree
+<br><pre class=figure>
+              [b, 14] 
+             /       \
+      gu [b, 12]     [b, 15]
+       /       \
+pu [r, 11]      [r, 13]
+     /
+ u [r, 10]
+</pre>
+The imbalance type is LLr, and following an LLr color flip we get the balanced tree
+<br><pre class=figure>
+              [b, 14] 
+             /       \
+      gu [r, 12]     [b, 15]
+       /       \
+pu [b, 11]      [b, 13]
+     /
+ u [r, 10]
+</pre>
+When <code class=var>9</code> is inserted we get the unbalanced tree
+<br><pre class=figure>
+              [b, 14] 
+             /       \
+         [r, 12]     [b, 15]
+       /       \
+gu [b, 11]      [b, 13]
+     /
+pu [r, 10]
+     /
+ u [r, 9]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get the balanced tree
+<br><pre class=figure>
+              [b, 14] 
+             /       \
+         [r, 12]     [b, 15]
+       /       \
+   [b, 10]      [b, 13]
+  /       \
+[r, 9]    [r, 11]
+</pre>
+The insertion of <code class=var>8</code> gives us the unbalanced tree
+<br><pre class=figure>
+                    [b, 14] 
+                   /       \
+               [r, 12]     [b, 15]
+             /       \
+      gu [b, 10]      [b, 13]
+        /       \
+   pu [r, 9]    [r, 11]
+        /
+    u [r, 8]
+</pre>
+The imbalance type is LLr, and following an LLr color flip we get the tree
+<br><pre class=figure>
+                 gu [b, 14] 
+                   /       \
+            pu [r, 12]     [b, 15]
+             /       \
+       u [r, 10]      [b, 13]
+        /       \
+      [b, 9]    [b, 11]
+        /
+      [r, 8]
+</pre>
+An imbalance of type LLb remains and an LLb rotation is done to get
+the balanced tree shown below. Once again, the color of the root is not
+chnaged to red (as dictated by Figure 15.11(b)) because the
+color of the root is always black.
+<br><pre class=figure>
+                    [b, 12] 
+                   /       \
+                 /          \
+               /              \
+          [r, 10]            [r, 14]
+         /       \          /       \
+    [b, 9]      [b, 11] [b, 13]     [b, 15]
+    /       
+ [r, 8]   
+</pre>
+The insertion of <code class=var>7</code> gives us the unbalanced tree
+<br><pre class=figure>
+                       [b, 12] 
+                      /       \
+                    /          \
+                  /              \
+             [r, 10]            [r, 14]
+            /       \          /       \
+    gu [b, 9]      [b, 11] [b, 13]     [b, 15]
+       /       
+ pu [r, 8]   
+     /
+ u [r, 7]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get
+the balanced tree
+<br><pre class=figure>
+                    [b, 12]
+                 /           \
+               /              \
+             /                 \
+         [r, 10]              [r, 14]
+        /      \            /       \
+    [b, 8]   [b, 11]    [b, 13]     [b, 15]
+    /     \
+ [r, 7]   [r, 9]
+</pre>
+The insertion of <code class=var>6</code> gives us the unbalanced tree
+<br><pre class=figure>
+                       [b, 12]
+                    /           \
+                  /              \
+                /                 \
+            [r, 10]              [r, 14]
+           /      \            /       \
+    gu [b, 8]   [b, 11]    [b, 13]     [b, 15]
+       /     \
+ pu [r, 7]   [r, 9]
+      /
+  u [r, 6]
+</pre>
+The imbalance type is LLr, and following an LLr color flip we get
+<br><pre class=figure>
+                    gu [b, 12]
+                    /           \
+                  /              \
+                /                 \
+         pu [r, 10]              [r, 14]
+           /      \            /       \
+     u [r, 8]   [b, 11]    [b, 13]     [b, 15]
+       /     \
+    [b, 7]   [b, 9]
+      /
+    [r, 6]
+</pre>
+The imbalance type is again LLr and another color flip yields the
+balanced tree
+<br><pre class=figure>
+                       [b, 12]
+                    /           \
+                  /              \
+                /                 \
+            [b, 10]              [b, 14]
+           /      \            /       \
+       [r, 8]   [b, 11]    [b, 13]     [b, 15]
+       /     \
+    [b, 7]   [b, 9]
+      /
+    [r, 6]
+</pre>
+The insertion of <code class=var>5</code> gives us the unbalanced tree
+<br><pre class=figure>
+                       [b, 12]
+                    /           \
+                  /              \
+                /                 \
+            [b, 10]              [b, 14]
+           /      \            /       \
+       [r, 8]   [b, 11]    [b, 13]     [b, 15]
+       /     \
+ gu [b, 7]   [b, 9]
+      /
+ pu [r, 6]
+     /
+ u [r, 5]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get
+the balanced tree
+<br><pre class=figure>
+                       [b, 12]
+                    /           \
+                  /              \
+                /                 \
+            [b, 10]              [b, 14]
+           /      \            /       \
+       [r, 8]   [b, 11]    [b, 13]     [b, 15]
+       /     \
+    [b, 6]   [b, 9]
+    /   \
+[r, 5]  [r, 7]
+</pre>
+The insertion of <code class=var>4</code> gives us the unbalanced tree
+<br><pre class=figure>
+                          [b, 12]
+                       /           \
+                     /              \
+                   /                 \
+               [b, 10]              [b, 14]
+              /      \            /       \
+          [r, 8]   [b, 11]    [b, 13]     [b, 15]
+          /     \
+    gu [b, 6]   [b, 9]
+       /   \
+pu [r, 5]  [r, 7]
+    /
+ u [r, 4]
+</pre>
+The imbalance type is LLr, and following an LLr color flip we get
+<br><pre class=figure>
+                          [b, 12]
+                       /           \
+                     /              \
+                   /                 \
+            gu [b, 10]              [b, 14]
+              /      \            /       \
+       pu [r, 8]   [b, 11]    [b, 13]     [b, 15]
+          /     \
+     u [r, 6]   [b, 9]
+       /   \
+   [b, 5]  [b, 7]
+    /
+   [r, 4]
+</pre>
+An imbalance of type LLb remains, and an LLb rotation is done to
+get the balanced tree
+<br><pre class=figure>
+                          [b, 12]
+                       /           \
+                     /              \
+                   /                 \
+               [b, 8]              [b, 14]
+              /      \            /       \
+          [r, 6]      [r, 10]  [b, 13]     [b, 15]
+          /     \      /    \
+    [b, 5]   [b, 7] [b, 9]  [b, 11]
+       /   
+   [r, 4]
+</pre>
+When <code class=var>3</code> is inserted we get the
+following unbalanced tree.
+<br><pre class=figure>
+                          [b, 12]
+                       /           \
+                     /              \
+                   /                 \
+               [b, 8]              [b, 14]
+              /      \            /       \
+          [r, 6]      [r, 10]  [b, 13]     [b, 15]
+          /     \      /    \
+ gu [b, 5]   [b, 7] [b, 9]  [b, 11]
+       /   
+pu [r, 4]
+    /
+u [r, 3]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get
+<br><pre class=figure>
+                               [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                    [b, 8]              [b, 14]
+                   /      \            /       \
+               [r, 6]      [r, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+         [b, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+    [r, 3]   [r, 5]
+</pre>
+The insertion of <code class=var>2</code> gives us the unbalanced tree
+<br><pre class=figure>
+                               [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                    [b, 8]              [b, 14]
+                   /      \            /       \
+               [r, 6]      [r, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+      gu [b, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+ pu [r, 3]   [r, 5]
+      /
+  u [r, 2]
+</pre>
+The imbalance type is LLr, and following an LLr color flip we get
+<br><pre class=figure>
+                               [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                 gu [b, 8]              [b, 14]
+                   /      \            /       \
+            pu [r, 6]      [r, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+       u [r, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+    [b, 3]   [b, 5]
+      /
+    [r, 2]
+</pre>
+An LLr imbalance remains and another color flip is done to get the
+tree.
+<br><pre class=figure>
+                           pu  [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                  u [r, 8]              [b, 14]
+                   /      \            /       \
+               [b, 6]      [b, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+         [r, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+    [b, 3]   [b, 5]
+      /
+    [r, 2]
+</pre>
+The tree is now balanced and we proceed to insert
+<code class=var>1</code>. This gives us the unbalanced tree
+<br><pre class=figure>
+                               [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                    [r, 8]              [b, 14]
+                   /      \            /       \
+               [b, 6]      [b, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+         [r, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+ gu [b, 3]   [b, 5]
+      /
+ pu [r, 2]
+    /
+  u [r, 1]
+</pre>
+The imbalance type is LLb, and following an LLb rotation we get
+<br><pre class=figure>
+                               [b, 12]
+                            /           \
+                          /              \
+                        /                 \
+                    [r, 8]              [b, 14]
+                   /      \            /       \
+               [b, 6]      [b, 10]  [b, 13]     [b, 15]
+               /     \      /    \
+         [r, 4]   [b, 7] [b, 9]  [b, 11]
+        /     \
+    [b, 2]   [b, 5]
+   /     \
+[r, 1]  [r, 3]
+</pre>
+
+</FONT>
+</BODY>
+</HTML>

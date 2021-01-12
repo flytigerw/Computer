@@ -1,0 +1,201 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 9, Exercise 9<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+The ADT is given below
+<pre class=code>
+<hr class=coderule>
+<strong>ADT</strong> <em class=var>Deque</em>
+{
+   <strong>instances</strong>
+      ordered list of elements; one end is called the <em class=var>front</em>;
+      the other is the <em class=var>rear</em>;
+   <strong>operations:</em>
+      <em class=var>isEmpty():</em> Return <strong>true</strong> if deque is empty, return <strong>false</strong> otherwise;
+      <em class=var>getLeftElement():</em> Return leftmost element of deque;
+      <em class=var>getRightElement():</em> Return rightmost element of deque;
+      <em class=var>putAtLeft(x):</em> Add <em class=var>x</em> to left end of deque;
+      <em class=var>putAtRight(x):</em> Add <em class=var>x</em> to right end of deque;
+      <em class=var>removeFromLeft():</em> Delete leftmost element from deque and return it;
+      <em class=var>removeFromRight():</em> Delete rightmost element from deque and return it;
+}
+<hr class=coderule>
+</pre><br><br>
+<!--
+<dt> (b)
+<dd>
+The interface <code class=code>Deque</code> is given below:
+<br>
+<pre class=code>
+<hr class=coderule>
+public interface Deque
+{
+   public boolean isEmpty();
+   public Object getLeftElement();
+   public Object getRightElement();
+   public void putAtLeft(Object theElement);
+   public void putAtRight(Object theElement);
+   public Object removeFromLeft();
+   public Object removeFromRight();
+}
+</pre>
+<HR class=coderule><BR><br>
+
+<dt> (c)
+<dd>
+The code for the class <code class=code>ArrayDeque</code> is very
+similar to that for the class <code class=code>ArrayQueue</code>.
+<HR class = coderule>
+<PRE class = code>
+public class ArrayDeque implements Deque
+{
+   // data members
+   int leftEnd;       // one counterclockwise from leftmost element
+   int rightEnd;      // position of rightmost element of deque
+   Object [] deque;   // element array
+
+   // constructors
+   /** create a deque with the given initial capacity */
+   public ArrayDeque(int initialCapacity)
+   {
+      if (initialCapacity &lt; 1)
+         throw new IllegalArgumentException
+                   ("initialCapacity must be &gt;= 1");
+      deque = new Object [initialCapacity + 1];
+      leftEnd = rightEnd = 1;
+   }
+
+   /** create a deque with initial capacity 10 */
+   public ArrayDeque()
+   {// use default capacity of 10
+      this(10);
+   }
+
+   // methods
+   /** @return true iff deque is empty */
+   public boolean isEmpty()
+      {return leftEnd == rightEnd;}
+
+
+   /** @return leftmost element of deque
+     * @return null if deque is empty */
+   public Object getLeftElement()
+   {
+      if (isEmpty())
+         return null;
+      else
+         return deque[(leftEnd + 1) % deque.length];
+   }
+
+   /** @return rightmost element of deque
+     * @return null if the deque is empty */
+   public Object getRightElement()
+   {
+      if (isEmpty())
+         return null;
+      else
+         return deque[rightEnd];
+   }
+
+   /** insert theElement at the rightEnd of the deque */
+   public void putAtRight(Object theElement)
+   {
+      // increase array size if necessary
+      if ((rightEnd + 1) % deque.length == leftEnd)
+      {// double array size
+         // allocate a new array
+         Object [] newDeque = new Object [2 * deque.length];
+
+         // copy elements into new array
+         int j = 0;   // position in newDeque to copy to
+         for (int i = (leftEnd + 1) % deque.length;
+                  i != rightEnd; i = (i + 1) % deque.length)
+            newDeque[j++] = deque[i];
+         newDeque[j] = deque[rightEnd];  // copy last element
+                   // use arraycopy to speed above copying
+
+         // switch to newDeque and set leftEnd and rightEnd
+         deque = newDeque;
+         leftEnd = newDeque.length - 1;
+         rightEnd = j;
+      }
+
+      // put theElement at the rightEnd of the deque
+      rightEnd = (rightEnd + 1) % deque.length;
+      deque[rightEnd] = theElement;
+   }
+
+   /** insert theElement at the leftEnd of the deque */
+   public void putAtLeft(Object theElement)
+   {
+      // increase array size if necessary
+      if ((rightEnd + 1) % deque.length == leftEnd)
+      {// double array size
+         // allocate a new array
+         Object [] newDeque = new Object [2 * deque.length];
+
+         // copy elements into new array
+         int j = 0;   // position in newDeque to copy to
+         for (int i = (leftEnd + 1) % deque.length;
+                  i != rightEnd; i = (i + 1) % deque.length)
+            newDeque[j++] = deque[i];
+         newDeque[j] = deque[rightEnd];  // copy last element
+                   // use arraycopy to speed above copying
+
+         // switch to newDeque and set leftEnd and rightEnd
+         deque = newDeque;
+         leftEnd = newDeque.length - 1;
+         rightEnd = j;
+      }
+
+      // put theElement at the leftEnd of the deque
+      deque[leftEnd] = theElement;
+      leftEnd = (deque.length + leftEnd - 1) % deque.length;
+   }
+
+   /** remove an element from the left end of the deque
+     * @return removed element
+     * @return null if the deque is empty */
+   public Object removeFromLeft()
+   {
+      if (isEmpty())
+         return null;
+      leftEnd = (leftEnd + 1) % deque.length;
+      return deque[leftEnd];
+   }
+
+   /** remove an element from the right end of the deque
+     * @return removed element
+     * @return null if the deque is empty */
+   public Object removeFromRight()
+   {
+      if (isEmpty())
+         return null;
+      // save object to be returned
+      Object temp = deque[rightEnd];
+
+      // update rightEnd to reflect removal
+      rightEnd = (deque.length + rightEnd - 1) % deque.length;
+
+      return temp;
+   }
+}
+</pre>
+<HR class=coderule><BR><br>
+
+<dt> (d)
+<dd>
+The test program and output are in the files <code class=code>ArrayDeque.*</code>.
+--!>
+</FONT>
+</BODY>
+</HTML>

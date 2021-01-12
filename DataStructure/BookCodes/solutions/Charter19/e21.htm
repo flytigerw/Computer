@@ -1,0 +1,85 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 19, Exercise 21<BR>
+<BR>
+</H1>
+
+Let <code class=var>lcs(a,b)</code> denote a longest common subsequence
+of the strings <code class=var>a</code> and <code class=var>b</code>.
+We make the following observations:
+<ol>
+<li>
+If <code class=var>a<sub>1</sub> = b<sub>1</sub></code>, then
+<code class=var>lcs(a,b) = a<sub>1</sub> + lcs(a<sub>2</sub>...a<sub>n</sub>,
+b<sub>2</sub>...b<sub>m</sub>)</code>, where <code class=var>+</code>
+denotes string concatenation.
+<li>
+If <code class=var>a<sub>1</sub> != b<sub>1</sub></code>, then
+<code class=var>lcs(a,b) = lcs(a<sub>1</sub>...a<sub>n</sub>,
+b<sub>2</sub>...b<sub>m</sub>)</code> or
+<code class=var>lcs(a,b) = lcs(a<sub>2</sub>...a<sub>n</sub>,
+b<sub>1</sub>...b<sub>m</sub>)</code>, depending on which is longer.
+</ol>
+<br><br>
+These observations result in the following dynamic programming
+recurrence:
+<br><br>
+<code class=var>
+l(i,j) = 0, i = 0 or j = 0<br>
+l(i,j) = 1 + l(i-1, j-1), if a<sub>i</sub> = b<sub>j</sub><br>
+l(i,j) = max{l(i-1, j), l(i, j-1)}, otherwise
+</code>
+<br><br>
+We may determine a longest common subsequence as follows:
+<dl>
+<dt><strong>Step 1</strong>
+<dd>
+Set <code class=var>l(0,j) = 0</code> for <code class=code>0 &lt;= j &lt;= m</code><br>
+Set <code class=var>l(i,0) = 0</code> for <code class=code>1 &lt;= i &lt;= n</code><br>
+This takes <code class=var>O(n+m)</code> time.
+<dt><strong>Step 2</strong>
+<dd>
+Compute <code class=var>l(i,j)</code> for 
+<code class=var>i = 1, 2, ..., n</code>, in that order,
+using the equation for <code class=code>l(i,j)</code>
+developed above. For each <code class=var>i</code>,
+compute <code class=var>l(i,j)</code> for
+<code class=var>j = 1, 2, ..., m</code>, in that order.
+It takes <code class=var>O(mn)</code> time to compute all of these
+<code class=var>l(i,j)</code> values.
+<dt><strong>Step 3</strong>
+<dd>
+<code class=var>l(n,m)</code> gives the length of
+<code class=var>lcs(a,b)</code>.
+The longest common subsequence is determined by using a traceback procedure
+for <code class=var>l(n,m)</code>.
+<br><br>
+The traceback for <code class=var>l(i,j)</code> is recursive.
+When <code class=var>l(i,j) = 0</code>, there are no more characters
+in the lcs, and we are done.
+If <code class=var>l(i,j) = 1 + l(i-1, j-1)</code>, then
+<code class=var>a<sub>i</sub></code> (equivalently,
+<code class=var>b<sub>j</sub></code>) is the next character
+in the lcs; the remaining characters are obtained by performing a traceback
+for <code class=var>l(i-1, j-1)</code>.
+If <code class=var>l(i,j) = l(i-1, j)</code>, then
+the remaining characters are obtained by performing a traceback
+for <code class=var>l(i-1, j)</code>.
+Otherwise,
+the remaining characters are obtained by performing a traceback
+for <code class=var>l(i, j-1)</code>.
+<br>
+The traceback takes <code class=var>O(min{m,n})</code> time.
+</dl>
+<br><br>
+From the above description and analysis, we see that the overall complexity
+is <code class=var>O(mn)</code>.
+</FONT>
+</BODY>
+</HTML>

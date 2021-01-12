@@ -1,0 +1,389 @@
+
+
+1.IP类型定义:type IP []byte
+
+2.net包常用函数
+  1)net.ParseIP(string)
+    将字符串形式的IP转为实用IP
+  
+  2)net.Dial(net,addr sting)(conn,error)
+    连接到服务器
+	比如
+	TCP连接:net.Dial("tcp","192.168.0.10:2100")
+	UDP连接:net.Dial("udp","192.168.0.10:2100")
+	ICMP连接:net.Dial("ipv4:icmp","192.168.0.10:2100")
+  
+  3)建立连接以后就可以进行IO
+    实用conn.Read() / Write()
+  
+  4)TCP socket
+     通过DialTCP建立TCP连接
+	 func DialTCP(net string,laddr,r addr *TCPAddr) (c *TCPConn,err os.Error)
+	 net:TCP4,TCP6 
+	 laddr:本机地址，一般为nil
+	 raddr:远程服务地址
+	 
+	 TCPAddr的获取:
+	 func ResolveTCPAddr(net,addr string) (*TCPAddr,os.Error)
+	 net:tcp4,tcp6 
+	 addr:域名或者IP地址
+	      www.baidu.com:80
+	 TCPAddr的结构:
+	 type TCPAddr struct{
+		IP IP 
+		Port int 
+	 }
+	 
+	 建立连接后，通过TCPConn进行通信
+	 func(c *TCPConn) Write(b []byte) (n int,err os.Error)
+	 func(c *TCPConn) Read (b []byte) (n int,err os.Error)
+
+  5)TCP server
+     需要绑定到某地址并监听socket,若有连接请求，则accept
+	 func ListenTCP(net string,laddr* TCPAddr) (l *TCPListener,err os.Error)
+	 func (l *TCPListener) Accept() (c Conn,err os.Error)
+	 
+  6)控制TCP连接
+    a.设置建立连接的超时时间
+     func DialTimeOut(net,addr string,timeout time.Duration) (conn,error)
+    b.设置读写的超时时间
+     func(c *TCPConn) SetReadDeadLine(t time.Time) error	
+	 func(c *TCPConn) SetWriteDeadLine(t time.Time) error
+	c.设置TCP层保活属性
+	 func(c *TCPConn) SetKeepAlive(keepalive bool) error
+   
+  7)UDP Socket
+     主要函数:
+	 func DialUDP(net string,laddr,raddr *UDPAddr)(c *UDPConn,err os.Error)
+	 func ResolveUDPAddr(net,addr string)(*UDPAddr,os.Error)
+	 //server只需要bind,不需要accept.client通过DialUDP与server建立连接 ????? ---> UDP的伪连接
+	 func ListenUDP(net string,laddr* UDPAddr)(c *UDPConn,err os.Error)
+	 func(c *UDPConn) ReadFromUDP(b[]byte)(n int,addr* UDPAddr,err os.Error)  ---> 可以得到写入端的地址
+	 func(c *UDPConn) WriteToUDP(b[]byte,addr* UDPAddr)(n int,err os.Error)
+
+  8)HTTP客户端
+    发送服务请求:
+	  a.GET请求
+	    func (c *Client) Get(url string) (r *Response,err error)
+	    比如:
+	    resp,err := http.Get("http://www.baidu.com/")   //resp对应响应报文
+	    if err != nil{
+	 	      return
+	    }
+	    defer resp.Body.Close()                          
+	    io.Copy(os.Stdout,resp.Body)                   //将网页内容打印到标准输出流中
+	 
+	  b.POST请求
+      func (c *Client) Post(url string,bodyType string,body io.Reader) (r *Response,err error)
+	    比如:
+	    resp,err := http.Post("http://example.com/upload","image/jpeg,&imageBuf)
+	    该报文用于上传数据，数据类型为image/jpeg，数据为[]byte 
+	 
+	  c.PostFrom
+	    其实现了标准编码格式为application/x-www-form-urlencode的表单提交
+	    func (c *Client) PostFrom(url string,data url.Values) (r *Response,err error)
+     
+	  d.Head
+	    只请求目标URL的头部信息 ---> 不返回body
+      func (c *Client) Head(url string) (r *Response,err error)
+
+    e.Do请求
+	    可以灵活地自定义Http Header,重定向策略
+	    req,err := http.NewRequest("GET","http://example.com",nil)
+	    req.Header.Add("User-Agent","xxx")
+	     /////
+	    resp,err := client.DO(req)
+	   
+	 http.Client类型
+	 type Client struct{
+		  Transport RoundTripper             //用于确定HTTP请求的创建机制  
+	    CheckRedirect func(req *Request,via []*Request) error    
+		  //定义重定向策略
+		  //若不为空，客户端将在Http重定向之前调用该函数
+		  //req:即将发送的请求
+		  //via:已经发起的所有请求
+		  //若CheckDirect返回错误，则客户端将直接返回错误，不会再发起请求
+		  //为空，则Client将采用确认策略:将在发送10个连续请求后终止
+		  Jar CookieJar					 //若为空，则客户端不会发送cookie到server
+	 }
+	 
+	 Client的元素含有默认值。可以自定义
+	 client := &http.Client{
+		  CheckRedirect : my_check_redirect
+	 }
+	 
+	 http.Transport具体结构
+	 type Transport struct{
+		Proxy func(*Request) (*url.URL,error)
+		Dial func(net,addr string) (c net.Conn,err error)
+		TLSClientConfig *tls.Config 
+		DisableKeepAlives bool
+		DisableCompression bool 
+		MaxidleConnsPerHost int
+	 }
+	 Proxy:指定代理的方法
+	       接受req,然后得到代理服务器的url
+		     将req发给代理服务器
+	 Dial :指定具体的dial()方法来创建TCP连接。默认将使用net.Dial()
+	 TLSClientConfig:SSL连接专用。指定连接时的配置信息 
+	 DisableKeepAlives:是否取消长连接
+	 DisableCompression:是否取消压缩
+	 MaxidleConnsPerHost:最大非活跃连接数量 
+	 
+	 Transport的一些成员方法
+	 func(t *Transport) CloseIdleConnections()      //关闭所有非活跃连接
+	 func(t *Transport) RegisterProtocol(scheme sttring,rt RoundTripper) //注册并启用一个新的传输协议，比如FTP
+	 func(t *Transport) RoundTrip(req *Request) (resp* Response,err error)  //实现RoundTripper接口
+	 
+	 自定义Transport例子
+	 tr := &http.Transport{
+		TLSClientConfig : &tls.Config{RootCAs,pool},
+		DisableKeepAlives: true
+	 }
+	 client := &http.Client{Transport : tr}
+	 resp,err := client.Get("https://xxxxx")
+	 
+	 Client和Tranport在执行多个协程的并发过程中都是安全的
+	 但出于性能考虑，应当创建一次后反复使用
+	 
+	
+	9)Http Server
+	  监听client的请求并进行处理
+	  func ListenAndServe(addr string,handler Handler) error 
+	  handler通常为nil  ---> server调用http.DefaultServeMux进行处理
+	  server编写业务逻辑处理通过http.Handle()或http.HandleFunc()注入到http.DefaultServeMux中
+	  Ex:
+	  http.Handle("/foo",fooHandler)   //访问foo下资源时的处理
+	  http.HandleFunc("/bar",func(w http.ResponseWriter,r *http.Request){
+	  	fmt.Fprintf(w,"hello,%q",html.EscapeString(r.URL.Path))
+	  })
+	  自定义server 
+	  s := &http:Server{
+		  Addr:":8080"
+		  Handler:myhandler
+		  ReadTimeout:10 * time.second
+		  WriteTimeout:10 * time.second
+	  }
+	 
+	10)Https Server  
+	  使用函数:
+	  func ListenAndServeTLS(addr string,certFile string,keyFile string,handler Handler) error 
+	  处理https请求时，要求server必须存在包含证书和与之匹配的私钥
+	  certFile:SSL证书文件存放地
+	  keyFile :对应证书的私钥存放地
+	  
+3.Socket网络编程的模式:信息交换模式
+  即:client发送请求到server,server返回信息进行响应
+	   client和server之间约定交换的信息的格式，以便双方能够正确地解析
+  
+  RPC:远程服务调用协议          ---> client想要的server服务
+  实现了函数调用模式的网络编程
+  client通过网络从sevrer上请求服务，不需要了解底层网络技术的协议
+  它假定某些传输协议的存在，比如TCP,UDP 
+  
+  一次client对server的RPC调用的大概步骤:
+  1)调用client的句柄，传送服务需要的参数
+  2)通过本地系统内核发送网络消息
+  3)消息送到server
+  4)server取得消息并提取出参数
+  5)执行相关的服务
+  6)将处理结果交给server句柄
+  7)server句柄返回结果，调用系统内核将结果发给client
+  8)消息传回到client
+  9)client内核接受消息
+  
+  Go RPC包支持三种RPC:TCP,HTTP,JSONRPC 
+  Go RPC函数只有满足以下条件才能被远程访问
+  1)函数是public的
+  2)函数两个public参数 
+     a.接收的参数
+	 b.返回给客户的参数 ---> 必须为指针类型
+  格式大概为:
+  func (t *T) funcname (arg1 T1,arg2 *T2) error 
+  
+  1)HTTP RPC 
+    Go RPC可以利用HTTP传递数据 ----> 好处在于可以复用net/http中的某些函数
+  
+  Go的net/rpc很灵活 ----> 在数据传输前后实现了 编码解码器的接口定义 
+  开发者可以 自定义数据的传输方式 以及 RPC服务端和客户端 之间的交互行为
+  接口定义为:
+  type ClientCodec interface{          //定义了client 如何在 一个 rpc会话中 发送请求和读取响应
+ 	WriteRequest (*Request,interface{}) error   //client通过此 将一个请求写入RPC连接中
+	ReadResponseHeader(*Response) error 
+	ReadResponseBody(*Response) error           //client通过这两个方法读取server的响应信息
+	Close() error 								//整个过程执行完以后，通过Close()关闭连接
+  }
+  
+  type ServerCodec interface{		 //定义了 server如何在一个rpc会话中接收请求和发送响应
+	ReadResponseHeader(*Response) error 
+	ReadResponseBody(*Response) error          //先从一个rpc连接中读取请求信息
+	WriteResponse(*Response,interface{}) error  //在写入响应信息
+	Close() error 		
+  }
+
+
+4.Cookie 与 Session
+  每个网站访问client都会被分配一个SessionID
+  client下次访问时，通过Cookie传输SessionID
+  在server端保存sessionid - userinfo的映射结构
+  server就可以识别出client
+  为什么要这么做? ---> 因为http协议是无状态的
+  type Cookie struct{
+	Name string 
+	Value string 
+	Path string 
+	Domain string 
+	Expires time.Time 
+	RawExpires string 
+	MaxAge int 
+	Secure bool 
+	HttpOnly boolRaw string 
+	Unparesed []string  ----> 未解析的attribute-value键值对
+  }  
+实例:	
+1. 
+func checkError(err error){
+	if err != nil{
+		fmt.Fprintf(os.Stderr,"错误:%s",err.Error())
+		os.Exit(1)
+	}
+}
+func main()  {
+	if len(os.Args) != 2{
+		fmt.Fprintf(os.Stderr,"用法:%s host:port",os.Args[0])
+		os.Exit(1)
+	}
+	serive := os.Args[1]
+	tcpAddr,err := net.ResolveTCPAddr("tcp",serive)
+	checkError(err)
+	conn,err := net.DialTCP("tcp",nil,tcpAddr)
+	checkError(err)
+	//发送请求报文
+	_,err = conn.Write([]byte("HEAD / HTTP/1.0\r\n\r\n"))
+	checkError(err)
+	//读取响应报文
+	result,err := ioutil.ReadAll(conn)
+	checkError(err)
+	fmt.Println(string(result))
+	os.Exit(0)
+}
+
+2.
+func echo(conn *net.TCPConn){
+	tick := time.Tick(5*time.Second)  //定时5s
+	for now := range tick{
+		n,err := conn.Write([]byte(now.String()))
+		if err != nil{
+			log.Println(err)    //发生错误，断开连接
+			conn.Close()
+			return
+		}
+		fmt.Printf("send %d bytes to %s\n",n,conn.RemoteAddr())
+	}
+}
+
+func main()  {
+	//server需要绑定的IP+Port
+	address := net.TCPAddr{
+		IP : net.ParseIP("127.0.0.1"),
+		Port:8080,
+	}
+	//bind and listen
+	listener,err := net.ListenTCP("tcp4",&address)
+	if err != nil{
+		log.Fatal(err)
+	}
+	//不停地监听服务请求的到来
+	for{
+		conn,err := listener.AcceptTCP()
+		if err != nil{
+			log.Fatal(err)
+		}
+		fmt.Println("远程服务地址:",conn.RemoteAddr())
+		//开一个协程为其服务
+		go
+	}
+}
+
+
+rpc实例
+1.server
+//参数类
+type Args struct{
+	A,B int 
+}         
+
+type Arith int 
+//远程过程 
+func (t *Arith) Multiply(args *Args,reply *int) error {
+	*reply = args.A * args.B
+	return nil 
+}
+
+
+func main(){
+	arith := new(Arith)
+	rpc.Register(arith)     		//为arith注册rpc服务 ---> client可以远程调用arith的方法
+	rpc.HandleHttp()                //将rpc服务绑定到HTTP协议上 ----> http请求的处理handle
+	
+	err := http.ListenAndServe(":1234",nil)
+	
+	if err != nil{
+		fmt.Println(err.Error())
+	}
+}
+
+client端:
+//参数类
+type Args struct{
+	A,B int 
+}         
+type Quotient struct{
+	Quo,Rem int 
+}
+
+func main(){
+	if len(os.Args) != 2{
+		fmt.Println("用法:",os.Args[0],"server")
+		os.Exit(1)
+	}
+	serveraddr := os.Args[1]
+	
+	client,err := rpc.DialHttp("tcp",serveraddr+":1234")     //通过rpc建立Http连接
+	if err != nil{
+		log.Fatal("Dial 错误",err)
+	}
+	//请求服务的参数
+	args := Args{17,8}
+	var reply int 
+	//调用远程服务
+	
+	err = client.Call("Arith.Multiply",args,&reply)     //第二个参数用于接受服务结果
+	
+	if err != nil{
+	   log.Fatal("arith 错误",err)
+	}
+	
+	fmt.Printf("Arith: %d*%d=%d\n",args.A,args.B,reply)
+}
+
+将rpc应用到TCP协议中:主要是sever的不同 ---> 需要进行地址的解析，socket绑定，监听 
+											建立连接后需要将连接交给rpc处理
+流程:
+1.注册rpc服务
+rpc.Reigster(arith)
+
+2.地址解析
+tcpaddr,err := net.ResolveTCPAddr("TCP",":1234")
+
+3.绑定与监听
+listener,err := net.ListenTCP("tcp",tcpaddr)
+
+4.
+for{
+	conn,err := listener.Accept()
+	if err != nil{
+		continue
+	}
+	rpc.Serveconn(conn)      //将连接交给rpc处理
+}

@@ -1,0 +1,54 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 7, Exercise 1<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+The row-major ordering of the indexes is:
+<br>
+<pre class=code>
+[0][0][0][0] [0][0][0][1] [0][0][1][0] [0][0][1][1]
+<br>
+[0][1][0][0] [0][1][0][1] [0][1][1][0] [0][1][1][1]
+<br>
+[0][2][0][0] [0][2][0][1] [0][2][1][0] [0][2][1][1]
+<br>
+[1][0][0][0] [1][0][0][1] [1][0][1][0] [1][0][1][1]
+<br>
+[1][1][0][0] [1][1][0][1] [1][1][1][0] [1][1][1][1]
+<br>
+[1][2][0][0] [1][2][0][1] [1][2][1][0] [1][2][1][1]
+</pre>
+<br><br>
+<dt>(b)
+<dd>
+Let the dimensions be <code class=math>u<sub>1</sub></code>, <code class=math>u<sub>2</sub></code>, <code class=math>u<sub>3</sub></code>, and <code class=math>u<sub>4</sub></code>.
+In a row-major mapping, the <code class=math>u<sub>2</sub></code> <code class=math>u<sub>3</sub></code> <code class=math>u<sub>4</sub></code> elements with
+first index equal to zero come first.  These are followed by the
+elements with first index equal to <code class=math>1</code> and so on.
+So, the elements with
+first index <code class=math>i<sub>1</sub></code> are preceded by <code class=math>i<sub>1</sub></code> <code class=math>u<sub>2</sub></code> <code class=math>u<sub>3</sub></code> <code class=math>u<sub>4</sub></code>
+elements that have a smaller first index.  Each block of
+elements with the same first index is stored in row-major order also.
+Since each block is a three dimensional array, we may use the formula
+for a three dimensional array to get the position of an element
+withing a block of elements with the same first dimension.
+If the second, third, and fourth indices are <code class=math>i<sub>2</sub></code>, <code class=math>i<sub>3</sub></code>, and
+<code class=math>i<sub>4</sub></code>, then the element position in the <code class=math>i<sub>1</sub></code> block is
+<code class=math>i<sub>2</sub> u<sub>3</sub> u<sub>4</sub> + i<sub>3</sub> u<sub>4</sub> + i<sub>4</sub></code>.
+As a result,
+<br><br>
+<code class=math>map(i<sub>1</sub>, i<sub>2</sub>, i<sub>3</sub>, i<sub>4</sub>) = i<sub>1</sub> u<sub>2</sub> u<sub>3</sub> u<sub>4</sub> +  i<sub>2</sub> u<sub>3</sub> u<sub>4</sub> + i<sub>3</sub> u<sub>4</sub> + i<sub>4</sub></code>
+
+</FONT>
+</BODY>
+</HTML>

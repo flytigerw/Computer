@@ -1,0 +1,173 @@
+
+1.初始时，整个系统的目录树只有目录"/",其dentry和inode位于内存中
+  该目录下还没有任何内容，从inode中的索引部分也为空
+  系统在初始化时，会将根设备 挂载到 "/"来形成最基本的文件系统 --> 会完善根目录的inode
+  此后root用户进程可通过mount()将 一个可访问的设备 挂载到系统目录树上的空闲节点上
+
+  在Linux眼里，设备也是一种文件，通常位于目录/dev下
+  一个设备文件(整个设备)只有一个inode,其包含了设备的 主设备号:次设备号
+
+  在设备挂载之前，设备被看作为线性的无结构的字节流，设备上的文件系统不可访问  --->  raw deivce
+
+2.sys_mount(char* dev_name,             //待挂载的设备的路径名
+            char* dir_name,             //挂载点(必须为空闲目录)
+            char* type,                 //文件系统类型，比如"ext2"
+            unsigned long flags,        //挂载标志:pdf505
+            void* data                  //挂载的附加信息 --> 由不同文件系统的驱动程序自行解释
+            )
+  1)将参数从用户空间拷贝到内核空间
+  
+  2)主体为do_mount(dev_name,dir_name,type,flags,data)
+    a.参数的检验 -->  pdf507
+    b.通过调用path_init()+path_walk()找到挂载点的dentry+inode
+
+    c.根据标志位采取不同的行动
+      1.MS_REMOUNT标志
+        表示其只是改变 原已挂载的设备的一些挂载参数.比如原来以 只读 方式挂载，现在要改为 可写
+        调用do_remount()处理之
+      2.MS_BIND
+        Linux提供在文件中建立文件系统的机制.例子:
+        1)先通过系统调用losetup将文件和一个虚拟设备建立联系
+          losetup -e des /dev/loop0 /blkfile
+          -e des表示读写该虚拟设备时要加密
+        2)然后将虚拟设备格式化为某个文件系统
+          mkfs -t ext2 /dev/loop0 100
+          100表示该设备的大小为100个记录块
+          要保证原文件足够大，可先建立一个足够大的空文件:
+          dd if=/dev/zero of=/blkfile bs=1k count=100
+        3)最后将其挂载到系统中
+          mount -t ext2 bind /dev/loop0 /nmt
+
+        此时可以称:虚拟设备/dev/loop0  loopback 到文件blkfile
+        所以，标志位MS_BIND表示对loopback设备的挂载.调用do_loopback处理
+     
+    d.其余的情况都是将新挂载一个文件系统
+      于是调用do_add_mount()处理
+
+
+3.do_add_mount(&nd,type,flags,mnt_flags,dev_name,data)
+ 1)调用do_kern_mount()生成vfsmnt
+   a.权限检查，是否为ADMIN权限
+   
+   b.每种文件系统在都有一个file_system_type结构
+     其记录了该文件系统的一些元信息，文件系统名，super_block的读取方式等 --> 字段见pdf509
+     当要新挂载一个文件系统时，需要先检查该文件系统的file_system_type是否存在，若不存在，则先进行创建
+     于是会调用get_fs_type(char* name).要点:
+      所有的file_system_type组成线性队列
+      先进行线性搜索，根据文件系统名作为搜索条件
+      若文件系统是通过 可安装模块(module)来实现的,那么找到后，就需要先递增module的引用计数
+      若没找到相应的file_system_type,则需要调用request_module()去安装该文件系统类型所需要的module
+   
+   c.分配一个vfsmnt --> 其用于记录文件系统的挂载信息,比如要挂载的目录名...
+     mnt = alloc_vfsmnt() --> 调用kmem_cache_alloc()分配内存
+
+   d.根据标志位，调用不同的函数将文件系统的super_block读入到内核中
+     1.FS_NOMOUNT
+       表明该文件系统为没有super_block的虚拟文件系统(pipe,共享内存区)
+       需要由内核挂载，不能由用户进程通过mount()挂载
+
+     2.FS_REQUIRES_DEV
+       表明该文件系统需要有物理设备作为物质基础,比如ext2,ufs等..
+       调用get_sb_bdev()读入super_block
+
+     3.FS_SINGLE
+       某个类型的文件系统 第一次挂载后，其会在内存中创建该类型的super_block结构
+       后续在挂载同类型的文件系统时，允许共享已经存在的super_block结构  --> 指定FS_SINGLE标志位
+       表示整个文件系统类型只有一个super_block，而一般的文件系统类型在每个具体的设备上都有一个super_block
+       调用get_sb_single()读取super_block
+     
+     4.还有一些虚拟性的文件系统，其用于实现某种机制，没有对应的设备
+       要调用get_sb_nodev()来生成一个super_block结构
+   
+   e.根据读取的super_block来设置vfsmnt
+     mnt->mnt_sb = sb;
+     mnt->mnt_root = dget(sb->s_root);        //设备的根目录项
+
+ 
+ 2)在do_kern_mount()中，从磁盘中读取super_block是较为漫长的过程，进程要睡眠等待
+   若有多个进程并发地将(多个)文件系统挂载到同一个目录下，则需要进行挂载冲突检测和解决
+   down(&mount_sem);
+   //互斥检测
+   while(d_mountpoint(nd->dentry) && follow_down(&nd->mnt, &nd->dentry));
+
+   若nd->dentry->d_mounted为false,则表明当前进程是第一个进行挂载的 --> d_mountpoint返回flase
+   否则，则进入follow_down()中 ---> 见ppt
+
+   /* Refuse the same filesystem on the same mount point */
+   //若挂载点所在的文件系统 与 要挂载的文件系统的super_block一致
+   //且
+   //挂载点所在的文件系统的根目录 就是挂载点
+   //那么就不允许挂载
+   if (nd->mnt->mnt_sb == mnt->mnt_sb && nd->mnt->mnt_root == nd->dentry)
+           retval = -EBUSY;
+   else
+           retval = graft_tree(mnt, nd);      --> 重点:mnt->mnt_parent = mntget(nd->mnt)
+                                                       mnt->mnt_mountpoint = dget(nd->dentry)
+                                                  核心:进一步完善待挂载文件系统的vfsmnt
+   down(&mount_sem);
+  
+
+4.get_sb_bdev(file_system_type,dev_name,flags,data)
+  1)通过path_init()和path_walk找到设备文件的dentry和inode
+
+  2)该设备必须是块设备，所以先检查inode中的S_IFBLK标志位
+
+  3)得到该设备文件的驱动程序函数表
+    bdops = devfs_get_ops (devfs_get_handle_from_inode (inode));
+  
+  5)调用blkdev_get()打开设备文件
+    设备在文件系统的中的索引(inode)已经存在，现在是要打开设备文件本身
+    使用block_device中的 设备驱动程序函数表中的open进行打开
+
+  4)内核维护了队列super_blocks,已挂载的设备的super_block都会链入该队列中
+    先进行扫描，看目标super_block是否已经存在,若根据不同情况进行处理  -->   见源码
+    若没有，则需要新建一个super_block结构(通过kmalloc分配)，然后进行填充并挂入super_blocks队列中
+     会调用file_system_type中的read_super()从磁盘中读取super_block来辅助构建内存super_block
+     在ext2文件系统中，其为ext2_read_super()
+      要点:将磁盘super_block读取到内存后
+           接下来需要在内存中创建 通向该文件系统的入口 --> 根目录的inode和dentry
+           文件系统根目录的磁盘inode号是固定的 ---> 可以直接通过iget()从磁盘中读取磁盘inode并建立内存inode
+           然后直接在内存建立根目录dentry结构，名字为"/"  
+           最后: 内存super_block.s_root = &dentry
+
+          
+
+
+
+5.文件系统的卸载
+  sys_umount(char* name,int flags)
+  name:要卸载的设备文件路径名
+
+  预备操作:将name从用户空间拷贝内核空间
+           通过path_init()+path_walk()找到 name 的nameidata结构
+            nd.dentry表示设备文件根目录的dentry结构
+            nd.mnt表示该设备的 挂载信息
+           ADMIN权限检查
+  
+  调用do_umount(nd.mnt,flags)
+  要点:
+   1)考虑是否是 卸载当前进程的根目录所在的文件系统    -->   用户进程通过umount()卸载"根设备时"，只能将其重新挂载为只读模式
+   2)vfsmnt中含有引用计数mnt_count
+     若计数值>2,表明当前还有其他程序正在使用该vfsmnt，所以不能进行卸载
+   3)断开与现有系统的连接
+     mnt->mnt_parent = mnt
+     mnt->mnt_mountpoint = mnt_root
+     将该vfsmnt从相关队列中取出
+   4)mntput(mnt)
+     递减mnt_count
+     若减到0，则需要释放相关资源
+     a.dput(mnt->mnt_root)
+       递减dentry的引用计数，若减到0，则将其加入到dentry_unsed队列中
+     b.if(mnt->mnt_devname)
+          kfree(mnt->mnt_devname,mnt)
+     c.kmem_cache_free(mnt_cache,mnt)
+     c.kill_super(mnt->sb)
+
+
+6.对于文件内容，inode，superblock的修改都是先修改他们的内存映象,再刷到buffer中,最后刷到设备上
+  fsync_dev(dev) 
+  将内存中 与设备dev相关的内容(buffer,super,inode) 同步到设备中
+  pdf 533
+
+7.super_block -- pdf537 + PPT
+  

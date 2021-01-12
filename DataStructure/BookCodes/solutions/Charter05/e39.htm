@@ -1,0 +1,61 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 39<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>vectorListWithMerge.h</code>. Test code is
+included in <code class=code>vectorListWithMerge.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class vectorListWithMerge : public vectorList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      vectorListWithMerge(int initialCapacity = 10)
+           : vectorList&lt;T&gt; (initialCapacity) {}
+
+      void merge(const vectorListWithMerge&lt;T&gt;& a,
+                 const vectorListWithMerge&lt;T&gt;& b);
+};
+
+template&lt;class T&gt;
+void vectorListWithMerge&lt;T&gt;::merge(const vectorListWithMerge&lt;T&gt;& a,
+                                  const vectorListWithMerge&lt;T&gt;& b)
+{// Make this the result of merging the sorted lists a and b.
+   vector&lt;T&gt;::iterator ia = a.element-&gt;begin();  // iterator for a
+   vector&lt;T&gt;::iterator aEnd = a.element-&gt;end();  
+   vector&lt;T&gt;::iterator ib = b.element-&gt;begin();  // iterator for b
+   vector&lt;T&gt;::iterator bEnd = b.element-&gt;end();  
+
+   element = new vector&lt;T&gt;;
+
+   // merge from a and b
+   while ((ia &lt; aEnd) && (ib &lt; bEnd))
+      if (*ia &lt;= *ib)
+      {
+         element-&gt;push_back(*ia);
+         ia++;
+      }
+      else
+      {
+         element-&gt;push_back(*ib);
+         ib++;
+      }
+
+   // take care of left overs
+   element-&gt;insert(element-&gt;end(), ia, aEnd);
+   element-&gt;insert(element-&gt;end(), ib, bEnd);
+}
+</pre>
+<hr class=coderule>
+The complexity of the method is <code class=code>O(a.listSize + b.listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

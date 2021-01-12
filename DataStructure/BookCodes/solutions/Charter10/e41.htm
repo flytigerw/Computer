@@ -1,0 +1,48 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 41<BR>
+<BR>
+</H1>
+
+The expected length of a chain is <code class=var>alpha</code>.
+An unsuccessful search will have to examine all nodes on the
+home bucket chain. So,
+<br>
+<code class=var>U<sub>n</sub> approx = alpha</code>
+<br><br>
+
+When the <code class=var>i</code>th element is inserted, its
+home bucket chain has an expected length <code class=var>(i - 1)/b</code>.
+Since the element is added at the end of the chain and since its position from
+the front does not change later, <code class=var>1 + (i - 1)/b</code>
+nodes are examined to locate it later.
+Therefore,
+<br>
+<code class=var>
+S<sub>n</sub>
+<br>
+approx =
+1/n(sum from 0 to n-1) (1 + (i-1)/b))
+<br>
+approx =
+1/n(sum from 0 to n-1) (1 + i/b))
+<br>
+=
+1/n(n + n(n-1)/(2b)))
+<br>
+=
+1 + (n-1)/(2b)
+<br>
+approx =
+1 + alpha/2
+</code>
+
+</FONT>
+</BODY>
+</HTML>

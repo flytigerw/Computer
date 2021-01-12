@@ -1,0 +1,49 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 37<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>vectorListWithHalf.h</code>. Test code is
+included in <code class=code>vectorListWithHalf.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class vectorListWithHalf : public vectorList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      vectorListWithHalf(int initialCapacity = 10)
+           : vectorList&lt;T&gt; (initialCapacity) {}
+
+      void half();
+};
+
+template&lt;class T&gt;
+void vectorListWithHalf&lt;T&gt;::half()
+{// Remove all odd indexed elements.
+
+   // move even indexed elements to new spots
+   int listSize = (int) element-&gt;size();
+   for (int i = 2; i &lt; listSize; i += 2)
+      (*element)[i/2] = (*element)[i];
+
+   // destroy uneeded elements
+   int newSize = (listSize + 1) / 2;
+   element-&gt;erase(element-&gt;begin() + newSize, element-&gt;end());
+}
+</pre>
+<hr class=coderule>
+The <code class=code>for</code> loop is iterated <code class=code>O(listSize)</code> times.
+Each iteration takes <code class=code>O(1)</code> time.
+The complexity of the call to the <code class=code>vector</code> method
+<code class=code>erase</code> is <code class=code>O(listSize)</code>.
+Hence, the complexity of the function is <code class=code>O(listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

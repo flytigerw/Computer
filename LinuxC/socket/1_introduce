@@ -1,0 +1,164 @@
+1 In a typical C/S scenario,applications communicate using sockets as follows:
+  1)Each applications creates a socket
+  2)Server binds its socket to a well-known address so that clients can locate it
+
+  socket sysCall
+  fd = socket(domain, type, protocol)
+
+2 communication domains
+  1)socket exists in a communication domain
+  2)it determins:
+    a.the method of identifying a socket
+    b.the range of communication --> on the same host?
+                                     on different hosts via network
+  3)常见domains:
+    a.AF_UNIX
+      allow communications between applications on the same host
+    b.AF_INET
+      on different hosts via IPV4 network 
+    c.AF_INET6
+      on different hosts via IPV6 network 
+    AF stands for address family
+
+    the characteristics of three domains 
+    Domain     Address format   Address structure
+    AF_UNIX    pathname            sockaddr_un
+    AF_INET    32-bit IPV4 address sockaddr_in
+              +16-bit port number
+    AF_INET6   128-bitIPV6 address sockaddr_in6
+              +16-bit port number
+
+3 Socket types
+  Two types of implementation of socket
+  1)Stream sockets
+    a.provide a reliable,bidirectional,byte-stream communication 
+      reliable:either the transmitted data will arrive intact at the destination or we'll receive notification of probable failure in the transmission
+      byte-stream: as with pipe,no concept of message boundaries
+    b.operate in connected pairs --> connection-oriented
+    c.empoly Transmission Control Protocol -> TCP
+
+  2)Datagram sockets 
+    a.data are exchanged in the form of datagram
+    b.message boundaries are preserved
+    c.data transmission is not reliable -> arrive out of order,be duplicated,not arrive at all
+    d.connectionless socket:does't need to be connected to another sockets in order to be used
+    f.employ User Datagram Protocol -> UDP
+
+4 Socket I/O
+  It can be performed using conventional read() and wirte() or socket-specific sysCalls
+  By default,these sysCalls blcok if the I/Ooperation can't be completed immediately
+  通过fcntl()+F_SETFL+O_NONBLOCK实现Nonblocking I/O
+  ioctl(fd,FIONREAD,&cnt) -> fd can refer to stream socket or datagram socket
+  For stream socket,this opertion returns the number of unread bytes avaliable on the fd
+  For datagram socket,this opertion returns the number of bytes in the next unread datagram
+  
+  A socket may be closed calling close() or as a consequence of app termination
+  Afterward,if the peer app attempts to read from the closed socket,it receives end-of-file
+  if write,it receives a SIGPIPE signal,and write call fails with EPIPE error
+  
+
+5 the opertion of stream socket is similar to telephone system
+  1)socket() which creates a socket,is equivalent of installing a telephone.--> Both sides need to install telephones in order to communicate --> both call socket()
+  2)One app must connect its socket to another app's socket before communication takes place.Two sockets are connected as follows:
+    a.one app calls bind() to bind the socket to a well-known address
+      then calls listen() to notify kernal its willingness to accept incoming connections
+      it is analogous to having a telephone number and ensuring the telephone is turned on
+    b.the other app calls connect(),specifying the socket address to which the connection is to be made 
+      it is analogous to dialing sb's number
+    c.the app that called listen() then accecpts connection by calling accept()
+       just like picking up the telephone when it rings
+
+6 Stream sockets are distinguished as being either active or passive
+  Active socket calls connect() to establish a connection
+  Passive socket calls listen() to wait for an incoming connection req
+
+7 相关API
+  1)int socket(int domain, int type, int protocol)
+    a.return a fd used to refer to a socket
+    b.type -> SOCK_STREAM,SOCK_DGRAM
+      可以or flags
+      1.SOCK_CLOEXEC
+        enable close-on-exec for the new fd
+      2.SOCK_NONBLOCK
+        set the O_NONBLOCK flag on the fd
+        实现Nonblocking IO
+    "or flags" can save additional calls to fcntl() to achieve the same result
+
+  2)int bind(int sockfd,const struct sockaddr* addr,socklen_t addrlen)
+    usually server binds a socket to a well-known address so that client can locate it
+    a.sockaddr
+      每个domain都有自己的address structure
+      sockaddr can be cast to the various domain-specific address structures 
+      sockaddr serves as a template for the domain-specific so that bind() can be generic to all socket domains
+      struct sockaddr{
+        sa_family_t sa_family;  //AF_constant
+        char        sa_data[14];//Socket address
+      }
+   
+  3)int listen(int sockfd,int backlog)
+     a.mark the stream socket refered to by fd as passive
+     b.is used to accecpt connections from other sockets 
+
+     c.client may call connect() before server calls accecpt() when server is busy handling other clients --> results in a pending connection 
+       kernel must record some information about the pending connection so that a subsquent accept() can be processed
+       backlog is used to limit the number of pending connections
+       超过此limit的connection req will be blocked until a pending connection is accepted
+     
+  4)int accept(int sockfd,struct sockaddr* addr,socklen_t* addrlen)
+     a.accept an incoming connection on the listening stream socket refered to by the sockfd.If there are no pending connections when accept() is called,the call blocks until a connection req arrives
+     b.it creates a new socket which is connected to the peer socket that perfomed connect() 
+     c.return a sockfd refer to the new socket
+     d.listening socket remains open for further connections 
+     e.addr,addrlen are used to get peer socket address
+     f.addrlen is a value-result argument.It must be initialized to the size of the buffer that pointed by addr before the call,so the kernal knows how much space is avaliable to return socket address.Upon return from accecpt(),it is set to indicate the number of bytes that are actually copied into the buffer
+     g.accept4() --> it supports additional flags:SOCK_CLOEXEC and SOCK_NONBLOCK
+
+  5)int connect(int sockfd,const struct* addr,socklen_t addrlen)
+     a.connects the active socket(sockfd) to the listening socket specified by addr and addrlen
+     b.we wish to reattempt when connect() fails and the portable method of doing so is to close()+socket()+connect()
+    
+  6)close() is usually to terminate a stream socket connections
+      problem:the peer socket may crash or fails to read or correctly process the data and we have no way of knowing that an error occured.So we need message passed back from peer socket
+      shutdown() is better
+
+
+8 the operation of datagram socket is similar to postal system
+  a.The socket() is equivalent of setting up a mailbox
+  b.one app calls bind() to bind its socket to a well-known address and the other initiates communication by sending a datagrm to that address.
+    if the other app wants to receive datagrm,it should bind its socket to some address too --> bind()
+  c.one app calls sendto() to send a datagram.
+    It is analogous to putting the recipient's address on a letter and posting it
+  d.The other app calls recvfrom() to receive a datagram.
+    The call will blcok if no datagram has yet arrived
+    The call allows us obtain the address of sender,so we can send a reply if desired
+
+  Just as with postal system,when muliple datagrams are sent,there is no guarantee that they will arrive in order,or even arrive at all
+  Due to the protocol that sometimes required to retransmit a data packet,the datagram may arrive more than once
+
+9 Datagram API
+  a.ssize_t recvfrom(int sockfd,void* buffer,size_t length,int flags,struct sockaddr* src_addr, socklen_t* addrlen)
+  b.ssize_t sendto(int sockfd,const void* buffer,size_t length,int flags,const struct sockaddr*dest_addr, socklen_t addrlen)
+
+  The first three arguments are just like read() and write().
+  
+  Regardless of the Length,recvfrom() retrives exactly one message from a datagram socket.If the size of message exceed Length,the message will be silently truncated to Length
+
+10 Using connect() with Datagram Socket
+   Calling connect() on a datagram sockets causes kernal to record a particular address as its peer socket --> connected datagram socket is applied to such a socket
+
+   After a datagram socket has been connected:
+   1.datagrams can be sent through the socket using wirte() or send() and they are automatically sent to the same peer socket
+   2.Only datagrams sent by the peer socket may be read on the socket
+
+   The effect of connect() is asymmetric for datagram socket
+   Only the datagram socket who calls connect() is [connected datagram socket] 
+
+   We can change the peer of a connected datagram socket by issuing a further connect() call
+
+   It can also dissolve the peer association altogether by specifying sa_family in the address structure as AF_UNSPEC
+
+   The advantages:
+   1)Use simpler I/O sysCalls
+   2)make little difference to performance
+
+   It is primiarily useful in app that needs to send muliple datagrams to a single peer

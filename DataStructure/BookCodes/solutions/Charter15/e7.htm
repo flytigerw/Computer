@@ -1,0 +1,242 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 7<BR>
+<BR>
+</H1>
+
+
+We use the node format <code class=var>[balance factor, key]</code>.
+The initial tree is
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                     [0, 4]              [0, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [0, 2]           [0, 6]      [0, 10]       [0, 14]
+        /      \         /      \    /       \      /      \
+    [0, 1] [0, 3]  [0, 5]   [0, 7] [0, 9] [0, 11]  [0, 13] [0, 15]
+</pre>
+Removal of <code class=var>6</code> gives us the balanced tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                     [0, 4]              [0, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [0, 2]         q [-1, 5]      [0, 10]       [0, 14]
+        /      \                \    /       \      /      \
+    [0, 1] [0, 3]           [0, 7] [0, 9] [0, 11]  [0, 13] [0, 15]
+</pre>
+The <code class=var>q</code> node is <code class=var>[-1, 15]</code>,
+and since its balance factor is <code class=var>-1</code> no
+further work is to be done.
+<br><br>
+When <code class=var>7</code> is removed, we get the tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                     [1, 4]              [0, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [0, 2]         q [0, 5]      [0, 10]       [0, 14]
+        /      \                     /       \      /      \
+    [0, 1] [0, 3]                  [0, 9] [0, 11]  [0, 13] [0, 15]
+</pre>
+When <code class=var>5</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                q, A [2, 4]            [0, 12]
+                  /                   /       \
+                /                    /          \
+              /                     /            \
+       B [0, 2]                   [0, 10]       [0, 14]
+        /      \                 /       \      /      \
+    [0, 1] [0, 3]              [0, 9] [0, 11]  [0, 13] [0, 15]
+</pre>
+The type of the imbalance is R0 because the deletion was from the
+right subtree of the <code class=var>A</code> node and because
+<code class=var>bf(B) = 0</code>. Performing an R0 rotation (equivalent
+to an LL rotation)
+balances the tree. The result is
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                    [-1, 2]            [0, 12]
+                  /        \          /       \
+                /           \        /          \
+              /              \      /            \
+         [0, 1]           [1, 4]  [0, 10]       [0, 14]
+                         /       /       \      /      \
+                       [0, 3]   [0, 9] [0, 11]  [0, 13] [0, 15]
+</pre>
+When <code class=var>10</code> is removed, we get the balanced tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                    [-1, 2]            [0, 12]
+                  /        \          /       \
+                /           \        /          \
+              /              \      /            \
+         [0, 1]           [1, 4]  [1, 11] q     [0, 14]
+                         /       /              /      \
+                       [0, 3]   [0, 9]          [0, 13] [0, 15]
+</pre>
+When <code class=var>9</code> is removed, we get the balanced tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                    [-1, 2]            [-1, 12]
+                  /        \          /       \
+                /           \        /          \
+              /              \      /            \
+         [0, 1]           [1, 4]  [0, 11] q     [0, 14]
+                         /                      /      \
+                       [0, 3]                   [0, 13] [0, 15]
+</pre>
+When <code class=var>11</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [0, 8]
+                            /           \
+                           /             \
+                    [-1, 2]            [-2, 12] q, A
+                  /        \                  \
+                /           \                   \
+              /              \                   \
+         [0, 1]           [1, 4]                [0, 14] B
+                         /                      /      \
+                       [0, 3]                   [0, 13] [0, 15]
+</pre>
+The imbalance type is L0 and an L0 rotation
+is performed to rebalance the tree. The result is
+<br><pre class=figure>
+                               [0, 8]
+                             /         \
+                           /             \
+                    [-1, 2]            [1, 14]
+                  /        \           /      \
+                /           \         /         \
+              /              \       /            \
+         [0, 1]           [1, 4]   [-1, 12]     [0, 15]
+                         /               \  
+                       [0, 3]          [0, 13] 
+</pre>
+When <code class=var>15</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [0, 8]
+                             /         \
+                           /             \
+                    [-1, 2]            [2, 14] q, A
+                  /        \           /
+                /           \         /  
+              /              \       /    
+         [0, 1]           [1, 4]   [-1, 12] B
+                         /               \  
+                       [0, 3]          [0, 13] C
+</pre>
+The imbalance type is R-1 and an R-1 rotation (equivalent to an LR rotation)
+is performed. Following the rotation, we move up the
+tree and adjust the balance factor of <code class=var>[0, 8]</code>.
+The result is
+<br><pre class=figure>
+                               [1, 8]
+                             /         \
+                           /             \
+                    [-1, 2]            [0, 13] 
+                  /        \           /     \
+                /           \         /        \
+              /              \       /          \
+         [0, 1]           [1, 4]   [0, 12]    [0, 14]
+                         /               
+                       [0, 3]          
+</pre>
+The removal of <code class=var>12</code> leaves behind the balanced tree
+<br><pre class=figure>
+                               [1, 8]
+                             /         \
+                           /             \
+                    [-1, 2]            [-1, 13]  q
+                  /        \                 \
+                /           \                  \
+              /              \                  \
+         [0, 1]           [1, 4]              [0, 14]
+                         /               
+                       [0, 3]          
+</pre>
+The removal of <code class=var>13</code> leaves behind the unbalanced tree
+<br><pre class=figure>
+                               [2, 8] A
+                             /       \
+                           /           \
+                    [-1, 2] B         [0, 14]  q
+                  /        \            
+                /           \          
+              /              \        
+         [0, 1]           [1, 4] C
+                         /               
+                       [0, 3]          
+</pre>
+The imbalance type is R-1. The tree after the R-1 rotation is performed is
+<br><pre class=figure>
+                               [0, 4]
+                            /        \
+                           /          \
+                     [0, 2]           [-1, 8]
+                    /      \             \
+                [0, 1]    [0, 3]        [0, 14]
+</pre>
+The removal of <code class=var>1</code> gives us the balanced tree
+<br><pre class=figure>
+                               [0, 4]
+                            /        \
+                           /          \
+                  q [-1, 2]           [-1, 8]
+                           \             \
+                          [0, 3]        [0, 14]
+</pre>
+The removal of <code class=var>2</code> gives us the balanced tree
+<br><pre class=figure>
+                               [-1, 4]
+                             /        \
+                           /            \
+                      q [0, 3]       [-1, 8]
+                                         \
+                                        [0, 14]
+</pre>
+The removal of <code class=var>3</code> gives us the unbalanced tree
+<br><pre class=figure>
+                               [-2, 4] q, A
+                                      \
+                                        \
+                                     [-1, 8] B
+                                         \
+                                        [0, 14]
+</pre>
+The imbalance type is L-1 and an L-1 rotation (equivalent to an RR rotation)
+is performed. The result is the balanced tree
+<br><pre class=figure>
+                               [0, 8]
+                              /      \ 
+                          [0, 4]    [0, 14]
+</pre>
+</FONT>
+</BODY>
+</HTML>

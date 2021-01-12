@@ -1,0 +1,186 @@
+
+
+1.端到端的数据传输
+ 主机A  ----->  ISP  ----->  Internet  ----->  目标网关   ----->  目标网络中的主机B
+        拨入段              公共网络段          网关点  内部网络段                        
+ 在这四处都有可能发生数据安全问题:
+ 1)拨入段
+   用户数据以明文形式传输到ISP
+   攻击者可以在拨入链路上监听
+   ISP可以检查用户数据
+ 
+ 2)公共网络段
+   数据在公共网络端会经过多个路由器的转发
+   明文传输的数据很容易在路由器上被查看和修改
+ 
+ 3)网关点
+   数据在网关中是明文，所以网络管理员可以直接查看机密数据
+   网关本身可能会受到攻击，一旦被攻破，流经安全网关的数据将面临风险
+ 
+ 4)内部网络段
+   内部网中可能存在不信任的主机，路由器
+   内部员工可能监听，篡改，重定向企业内部网的数据报文
+ 
+ 采用VPN可解决在 公用网络上 数据传输的安全性问题  --->  也可以采用专线保证数据传输的安全性,但费用昂贵
+
+2.VPN(Virtural Private Network)
+  VPN是在公共网络中建立的安全网络连接
+     其采用专有的协议，来实现数据加密,完整性检验以及用户的身份认证
+  Virtual:用户不需要使用网络专线，直接使用Internet公共网络的数据线路
+  Private:用户可以根据自己需求自定义安全的私有连接网络
+  
+  功能:
+  1)数据的机密性保护
+    在传输过程中对数据进行加密
+  2)数据的完整性保护
+    检验信息是否被篡改
+    方法:发送端对源数据包进行Hash运算，得到信息摘要
+         接收端收到数据包后，也对其进行Hash运算生成摘要.然后进行摘要比对
+
+  3)数据源的身份认证
+    可检验接收到的数据是否由指定用户发送而来,以防止网络中的伪装攻击事件
+    方法:发送端用私钥对摘要进行加密 ---> 形成数字签名
+         接收端只能用发送端的公钥才能进行解密 
+    
+
+3.VPN的分类
+  1)LAN-LAN
+    在不同的局域网之间建立安全的数据传输通道
+    对终端用户透明
+
+  2)CLIENT-LAN
+    提供一种 远程个体安全地访问某内部网络的 手段
+
+
+3.VPN的四项关键技术
+  1)安全隧道技术
+    将协议X封装在协议Y中传输，从而实现协议X对共用传输网络的透明性
+    隧道协议包括三种:
+     a.Passenger Protocol 
+       用于加密数据帧 --> 比如PPP协议
+     b.Encapuslating Protocol 
+       用于封装数据链路层协议 --> PPTP
+     c.Carrier Protocol 
+
+    根据隧道协议 作用于OSI模型的层次 进行分类:
+     a.二层隧道协议:封装在数据链路层协议中
+       1.PPTP(Point to Point Tuneling Protocol)
+         由微软公司开发
+         数据链路层协议常采用PPP.其适用于点对点的数据传输
+         基于PPP实现VPN的方式:主机通过专线连接到RAS Server.
+                              但RAS Server可能与主机相距太远 --> 专线成本过高
+                              主机如何通过Internet与RAS Server安全地传输数据?
+
+         解决:在主机端增加代理AC(Access Concentrator)
+              主机将含有PPP Frame发送给AC.
+              Frame结构:PPP Header | 加密的数据(IP Packet)|
+
+              AC将其封装在另一IP Packet内，然后将封装后的IP包发送给RAS
+              AC发给RAS的Frame结构:
+              PPP Header(记录AC的相关信息) | IP Packet(记录AC的相关信息) | GRE(用于安全验证) | Origin PPP Frame |
+              接收方收到数据帧后，逐层拆封
+              在IP层拆封后，根据协议，调用相关程序进行GRE的安全验证.
+              通过后再从Origin PPP Frame中取出Origin IP Packet
+
+       2.L2TP
+         Layer 2 Tuneling Protocol
+         PPTP和L2TP的比较:二者都是用PPP协议对IP Packet封装，然后在添加额外Header用于数据的安全传输
+                          其他见ppt
+
+     b.三层隧道协议
+       IP协议的设计是为了实现网络的互联互通，并没有考虑太多安全问题
+       IPSec(Security):由IETF设计的确保端到端IP层通信安全的机制
+       其是一个协议集，包括常见的AH,DES-CBC,ES等等协议
+       其有两种工作模式:传输模式(不保护IP Header)和隧道模式(保护IP Header)
+
+       IPSec中的协议介绍:
+       1.AH(Authentication Header) --> 重在验证 --> 数字摘要
+         其提供三种服务:
+         1)数据完整性验证
+           通过Hash函数生成的摘要来验证
+         2)数据源身份验证
+         3)防重放攻击
+           在AH Header中含有序列号字段
+         具体见pdf66
+
+         AH会对整个IP包生成摘要
+         若稍后IP包会经过NAT网关,修改了IP包的源地址
+         那么接收方收到IP包后生成的摘要会与源摘要不一致 --> 完整性验证失败
+       
+       2.ESP(Encapsulating Security Payload)协议  --> 验证+加密
+         不仅提供认证服务，还提供加密服务
+
+         AH和ESP的联合使用 考虑:
+       
+       3.IKE协议(Internet Key Exchange)
+         IPSec提供多种 数据认证和加密 的协议,认证和加密的算法也有多种,而且数据认证和加密的顺序也可自定义
+         所以采用IPSec系统的两台计算机在通信前应该先协商好 数据认证和加密采用的协议,算法以及二者之间的顺序等等
+
+         SA(Security Association)
+         双方协商的产物
+         其为单向的逻辑连接.在一次通信中，IPSec需要建立两个SA:一个用于入站通信,另一个用于出站通信
+
+         SA包括索引和内容两部分:
+         协商好的具体内容(比如Security Protocol,加密算法以及密钥...)存储在SAD(Securit Assocaition Database)中
+         SAD就相当于一张表,主键为SPI
+
+         索引也相当于一张表,属性有:
+          1)SPI(Security Parameter Index)
+            外键 -- 外连接SAD表
+          2)Security Protocol
+            采用的安全协议(AH,ESP)
+          3)Destination Address
+            
+         SPD(Security Policy Database):类似路由器的防火墙
+        
+         网络A的主机a 向 网络B中的主机b 发送数据包的过程:
+         1)主机a将数据包发给 网络A的VPN网关
+         2)VPN网关会去查询SPD,找到该数据包需要使用的安全策略:丢弃,(不)使用IPSec
+           查找关键词:源IP,目标IP
+         3)若要使用IPSec,则先去SA索引表中查找是否有对应的SA
+           查找关键词:目标IP,Security Protocol
+           若不存在，则启动IKE协议新建一个SA，并存储到SAD中
+           然后根据SA中的指示，对数据包进行安全处理
+
+         4)网络B的VPN网关收到IPSec封装的数据包后，可以从中取出三元组:SPI,DST,Protocol
+           然后去查表做相应的安全验证
+
+         SA可由人工手动协商创建，也可以通过IKE协议创建
+         SA中最需要保密的内容是 加密算法需要的密钥
+         IKE的精髓在于 其没有用 密钥传输的方式 让通信双方共享密钥   --->  因为网络永远不安全
+                       而是采用 密钥生成的方式 直接在通信双方处创建密钥
+                       核心技术为:Diffie-Hellman密钥交换算法
+                                  核心思想为单向函数
+
+         IKE协议也是一组协议.
+         ISAKMP(Internet Security Association Key Management Protocol)
+         定义了 协商，建立，修改，删除SA的方式
+
+         IKE创建SA有两个阶段:
+         1)协商创建一个通信信道(IKE SA),并对信道进行认证
+           为双方进一步的IKE通信提供机密性，数据完整性
+         2)使用已建立的IKE SA建立IPSec SA --> 用于最终的IP数据的安全传输
+
+         ISAKMP(Internet Security Assocaition Key Management Protocol)
+
+  2)用户认证技术
+  3)加解密技术
+  4)密钥管理技术
+
+4.NAT
+  在局域网内部，为主机分配私有IP地址
+  当主机访问外网时,路由网关利用NAT算法可将私有IP转为合法的公有IP
+  可缓解公有IP紧缺的问题
+  分类:
+  1)静态NAT
+    内部私有IP和公有IP一一对应
+
+  2)动态NAT
+    多个公有IP地址形成地址池
+    内部主机访问外网时，NAT就从地址池中为其分配一个公有IP，主机用完后再归还到地址池中
+
+  3)PAT
+    使用端口多路复用技术，将多个内部私有IP映射到同一个公有IP
+    通过端口号区分各个内部私有IP --> 每个私有IP对应一个网络连接，一台主机可通过多个网络接口建立网络连接
+
+  4)PAT+地址池

@@ -1,0 +1,25 @@
+
+1.使用pthread_mutex_init(*mutex,*attr),创建一个但有attr的mutex
+  
+  //initialize the attr 
+  pthread_mutexattr_ mtx_attr;
+  int s = pthread_mutexattr_init(&mtx_attr);
+  if(s != 0)
+    errExitEn(s,"mutexattr");
+
+  //set the attr 
+  s = pthread_mutexattr_settype(&mtx,PTHREAD_MUTEX_ERRORCHECK);
+  if(s != 0)
+    errExitEn(s,"mutexatt-set");
+
+  //create the mutex 
+  pthread_mutex_t mtx;
+  s = pthread_mutex_init(&mtx,&mtx_attr);
+  if(s != 0)
+    errExitEn(s,"mutexatt-init");
+
+  ........
+  //destory the mutexattr since wo nolonger need it
+  s = pthread_mutexattr_destory(&mtx_attr);
+  if(s != 0)
+    errExitEn(s,"mutexattr-destory");

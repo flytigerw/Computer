@@ -1,0 +1,141 @@
+1 signal handler的设计
+  越简单越好 ---> 减少race conditon
+  两种常见设计
+   a.handler设置 全局性标志变量 然后退出
+     主程序对此标志进行周期性检查，一旦标志位置位就执行相关动作
+     若主程序因监控 一个或多个fd的IO状态而无法进行周期性检查时
+     则让hanlder向 一个专用PIPE 写入一个byte数据，同时将 PIPE的读取端置于所监控的fd范围之内
+   b.hanlder执行清理动作，然后term process 或者 进行非本地跳转--->unwind stack,并将控制返回到主程序预定位置
+
+2 信号的非队列化处理
+  默认，执行handler时，会阻塞相同信号的传递 --> 除非指定SA_NODEFFER
+  若该信号产生，则被拉入pending signal set中，且不能对其进行计数，稍后只会传递一次给进程
+
+3 可重入函数
+  signal handler可能会在任意时点 异步中断 程序的执行 --> 同一进程形成两条独立的执行线程 --> (主程序和handler,并非并发)
+  若一个进程中的多条线程 可同时安全地调用某一函数    --> 函数可重入
+  安全 --> 无论其他线程调用该函数的执行状态如何，函数均可产生预期结果
+
+  不可重入的可能情况:
+   a.更新 全局变量或者静态数据 的函数 可能是不可重入的 --> 可能发生race conditon,函数不能产生预期结果 -->只用到本地变量的函数肯定是可重入的
+     比如: malloc()和free()维护 已经free的内存块链表 
+           若主程序和handler调用了malloc --> 链表会被破坏
+   b.函数使用了静态分配的内存来返回信息 --> 下次调用会覆盖上次调用返回的信息
+     可能: handler调用了该类函数 --> 覆盖了主程序上次调用返回的信息
+   c.函数使用静态数据结构 进行 内部记账
+     比如: stdio函数(printf,scanf) --> 会为buffer io更新内部数据结构
+     可能: 主程序和handler先后调用了printf --> 输出奇怪信息 
+
+4 标准的异步信号安全函数
+  Handler调用函数func,若func的实现是安全的，则func是 异步信号安全 函数
+  通常若函数是 可重入的 又或者 hanlder 无法将其中断
+
+5 handler处理errno
+  handler可能会调用 异步信号安全函数 --> 可能设置errno --> 覆盖主程序之前的设置 --> 所以需要hander先保存errno
+  例:
+  void handler(int sig){
+    int preErrno = errno;
+    //execute a function that may modify the errno safely
+    errno = preErrno;
+  }
+
+
+6 Handler和主程序之间可能会因为 共享的全局变量 而存在可重入问题
+  但常见的handler的设计有:
+   handler设置 全局性标志变量 然后退出
+   主程序对此标志进行周期性检查，一旦标志位置位就执行相关动作
+  不得不共享全局变量
+  只要保证共享全局变量是安全的就OK
+  对该 标志性全局变量(只会有赋值操作) 加上声明限制: volatile sig_atomic_t
+  volatile避免编译器将其优化到reg中
+  sig_atomic_t保证了变量操作的原子性 --> 不支持++,--  -->通常只有赋值操作 -->赋值范围:[SIG_ATOMIC_MIN,SIG_ATOMIC_MAX]
+
+7 handler中操作
+  a.做一些清理工作，然后调用_exit()终止进程
+    不调用exit() --> 不安全 --> exit在调用_exit()之前会刷新stdio buffer
+  b.kill()发送信号来kill process 
+  c.执行非本地跳转
+  d.调用abort()生成core
+
+8 在信号处理中，不能使用 setjmp和longjmp ---> 调用handler时，内核会自动将 引发调用的信号和sa_mask 加入到进程的signal mask中,并在handler正常结束时，再将他们从signal mask中清除 ---> 若使用longjmp(),则多半不会进行掩码恢复
+  采用sigsetjmp和siglongjmp ---> 进行非本地跳转时，对信号掩码显示控制
+  int sigsetjmp(sigjmp_buf env)
+  void siglongjmp(sigjmp_buf env,int val)
+  但二者并不是 异步信号安全函数  ---> 有风险
+
+9 void abort(void)
+  产生信号SIGABRT ---> 默认处理: term+core
+  除非进程捕获SIGABRT调用handler尚未返回，否则abort()必须终止进程
+  若handler调用了siglongjmp呢？ ---> 将抵消abort()的效果
+  abort()成功终止进程后，还会刷新stdio流，将其关闭
+
+10 在备选栈中处理信号
+   当函数栈直逼上限---RLIMIT_STACK时
+   内核为进程产生SIGSEGV信号 ---> 正常应开辟栈帧供handler使用 ---> 但已经没有多余的栈空间 ---> handler调用失败
+                             ---> 执行SIGSEGV的默认操作，term process
+   若要在栈空间资源耗尽时成功调用handler，则需要
+   a.用sigaction install signal handler时，指定SA_ONSTACK标志 ---> 告知内核再备选信号栈上开辟 handler的stack frame
+   b.用 sigaltstack() 分配一块备选信号栈的内存区域
+   
+   SIGSEGV的handler的工作常为:
+    a.执行清理动作后终止进程
+    b.调用非本地跳转，解开标准栈
+
+   sigaltstack() --> 创建备选信号栈或者返回已创建的xxx信息
+   int sigaltstack(const stack_t* sigstack, stack_t* old_sigstack)
+   struct stack_t{
+      void* ss_sp;
+      size_t ss_size;      
+      int ss_flags;
+   }
+   内核会自动将ss_sp值自动对齐到与硬件架构相适宜的地址边界
+   备选栈大小的系统参考常量值: SIGSTKSZ和MINSSIGSTKSZ --->在linux/x86-32系统为:4K和2K
+   ss_flags:
+    a.SS_ONSTACK --> 表示已创建备选信号栈，进程已经在备选信号栈上运行，若再调用sigaltstack()创建~~，会产生ERERM错误
+    b.SS_DISABLE --> 在old_sigstack中置位 ---> 当前不存在已创建的备选信号栈
+                     在sigstack中置位     ---> 会禁用当前已创建的备选信号栈
+
+11 SA_SIGINFO()标志
+   在sigaction()中指定该标志 ---> handler可获取该sig的一些附加信息
+   此时handler的声明为:
+   void handler(int sig, siginfo_t* siginfo, void*ucontext)
+   struct sigaction的完整定义
+   {
+     union{
+       void (*sa_handler)(int);
+       void (*sa_sigaction)(int,siginfo_t*,void*);
+     }
+     sigset_t sa_mask;
+     int sa_flags;
+     void (*sa_restorer)(void);
+   }
+   //Following defines make the union fields look like simple fields in the parent structure
+   #define sa_handler __sigaction_handler.sa_handler 
+   #define sa_sigaction __sigaction_handler.sa_sigaction
+
+   siginfo_t和ucontext参见p.364
+
+12 系统调用的中断和重启
+   考虑场景:
+    a.install handler for SIGXXX
+    b.launch blocking system all ---> 比如从终端设备调用的read()会阻塞到有数据为止
+    c.系统调用阻塞期间，若SIGXXX传递过来，随即引发handler的调用
+    handler返回后，默认，系统调用失败，将errno置为EINTR
+
+    若希望系统调用能够继续运行,可使用如下代码重启system call
+    while((cnt=read(fd,buf,BUF_SIZE))==-1 && errno==EINTR)
+      continue;     //start over again 
+    if(cnt == -1)
+      errExit("read");
+    编写成宏
+    #define NO_EINTR(stmt) while((stmt) == -1 && errno==EINTR)
+    故有:
+     NO_EINTR (cnt = read(fd,buf,BUF_SIZE))
+     if(cnt == -1)
+       errExit("read");
+    方式二:
+    采用sigaction install handler 时指定SA_RESTART标志 --> 内核代表进程自动重启system，而且无需处理syscall可能返回的EINTR
+    SA_RESTART针对部分system call有效。p.366
+
+13 修改信号的SA_RESTART标志:  int siginterrupt(int sig,int flag);
+   原理:调用sigaction获取oldact,修改oldact中的sa_flags,使其包含SA_RESTART,在调用sigaction进行更新

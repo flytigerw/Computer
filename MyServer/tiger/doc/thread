@@ -1,0 +1,78 @@
+1.Thread对象:在更高的抽象层面使用线程
+  1)封装底层的POSIX线程库 -----> 将其对象化
+  2)用到的函数和变量
+    pthread_t ---> POSIX线程库维护的线程ID,通过pthread_self()
+    pid_t     ---> 内核中的线程ID,通过sysacll(SYS_gettid)获取
+    不同进程下的pthread_t可能相同,但pid_t是唯一的
+
+    pthread_create(pthread_id,attr,func,args):创建一个线程
+    pthread_join(pthread_id,buffer):回收某线程的终止结果
+    pthread_detatch(pthread_id):对线程不管不问
+  3)使用static thread_local Thread* 指向当前的正在运行的线程对象
+    使用之处:在协程中调用static函数，以获取其宿主Thread
+    Thread返回this指针就表示当前的Thread对象.
+    当使用static thread_local Thread* 更快 ---> 就像缓存一样
+ 4)组成成员:
+   a.pthread_t 
+   b.pid_t 
+   c.function<void()> m_task ---> 线程的运行任务
+     线程启动时不一定立刻就要执行任务 ---> 可能需要先做一些其他工作:比如状态更新，变量设置 
+     执行完任务以后也需要做一些收尾工作
+     所以在任务外面套上一层函数 static void* run(void*)
+     其职责: 准备工作-->执行任务-->收尾工作
+   d.m_name                  ---> 线程的名称标识
+ 5)如何保证Thread对象创建成功后，线程已经运行
+   本质:同步Thread创建和运行线程两个动作
+   Thread对象在构造的最后一步等待
+   在运行线程前，唤醒构造动作
+   
+    
+
+2.Semaphore
+  变量以及相关函数
+  sem_t m_semaphore;
+  sme_init(&m_semaphore,0,value);
+  sem_wait(&semaphore);             //-1操作.若当前值为0,则会阻塞线程,醒来后，才会-1
+  sem_post(&m_semaphore);           //+1操作.若当前值为0,则会+1，并唤醒某一阻塞线程
+  sem_destory(&m_semaphore);
+  封装要以:
+  sem_t 为资源
+  在构造函数中获取资源，在析构函数中销毁资源。定义成员函数使用资源
+
+3.自旋锁
+  拿不到锁时，不会陷入阻塞状态，而是进行spin 
+  适用于强度小而多的任务 ---> 线程对于锁的持有时间较短 ----> spin的消耗就 小于 陷入阻塞，再唤醒这一过程
+  变量以及相关函数
+  pthread_spinlock_t m_spin_lock
+
+  pthread_spin_init(&m_spin_lock,0)
+  pthread_spin_lock(&m_spin_lock)
+  pthread_spin_unlock(&m_spin_lock)
+  pthread_spin_destroty(&m_mutex)
+
+4.读写锁
+  多个读者可同时持有读锁
+  在某一时间点，只有一个写者能持有写锁
+  读写锁互斥:当读者获取读锁以后，写者就不能获取写锁(阻塞)
+             ......
+  变量以及相关函数
+  pthread_rwlock_t m_lock;
+
+  pthread_rwlock_init(&m_lock,nullptr);
+  pthread_rwlock_wrlock(&m_lock);
+  pthread_rwlock_rdlock(&m_lock);
+  pthread_rwlock_unlock(&m_lock);
+  pthread_rwlock_destroy(&m_lock);
+
+5.二元互斥锁:mutex
+  变量以及相关函数:
+  pthread_mutex_t m_mutex;
+  pthread_mutex_init(&m_mutex,nullptr);
+  pthread_mutex_lock(&m_mutex);
+  pthread_mutex_unlock(&m_mutex);
+  pthread_mutex_destory(&m_mutex);
+
+6.让锁更好用一点:LockGuard对象 
+
+ 
+

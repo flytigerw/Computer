@@ -1,0 +1,58 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 8, Exercise 19<BR>
+<BR>
+</H1>
+For the induction base we use <code class=var>n = 0</code>.
+For this number of disks the program requires no disks to be
+moved and so works correctly.  For the induction hypothesis, assume
+that the program is correct when
+the number of disks is some arbitrary nonnegative integer
+<code class=var>m</code>.  In the induction step we must show that
+the program works correctly when the number of disks is
+<code class=var>m + 1</code>.
+When the number of disks is
+<code class=var>m + 1</code>, the program first moves the top
+<code class=var>m</code> disks from tower
+<code class=var>x</code> to tower
+<code class=var>z</code> using tower
+<code class=var>y</code> for intermediate storage.  The program completely
+ignores the fact that disk
+<code class=var>m + 1</code> is at the bottom of tower
+<code class=var>x</code>.  From the induction hypothesis we conclude that
+the program correctly moves the top
+<code class=var>m</code> disks to tower
+<code class=var>z</code> except possibly for errors caused by the
+presence of disk
+<code class=var>m + 1</code> is at the bottom of tower
+<code class=var>x</code>.  Since disk
+<code class=var>m + 1</code> is the largest disk it can cause no errors.
+Next, disk
+<code class=var>m + 1</code> is moved to tower
+<code class=var>y</code>.  Since this tower has no disk on it, this
+move of disk
+<code class=var>m + 1</code> is legal.
+Finally the program moves disks <code class=var>1</code> through
+<code class=var>m</code> from tower
+<code class=var>z</code> to tower
+<code class=var>y</code> completely ignoring the fact that disk
+<code class=var>m + 1</code> is at the bottom of tower
+<code class=var>y</code>.  From our correctness proof for the moving
+of the top
+<code class=var>m</code> disks from tower
+<code class=var>x</code> to tower
+<code class=var>z</code>, it follows that the moving of these disks
+from tower 
+<code class=var>z</code> to tower
+<code class=var>y</code> is done correctly.
+
+</FONT>
+</BODY>
+</HTML>

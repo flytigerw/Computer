@@ -1,0 +1,203 @@
+1.在Go中，函数不属于任何结构体或类型 ---> 没有对象可以接受函数
+  但是方法都有自己的接受者 ---> 隶属于某个结构体或类型
+  
+  函数格式:
+  func name(args)(return types){}
+  特点:
+   1)可以声明多个返回值
+     对返回值命名 ---> 相当于在函数中创建了一个局部变量 ----> 后续可以直接使用该名字
+	 命名只是为了提高函数可读性
+   2)若函数名以 大写字母开头，则可被所有包调用
+     否则其作用域为本包，不能被其他包调用
+   3)不支持嵌套，重载，默认参数
+   4)参数的类型可以合并
+     比如:
+	 func max(a,b int) (int){
+		if a > b
+			return a 
+		else
+			return b
+	 }
+   5)支持数量可变参数
+	  args ...type
+	  ...type本质为[]type ---> 可以用slice操作进行处理，也可以传递给其他以slice为参数或者可变参数的函数
+	  比如:
+	   func f1(arr ...int){
+			f2(arr...)           //注意添加...
+			for _,v := range arr {    //slice操作
+				//xxxxx
+			} 
+			f3(arr)
+	   }
+	   func f2(arr ...int)
+	   func f3(arr []int)
+	   
+	6)支持数量和类型均可变的参数
+	  args ...interface{}
+	  接口interface{}使得类型可变
+	      ...		 使得数量可变
+	  比如:
+		func Printf(format string, args ...interface{})
+
+2.函数别名:
+  type add_num func(int,int) int
+
+3.匿名函数和闭包
+  1)匿名函数
+	a :=func (num int) int{
+		xx 
+	  }(100)
+  2)闭包
+    匿名函数是一种闭包
+	  闭包可以继承定义闭包的作用域 ---> 从而捕捉到该作用域的某些变量 ---> 闭包中的捕捉变量和闭包的生命周期并不一定一致
+    {
+      定义闭包的作用域
+	    闭包 
+	  }
+  例子:adder产生器 : 返回一个闭包，闭包接受一个num，其会与adder内部的基数相加
+  
+  func adder() func(int) int{
+		base  := 0
+		return func(d int) int {
+			base += d
+			return base 
+		}
+  }
+  
+  f := adder()
+  f(1)
+  f(2)
+	
+4.内置函数
+  不需要导入就可以直接操作的函数
+  close:用于管道通信
+  len,cap:数量和容量
+  new和make:分配内存
+  new用于值类型和用户自定义类型
+     new(T)分配类型T的零值并返回其地址
+  make用于内置引用类型
+     make(T)返回类型T初始化之后的值
+  panic,recover:用于错误处理机制
+
+5.函数传参机制
+  只有值传递 ----> 传递参数副本
+  可以传递指针，以修改源数据
+
+6.defer
+ 1)简化资源回收的代码
+   比如不使用defer:
+   func ReadWrite() bool{
+	  file.Open("file")
+	  if failureA{
+		  file.Close()
+		  return false
+	  }else if failureB{
+		  file.Close()
+		  return false
+	  }
+	  file.Close()
+	  return true
+  }
+  以上代码冗余的根源:有多条通向return的途径，在每条途径上都需要资源释放
+  改进:使用defer语句，将资源释放延迟到函数返回前一刻即可
+  func ReadWrite()bool{
+	  file.Open("file")
+	  defer file.Close()
+	  if failureA{
+		  return false
+  	}else if failureB{
+	  	return false
+	  }
+	  return true
+  }
+
+ 2)defer + 闭包 + 有名返回值
+   func b()(i int){              //临时变量i = 0
+		  defer func(){             //defer1
+			  i++
+		  }()
+		  defer func(){			  //defer2 
+		  	i++
+		  }
+		  return i 
+	 }
+	 最后函数栈:
+	 return i    : 写入返回值
+	 defer2      : i=1
+	 defer1		   : i=2   --->两个defer修改了返回值
+	
+	
+	 return逻辑:
+	 1)写入返回值
+	 2)RET指令会检查是否有defer语句，若有则先执行defer语句
+	 3)函数携带返回值退出
+  
+ 3)defer只是推迟函数体的执行
+   在声明时就会确定参数
+	 比如:
+	 defer fmt.Println(i)  --->指定了参数 ---> 拷贝传入
+  
+ 4)defer用于代码跟踪:在离开函数时打印相关消息
+ 
+7.错误处理
+ 1)error
+   error的接口
+   type error interface{
+	  Error() string 
+   }
+   函数返回错误的模式:将error作为多返回值中的最后一个
+   func f()(n int, err error){////}
+    从函数中获取错误并处理:
+    n,err := f()
+    if err != nil{
+	   //错误处理 
+    }
+  
+   自定义error ---> 继承error接口
+   type PathError{
+	   Err error    
+	   Path string       //承载错误信息
+	   Line string 
+   }
+   实现接口方法
+   func (e *PathError) Error() string{
+	   return e.Path + " "+e.Line + e.Err.Error()
+   }
+  
+   使用实例:
+   func Stat(name string) (f FileInfo,err error){
+	 	var stat syscall.Stat_t
+	 	err = syscall.Stat(name,&stat)
+	 	if err != nil{                      //当syscall调用失败时，将其err包装为自己的error
+	  		return nil,&PathError{"stat",name,err}
+		 }
+   }
+  
+ 2)panic和recover
+   类似throw和catch
+   panic会中断当前函数的执行，但会调用defer语句。并将异常向上层调用者扩散
+   直到遇到recover语句进行捕获 ----> 只捕获最后一个错误
+   recover语句只有在defer的函数中直接调用才有效
+   defer func(){
+	  fmt.Println(recover())
+   }()
+  
+   defer func(){
+	  func (){
+		 recover()   ---> 无效:间接调用
+	  }
+   }
+  
+   defer fmt.Println(recover()) ---> 无效，没有位于defer的函数中
+  
+   检查函数在执行时，是否会抛出异常，若是，则recover 
+   func CheckPanic(f func()) (b bool){
+  	defer func(){
+	  	if r := recover(); r != nil{
+		  	b = true
+		 }
+	  }()
+
+	  f()
+	  return 
+   } 

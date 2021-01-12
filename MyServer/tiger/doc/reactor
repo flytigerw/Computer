@@ -1,0 +1,41 @@
+1.阻塞IO模型
+  每个scoket轮流调用read
+  read会阻塞线程，直到有数据被复制到应用进程缓冲区
+  
+  非阻塞IO模型
+  执行read时，若没有数据可读，则不阻塞，而是立马返回，判断错误
+  此时就可以对多个socket进行轮询，以查看那个socket的read就绪
+
+  为阻塞模型中加入多线程支持 --> thread-per-connection
+  为每个连接客户分配一个线程 ---> 每次只会阻塞一个客户线程，其他客户线程可以正常运行
+  缺点:线程的创建和开销比较大
+  改进:使用线程池
+
+  epoll模型:
+  1)通过epoll创建epoll_fd
+  2)向epoll_fd中注册需要监听的fd
+  3)线程阻塞在epoll_fd上
+  4)内核检测到某个fd的IO就绪时，会通知用户线程
+  5)用户线程再进行相关的IO操作
+  使用epoll可以用创建多个线程而实现多个socket的读写支持
+
+  基于epoll的reactor
+  1)将socket fd封装为Event
+  2)每个socket收到数据后需要进行处理 ---> 交给Event Handler
+  3)将Event和Evenet Handler注册到Dispatcher
+    Event发生时，Dispatcher会将其交给相应的Handler进行处理
+  核心:事件驱动
+  
+
+1.The reactor pattern is event handling pattern for handling service requests delivered concurrently to a service handler by one or more inputs
+  The servie handler then demultiplexes the incoming requests and dispatches them synchronosouly to the associated request handlers
+  应用程序提供相应的接口并注册Reactor上，如果相应的事件发生，Reactor将主动调用这些回调函数
+  各个组件:
+  1)Handles
+    要管理的资源 比如fd
+  2)Synchronous Event Demultiplexer
+    同步地等待Handles集中有Event发生 ---> 使用epoll()
+  3)Initiation Dispatcher
+    维护Event Handlers
+    当有Event发生时,Demultiplexer通知Dispatcher选择相应的handler 
+

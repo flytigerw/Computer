@@ -1,0 +1,43 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 13<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithSwap.h</code>. Test code is
+included in <code class=code>arrayListWithSwap.cpp</code>.
+The function name has been changed to <code class=code>swap1</code> because the
+C++ compiler couldn't dismabiguate the newly defined function and the standard
+two parameter swap function of C++.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithSwap : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithSwap(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void swap1(arrayListWithSwap&lt;T&gt;& theList);
+};
+
+template&lt;class T&gt;
+void arrayListWithSwap&lt;T&gt;::swap1(arrayListWithSwap&lt;T&gt;& theList)
+{// Swap the two lists.
+
+   swap(arrayLength, theList.arrayLength);
+   swap(listSize, theList.listSize);
+   swap(element, theList.element);
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,174 @@
+
+1.Daemon is process with the following characteristics
+  1)It is long-lived
+    Often it's started at system startup and runs until the system shutsdown
+  2)It runs in the backgroud and has no controlling terminal
+    The lack of controlling terminal ensures that the kerner never automatically generates job-control and terminal-related signals for a daemon
+    Many standard daemons run as priviledged processes
+
+2.Daemons are written to carry out specific tasks
+  Exs:
+  1)cron:A daemon that executes CMDs at a scheduled time
+  2)sshd:Scure shell daemon that permits logins from remote hosts using secure communication protocol
+  3)httpd:HTTP server daemon that serves web pages
+  4)inet:Internet superserver daemon that listens for incoming network connections and launches approriate server program to handle these connections 
+
+3.To become a daemon,a program performs following steps
+  1)Perform a fork() after which the parent exits and child continues so that the daemon becomes a child of init process
+    Two reasons:
+    a.Assuming the daemon started from a CMD,the parent's termination is noticed by the shell which then displays next shell prompt and leaves the child in the BG
+    b.The child process is guaranteed not to PGRP leader.
+      The child inherits parent's PGID and obtain it unique PID
+
+  2)The child process calls setsid() to start a new session and frees itself of any association with controlling terminal 
+  
+  3)If the daemon later might open a terminal device,we must take steps to ensure the device won't be the controlling terminal
+    Two ways:
+    a.Specify O_NOCTTY flags when open() a terminal device
+    b.Perform a second fork() after setsid() and again have the parent exits and child continues
+      It ensures the child is not session leader and according to System V conventions for acquisition of controlling terminal,thie process can never reacquire a controlling terminal 
+
+  4)Clear the process umask to ensure when the process create files and dirs,it has the required permissions
+  
+  5)Change the PWD to typically root dir(/)
+    It's necessary because daemon usually runs until the system shutdown
+    If the daemon's PWD is on a file system other than the one containing /,then that file system can't be unmounted
+    Alternatively,the daemon can change its PWD to the location where it does its job or the location defined its cfgFile as long as we know that the file system containing the dir never needs to be unmounted
+
+  6)Close all open fds inherited from its parent
+    Since the daemon has lost the controlling terminal and runs in the BG,it makes no sense to keep fd 0,1,2 open if they refer to terminal
+    Furthermore we can't unmount the file system on which the long-lived daemon holds files open
+    And we should close the unused fds because they are finite resource
+   
+  7)After closing fd 0,1,2,the daemon normally opens /dev/null and use dup2() to make all of the fds refer to this device
+    It ensures that if the daemon calls libFunc that perform I/O on these fds,these libFuncs won't unexpectedlly fail
+    It also prevent the possibility that the daemon later opens a file using fd 1,2 which is then written to and thus corrupted by libFuncs that expect to treat fd 1,2 as stdout and stderr
+    
+    /dev/null is virtual device that always discards the data written to it
+    When we want to eliminate the stdout or stderr of a shell CMD,we can redirect it to this file
+    Read from this device always returns end-of-file
+    
+4.int becomeDaemon(int flags)
+  Turn the caller into a daemon
+
+5.Many standard daemons are terminated by app-specific scripts executed during system shutdown
+  Those daemons that are not terminated in this fashion will receive a SIGTERM a signal which the init process sends to all of its children
+  By default,SIGTERM terminates process
+  User can establish handler for SIGTERM to perform some clean tasks but cleanup must be quickly performed because init process follows up SIGTERM with SIGKILL
+
+  Since daemon are long-lived,we must be wary of memory leaks and fd leaks where app fails to close all of the fds it opend
+  If such a bug affects the daemon,the only remedy is to kill the process and restart it
+
+6.The fact that the daemon run continuously presents a couple of programing hurdles
+  1)Typically,the daemon reads operational parameters from an associated cfgFile on startup
+    Sometimes,it's desireable to change these parameters without needing to stop and restart the process
+
+  2)Some daemons produces log file
+    If th daemon never closes the log file,it may grow endlessly,eventually clogging the file system
+    What we need is a way of telling a daemon a way to close its log file and open a new file,so that we can rotate log file
+
+  The solution to both is to establish a hanlder for SIGHUP and perform required steps upon the reciept of SIGHUP ---> set global flag in handler and perform steps in main program
+
+7.One problem we may encounter when writing a daemon is how to display error messages
+  Since daemon runs in the BG,we can't display messages on an associated terminal
+  Alternatively we can write messages to app-specific log file but it's difficult for a system administrator to manage multiple log files and monitor them all for error messages
+  The syslog facility is devised to address this problem
+  
+  The syslog facility provides a single,centralized logging facility that can be used to log messages by all apps on the system
+  It has two principal components: syslogd daemon and syslog() libFuncs
+  1)syslogd:
+    It accepts log messages from two different sources
+    a.UNIX domain socket which holds locally produced messages   /dev/log
+    b.Internet  domain socket which holds messages sent via TCP/IP network
+
+  Each messages produced by syslogd has a number of attributes
+  1)facility
+    It specifies the type of program generating the message
+  2)level
+    It specifies the priority of the message
+  The syslogd examines the facility and level of each message and passes it along to any of several possible destinations according to the dictates of the configFile /etc/syslog.conf
+  Possible destinations:termina,virtual console,disk file,FIFO,one or more logged-in users,a process on another system connected via TCP/IP network
+  Sending messages to a process on another system is useful for reducing the administrative overhead by consolidating the messages from multiple system to a single location
+
+  The syslogd(3) libFunc can be used by any process to log a message
+  It constructs a standard format message which is then placed on the /dev/log socket for reading by syslogd
+
+  klogd collects kernel log messages and then place them on /dev/log
+  The messages are collected using either the Linux-specific /proc/kmsg file or the syslog(2) libFunc
+
+8.The syslog APIs
+  1)void openlog(const char* ident,int log_options,int facility)
+    a.It optionally established a connection to the system log facility and set defaults that apply to subsequent syslog()
+    b.ident
+      It't pointer to a string that is included in each message written by syslog()
+      openlog() only copies the value of the pointer
+      As long as it continus to call syslog(),the app should ensure the referenced string is not latter changed
+    
+    c.log_options
+      1)LOG_CONS
+        If there is an error sending to system logger,then write the message to the system console /dev/console
+
+      2)LOG_NDELAY
+        Open the connection to logging system immediately
+        By default,the connection is opened only when the first message is logged with syslog()
+        This flag is useful in programs that need to precisely control when the first fd for /dev/log is allocated
+        
+        Ex:A program that calls chroot()
+           After chroot() the /dev/log pathname will no longer be visible and so the opnelog() call specifying LOG_NDELAY must be performed before the chroot()
+      
+      3)LOG_NOWAIT
+        Dob't wait for any child processes that have been created in order to log message
+        On Linux,it's useless since no child process will be created when logging a message
+
+      4)LOG_ODELAY
+        The converse of LOG_NDELAY
+        Connecting to logging system is delayed until the first message is logged
+
+      5)LOG_PERROR
+        Write messages to stderr as well as to the system log
+        Typically,the daemon closes the stderr or redirects it to /dev/null in which case LOG_PERROR is useless
+
+      6)LOG_PID
+        Log the caller's PID with each message
+        Employing LOG_PID in a server that forks multiple children allows us to distinguish which process has logged a particular message
+
+    d.facility
+      It specifies the facility value to be used in the subsequent syslog() call
+      See in pdf 779
+
+  2)void syslog(int priority,const char* format,...)
+    a.To write a log message
+    b.priority
+      It's created by ORing together a facility and level value
+      If facility is omitted,it defaults to the value specified in a previsou openlog() call,or to LOG_USER if that call was omitted 
+      level indicates the severity of a message.See in pdf 779
+    
+    c.The remaining arguments of syslog() are a format string and corresponding arguments in the manner of printf()
+      One difference from printf() is that the format string doesn't need to include a terminating newline character
+    
+    Ex:
+    openlog(argv[0],LOG_PID | LOG_CONS | LOG_NWAIT, LOG_LOCALO);
+    syslog(LOG_ERROR,"Bad argument: %s",argv[1]);   ---> doesn't specify the facility --> use the on specified in previous openlog() --> LOG_LOCALO
+    syslog(LOG_USER | LOG_INFO, "Exiting");
+
+    It's an to use syslog() with user-supplied string --> syslog(priority,user-supplied-string);
+    It leaves the app open to so-called format-string attacks
+    Correct form: syslog(priority,"%s",user-supplied-string)
+
+  3)void closelog()
+    When we finnished logging,we should use closelog() to deallocate the fd for /dev/log socket
+    Since a daemon continuously keeps connection open to the logging system,it's common to ommit calling closelog()
+
+  4)int setlogmask(int mask_priority)
+    It sets mask that filters a message by syslog()
+    Any message that its level is not included in in the current setting is discarded
+    The default mask value allows all severity levels to be logged
+
+    The macro LOG_MASK() converts level to bit values suitable for passing to setlogmask()
+    Ex:setlogmask(LOG_MASK(LOG_ERR))
+
+    The macro LOG_UPTO() creates a bit mask filtering all messages of a certain level and above
+
+9./etc/syslog.conf
+  It controls the operation of the syslogd daemon
+  See in pdf 781

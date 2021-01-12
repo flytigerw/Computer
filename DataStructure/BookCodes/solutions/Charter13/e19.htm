@@ -1,0 +1,341 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 13, Exercise 19<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a) and (b)
+<dd>
+To implement the given initialization strategy,
+we first create a winner tree and then
+examine the nodes <code class=code>tree[1:n-1]</code> resetting
+each
+<code class=code>tree[i]</code> to the loser of the match played
+at this node.  To determine the loser of the match played at
+<code class=code>tree[i]</code>,
+we must first determine
+the two players who palyed here. These two players can be determined
+by accessing the two children of
+<code class=code>tree[i]</code>.  Note that one or both of these children
+may be external nodes.  If a child is an internal node, then
+the winner recorded at the internal node is a player; otherwise
+the external node is a player.
+<br><br>
+We can tentatively compute the child index <code class=code>c</code> as either
+<code class=code>2 * i</code> or
+<code class=code>2 * i + 1</code> depending on whether we
+are looking for the left or the right child of
+<code class=code>i</code>.
+To determine <code class=code>q</code> such that
+<code class=code>player[q]</code> is either the winner of the
+match played at <code class=code>tree[c]</code> or is the external node
+at this child of
+<code class=code>tree[i]</code> we must invert Equation 13.1, which
+currently tells us how to go from an external node to its parent.
+Doing this inversion yields the following code:
+
+<HR class = coderule>
+<pre class = code>
+if (c &lt;= n - 1)
+   q = tree[c];
+else
+   // child is an external node
+   if (c &lt;= offset)
+      q = c + lowExt - n + 1;
+   else
+      q = c - offset;
+<hr class=coderule>
+</pre>
+<br><br>
+
+Once we have identified the two players of the match at
+<code class=code>tree[i]</code>, we can determine the
+loser by comparing with the known winner of the match
+played at this node.
+
+<br><br>
+The code to replay a match when the winner has changed
+is simpler than the corresponding code for a winner tree.
+<br><br>
+<!--
+The code for the class <code class=code>CompleteLoserTree</code>
+is given below.
+
+
+
+<HR class = coderule>
+<pre class = code>
+public class CompleteLoserTree
+{
+   // data members
+   int lowExt;           // lowest-level external nodes
+   int offset;           // 2^k - 1
+   int [] tree;          // array for loser tree
+   Playable [] player;   // array of players
+
+   // only default constructor available
+
+   /** @return the winner of the tournament
+     * @return 0 if there are no players */
+   public int getWinner()
+      {return (tree == null) ? 0 : tree[0];}
+
+   /** initialize loser tree for thePlayer[1:thePlayer.length-1] */
+   public void initialize(Playable [] thePlayer)
+   {
+      int n = thePlayer.length - 1;
+      if (n &lt; 2)
+         throw new IllegalArgumentException
+                   ("must have at least 2 players");
+
+      player = thePlayer;
+      tree = new int [n];
+   
+      // compute  s = 2^log (n-1)
+      int i, s;
+      for (s = 1; 2 * s &lt;= n - 1; s += s);
+   
+      lowExt = 2 * (n - s);
+      offset = 2 * s - 1;
+   
+      // first record winners in tree[1:n-1]
+      // play matches for lowest-level external nodes
+      for (i = 2; i &lt;= lowExt; i += 2)
+         play((offset + i) / 2, i - 1, i);
+   
+      // handle remaining external nodes
+      if (n % 2 == 1)
+      {// special case for odd n, play internal and exteral node
+         play(n/2, tree[n - 1], lowExt + 1);
+         i = lowExt + 3;
+      }
+      else i = lowExt + 2;
+   
+      // i is left-most remaining external node
+      for (; i &lt;= n; i += 2)
+         play((i - lowExt + n - 1) / 2, i - 1, i);
+
+      // record overall winner in tree[0]
+      tree[0] = tree[1];
+   
+      // now make a level-order traversal of tree
+      // replacing winners by losers
+      for (i = 1; i &lt; n; i++)
+      {// set tree[i] to loser of match played at tree[i]
+         int lc = 2 * i;                        // left child of i
+         int rc = lc + 1;                       // right child of i
+         // eventually player[leftPlayer] denotes left player of match
+         // at tree[i] and player[rightPlayer] denotes the other player
+         int leftPlayer, rightPlayer;
+   
+         // determine leftPlayer
+         if (lc &lt;= n - 1)
+            leftPlayer = tree[lc];
+         else
+            // left child is an external node
+            if (lc &lt;= offset)
+               leftPlayer = lc + lowExt - n + 1;
+            else
+               leftPlayer = lc - offset;
+   
+         // determine rightPlayer
+         if (rc &lt;= n - 1)
+            rightPlayer = tree[rc];
+         else
+            // right child is an external node
+            if (rc &lt;= offset)
+               rightPlayer = rc + lowExt - n + 1;
+            else
+               rightPlayer = rc - offset;
+   
+         // determine loser of match
+         if (leftPlayer == tree[i])
+            // rightPlayer is loser
+            tree[i] = rightPlayer;
+         else
+            // leftPlayer is loser
+            tree[i] = leftPlayer;
+      }
+   }
+
+   /** play matches beginning at tree[p]
+     * @param lc is left child of p
+     * @param rc is right child of p */
+   void play(int p, int lc, int rc)
+   {
+      tree[p] = player[lc].winnerOf(player[rc]) ? lc : rc;
+   
+      // more matches possible if at right child
+      while (p &gt; 1 &amp;&amp; p % 2 == 1)
+      {// at a right child
+         tree[p / 2] = player[tree[p - 1]].winnerOf(player[tree[p]]) ?
+                          tree[p - 1] : tree[p];
+         p /= 2;  // go to parent
+      }
+   }
+
+   /** replay matches for previous winner */
+   public void rePlay()
+   {
+      if (player == null)
+         throw new IllegalArgumentException
+                   ("tree must be initialized first");
+
+      int n = player.length - 1;  // number of players
+   
+      // find first match node
+      int p;                        // match node
+      int i = tree[0];              // player[i] is previous winner
+      if (i &lt;= lowExt)
+         // begin at lowest level
+         p = (offset + i)/2;
+      else
+         p = (i - lowExt + n - 1) / 2;
+   
+      int lastWinner = i;
+   
+      // play matches
+      for (; p &gt;= 1; p /= 2)
+      {// play match at tree[p]
+         int newWinner = player[lastWinner].winnerOf(player[tree[p]]) ?
+                           lastWinner : tree[p];
+         // update loser if loser has changed
+         if (tree[p] == newWinner)
+         {// player[tree[p]] is no longer a loser
+            tree[p] = lastWinner;
+            lastWinner = newWinner;
+         }
+      }
+
+      // put overall winner in tree[0]
+      tree[0] = lastWinner;
+   }
+
+   public void output()
+   {
+      int n = player.length - 1;
+      System.out.println("size = " + n  + " lowExt = "  + lowExt
+                          + " offset = "  + offset); 
+      System.out.println("Loser tree pointers are");
+      for (int i = 0; i &lt; n; i++)
+         System.out.print(tree[i] + " ");
+      System.out.println();
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+
+
+
+<br><br>
+The complexity of <code class=code>initialize</code>
+is <code class=math>O(n)</code>, because it takes
+<code class=math>O(n)</code> to first set up the corresponding
+winner tree and then it takes
+<code class=math>O(n)</code> time to do the level order traversal
+which transforms the winner tree into a loser tree.
+<br><br>
+A test program, input, and output are given in the
+files <code class=code>CompleteLoserTree.*</code>.
+
+<br><br>
+<dt> (c)
+<dd>
+To use the strategy of <code class=code>CompleteWinnerTree</code>
+we must modify the method
+<code class=code>play</code> so that it records losers at nodes where
+a match is played and so that it records the winner of the last
+match played in the parent of the node at which this
+last match is played.
+
+<br><br>
+A test program, input, and output are given in the
+files <code class=code>NewCompleteLoserTree.*</code>.
+
+<HR class = coderule>
+<pre class = code>
+public class NewCompleteLoserTree extends CompleteLoserTree
+{
+   // override CompleteLoserTree.initialize
+   /** initialize loser tree for thePlayer[1:thePlayer.length-1] */
+   public void initialize(Playable [] thePlayer)
+   {
+      int n = thePlayer.length - 1;
+      if (n &lt; 2)
+         throw new IllegalArgumentException
+                   ("must have at least 2 players");
+
+      player = thePlayer;
+      tree = new int [n];
+   
+      // compute  s = 2^log (n-1)
+      int i, s;
+      for (s = 1; 2 * s &lt;= n - 1; s += s);
+   
+      lowExt = 2 * (n - s);
+      offset = 2 * s - 1;
+   
+      // play matches starting at lowest-level external nodes
+      for (i = 2; i &lt;= lowExt; i += 2)
+         play((offset + i) / 2, i - 1, i);
+   
+      // handle remaining external nodes
+      if (n % 2 == 1)
+      {// special case for odd n, play
+       // internal and external node
+         play(n / 2, tree[(n - 1) / 2], lowExt + 1);
+         i = lowExt + 3;
+      }
+      else 
+         i = lowExt + 2;
+   
+      // i is left-most remaining external node
+      for (; i &lt;= n; i += 2)
+         play((i - lowExt + n - 1) / 2, i - 1, i);
+   }
+
+   // override CompleteLoserTree.play
+   /** play matches beginning at tree[p]
+     * @param lc is left child of p
+     * @param rc is right child of p */
+   void play(int p, int lc, int rc)
+   {
+      int currentWinner = player[lc].winnerOf(player[rc]) ? lc : rc;
+      if (currentWinner == lc)
+         // loser is rc
+         tree[p] = rc;
+      else // loser is lc
+         tree[p] = lc;
+   
+      // more matches possible if at right child
+      while (p &gt; 1 &amp;&amp; p % 2 == 1)
+      {// at a right child
+         // parent of p has opponent information
+         p /= 2;  // go to parent
+         int newWinner = player[tree[p]].winnerOf(player[currentWinner]) ?
+                                tree[p] : currentWinner;
+         if (newWinner != currentWinner)
+         {// loser is currentWinner
+            tree[p] = currentWinner;
+            currentWinner = newWinner;
+         }
+      }
+   
+      // record winner of last match in tree[p/2]
+      tree[p / 2] = currentWinner;
+   }
+}
+<hr class=coderule>
+</pre>
+</dl>
+--!>
+</FONT>
+</BODY>
+</HTML>

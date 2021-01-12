@@ -1,0 +1,52 @@
+
+1.POSIX message queue permits each message to be assigned a priority
+  Messages with high priority are queued in front of low priority message
+
+  POSIX semaphore is simpler than System V :It's allocated individually rather than in the form of a set
+
+2.POSIX IPC object is identified by a name consisting an initial slash(/) ----> Ex: /myObj
+  In portable app,we should isolate the generation of IPC object names into a separate function or header file that can be tailored to the target information
+
+3.Create and open a POSIX IPC object 
+  Each POSIX IPC mechanism has an associated open calll
+  Given the IPC object name,the open call either
+  1)Create a new object with the given name and returns the handle for it
+  2)Open an existing object and returns the handle for it
+  The handle is analogous to fd which is used in subsequent calls to refer to that object 
+
+  open call permits at least three argument:
+  1)name
+  2)oflag
+    O_CREAT O_EXCL O_RDONLY O_WRONLY O_RDWR ....
+  3)mode
+    It specifies the permissions to be placed on a new object if the one is created
+    The ownership and group ownership of new IPC object are taken from the EUID and GID of the process making the IPC open call
+
+4.Close an POSIX ICP object 
+  The objects can be automatically closed if the process terminates or performs an exec()
+
+5.POSIX IPC object 
+  Since kernel 2.6.19,Linux supports the use of access of control list (ACL) for setting permissions on POSIX shared memory and named semaphores
+
+6.POSIX IPC object deletion and persistence
+  The objects are reference counted ---> The kernel maintains a count of the number of the open referencees to the object 
+  It makes easier for app to determine when the object can be safely deleted
+  Each object has an corresponding unlink call that is analogous to unlink() sysCall for files
+  The unlink call immediately removes the object's name and then destroys the object once all processes cease using it ---> reference count is 0
+
+  As with System V IPC object,POSIX IPC object have kernel persistence
+  Once created,an object continues to exist until it's unlinked or the system is shutdown
+  It allows a process to creates an object,modifies its state,and then exit,leaving the object to accessed by another process that is later started
+
+7.Compile
+  On Linux,programs employing POSIX IPC mechanism must be linked with realtime library,librt,by specifying the -lrt option to the gcc 
+
+8.Comparison of System V and POSIX IPC
+  POSIX has following general advantages when compared to System V 
+  1)It's interface is simpler
+  2)It use names insead of keys,which is more consistent with traditional UNIX file model
+  3)POSIX IPC objects are reference counted
+    It simplifies the deletion
+    We can unlink a POSIX IPC object,knowing it will be destoryed when all processes have closed it 
+
+  But POSIX IPC is less portable than System V

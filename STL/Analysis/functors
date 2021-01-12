@@ -1,0 +1,20 @@
+
+
+1.算法的两种版本
+  以sort()为例:
+  a.默认版本
+    以operator< 为排序准则
+  b.指定排序规则  ---> 操作
+  将操作传递给函数的方法
+  a.将函数指针设为函数参数          ---> 缺点在于函数指针无法与其他STL组件(adapter)搭配
+  b.将function object设为函数参数
+    调用函数时，传递一个function object 
+   
+2.Ex: 
+  greater<int> ig;   ---> 产生一个function object 
+  ig(4,6);           ---> 像函数一样调用
+  greater<in>()(6,4) ---> 产生临时对象再调用
+
+
+3.function object的type 表现于函数参数type和返回值type
+  

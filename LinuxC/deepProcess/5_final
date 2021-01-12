@@ -1,0 +1,110 @@
+1 process accounting
+  内核会在进程终止时将一条记账信息写入 系统级的进程记账文件
+  记账的信息主要为 进程所消耗的系统资源
+  若进程的信息未由 父进程进行监控和报告，则可通过进程记账获取
+
+  特权进程通过acct()开启和关闭 系统记账功能，多见于系统脚本中
+  int acct(const char* acctfile)
+  acctfile一般为/var/log/pacct  /usr/account/pacct
+  若为NULL,即为关闭
+
+  记账单元: struct acct p488
+
+  向acctfile中写入信息会加速对磁盘空间的消耗
+  系统提供/proc/sys/kernal/acct的虚拟文件，来对进程记账行为进行控制
+  包含三个值
+   a.low-water : 若磁盘空闲空间 低于 low-water百分比，将暂停记账
+   b.high-water: 恢复记账的阈值
+   c.frequency : 规定了两次检查 空闲磁盘空间占比的 时间间隔
+
+   版本三的记账文件格式: struct acct_v3 p492
+   需在编译内核前配置选项 CONFIG_BSD_PROCESS_ACCT_V3
+
+2 clone()
+  相比fork(),在进程创建期间对步骤的控制更为精确，主要用于线程库的实现
+  int clone(int (*func)(void*), void* child_stack, int flags, void* func_arg,... )
+  克隆的子进程不以调用处clone()为起点
+  而是去调用func,func_arg为其参数 ---> 经过适当转换，func对其参数的含义自由解读
+
+  func的返回值就是 克隆子进程的终止状态
+  克隆子进程也可exit()退出
+  父进程可通过wait()监控子进程
+
+  克隆子进程不能使用 父进程的栈，需要独立分配栈(child_stack为栈的至高点)供其使用
+  
+  flags:
+   a.低位:子进程的终止信号，子进程退出时父进程将受到这一信号
+   b.高位掩码，控制clone()
+    1)CLONE_FILES : 父子进程共享 open file descriptor table
+                    其中一方对fd的操作(open,close,dup..)都会影响到另一进程
+                    未设置该标志时，子进程得到table的一份拷贝
+                    所有线程应共享相同的fd
+    2)CLONE_FD    : 父子进程共享 file system-related information
+                    包括权限掩码(umask),根目录，当前工作目录
+                    其中一方调用 usmask(),chdir(),chroot()将影响到另外一方
+    3)CLONE_SIGHAND:共享信号处置表
+                    改变信号处置的函数: sigaction,signal
+                    不影响 信号掩码依旧对pending signal的设置
+    4)CLONE_VM    : 共享虚拟内存页
+                    更新内存函数,sbrk()或者调用mmap(),munmap()建立映射
+                    若设置了CLONE_SIGHAND，就必须同时设置CLONE_VM
+    5)CLONE_THREAD: 会将子进程置于 父进程的线程组中
+                    线程组就是共享同一TGID(thread group identifier)的一组KSE
+                    组内的成员getpid() --> 得到TGID
+
+                    线程组内的每一个线程拥有唯一的TID(thread identifier) --> 类型为pid_t
+                    内核保证TID不会与进程的PID冲突(除开thread group leader)
+
+                    thread group leader的TID就是整个线程组的 TGID --> 就是进程的PID
+                    仅当线程组中的所有线程都终止以后，父进程才收到SGICHLD信号
+
+                    当设置了CLONE_THREAD的线程终止时，没有信号发送给该线程的创建者
+                    创建者不可能调用waitxx()等待以CLONE_THREAD创建的线程，可用futex()检测线程是否在终止
+
+                    若线程组的任一线程调用了 exec(),除首线程之外的其他线程都将终止
+                    新进程在首线程中执行
+                    调用exec()时，会将该进程发送给父进程的信号重置为SIGCHLD
+
+                    若组内的某线程调用了 fork()创建了子进程，则组内的任何线程都可以使用wait或类似的函数监控子进程
+
+                    若设置了CLONE_THREAD,则也必须设置CLONE_SIGHAND
+     6)CLONE_PARENT_SETTID : 会在对父进程的内存进行复制之前将子线程的TID写入ptid指向的位置
+                             即使没有设置CLONE_VM,父子进程均能在此获得子进程的线程ID
+                             
+                             意在为获取新线程ID提供可靠的手段
+                             tid = clone(...);
+                             因为 = 是在clone以后发生 ----> 可能导致race condition 
+                             比如:新线程终止，在对tid完成=之前，clone调用了终止信号的handler 
+                                  handler可能无法有效访问tid ----> tid可能放在全局结构中
+                                  设置该标志，保证了返回之前将新线程的TID赋值给ptid指针，从而规避race condition 
+     7)CLONE_CHILD_SETTID  : clone将子线程ID写入指针ctid指向的位置
+                             对ctid的设置只发生在子进程的内存中
+                             若设置CLONE_VM,还是会影响到父进程
+     8)CLONE_CHILD_CLEARTID: clone在子进程终止时将ctid指向的内容清0
+     9)CLONE_SETTLS : 参数tls指向的user_desc结构会对线程使用的本地存储缓冲区加以描述
+    10)CLONE_SYSVSEM: 共享同一个System V信号量撤销值列表
+    11)CLINE_NEWNS  : 挂载命令空间 是由mount和umount的调用维护的一组挂载点
+                      会影响 路径名解析为真实文件的过程
+                      该标志让子进程获取对父进程 挂载命令空间的一份拷贝
+    12)CLONE_PARENT : 让调用者的父进程成为 clone()生成的子进程的父进程
+                      即 子进程.PPID = 调用者.PPID
+    13)CLONE_VOFRK  : 父进程将一直挂起，直到子进程调用exec()或_exit()来释放虚拟内存资源
+    14)支持容器的标志:CLONE_IO,CLONE_NEWIPC,CLONET_NEWNET,...
+       容器为轻量级虚拟化，将运行同一内核的进程组从环境上彼此隔离，如同运行在不同机器上
+       容器可以嵌套
+       为内核中的各种全局系统资源提供一个间接层，以便每个容器能为这些资源提供各自的实例
+       资源:进程ID,网络协议栈，System IPC对象.....
+
+
+    fork相当于clone,flags为SIGCHLD
+    vfork相当于clone,flags为CLONE_VM | CLONE_VFORK | SIGCHLD
+  
+3 KSE(Kernal Scheduling entity)
+  进程和线程都是KSE,只不过对属性(虚拟内存，open fd，信号的处置等)共享程度不同
+
+4 因克隆生成的子进程而对waitpid的options的扩展
+  a.__WCLONE : 只会等待克隆子进程
+  b.__WALL   : 等待所有子进程
+  c.__WNOTHREAD : 只能等待自己的子进程
+                  默认，wait调用 所等待的子进程，其父进程包括与调用者属于同一组线程组的任何进程
+

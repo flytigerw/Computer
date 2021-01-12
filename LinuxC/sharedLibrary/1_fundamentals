@@ -1,0 +1,301 @@
+
+
+1.One way of building a program
+  1)Compile each of its source files to produce object files --> gcc -c s1.c s2.c
+  2)Link all object files to produce executable program  --> gcc -o s s1.o s2.o 
+    Linking is actually performered by linker --> ld
+    But we use CMD gcc to invoke it to ensure ld is invoked with correct options and links the program against correct library files
+
+  In many cases,we may have source files used by several programs
+  We can compile them just once and link them into different executables as required
+  This technique can save compilation time but it still suffers from the disadvantage that we must name all of the object files during the link phase
+  Furthurmore our dir is inconveniently cluttered with a large number of object files
+
+  To address this problem,we can group a set of object files into a single unit known as the object library --> static or shared
+
+2.gcc -g option is used to include debugging information in the compiled program
+
+3.Static library
+  It's also known as archive and has following benefits
+  1)We can place a set of commonly used object files into a single object library that can be used to build multiple executables without needing to recompile the orginal source files when building an app
+  2)Link CMD becomes simplier.
+    Instead of listing a long series of object files,we specify just the name of static library 
+    The linker knows how to search the library and exstract the required object files
+
+3.In effect,the static library is a file holding all of the copies of the object files added to it
+  The archive also records various attributes of each of the object files,including file permissions,numeric user and group ID,last modification time
+  By convention,the staic libraby has name of the form of libname.a
+
+  We can use CMD ar to create and maintain a static library 
+  The CMD use:ar options archiveName object-files
+  option:operation code + modifier-->influence the way that the operation is carried out
+  operation code:
+  1)r(replace)
+    Insert an object file into the archive and replace any of previous object file of the same name
+    We use it to create and update the archive
+    ar r libxx.a mod1.o mod2.0
+
+  2)t(table of contents)
+    Display a table of contents of the archive
+    By default,it list just the names of the object files in the archive
+    By adding v modifier,we can additionally see other attributes
+    ar tv libxx.a
+
+  3)d(delete)
+    Delete an object file from the archive 
+
+  Link a program against static library in two ways
+  1)Name the static library as a part of the link CMD
+    gcc -g -o pro pro.o libxx.a
+
+  2)Place the library in one of the standard dirs(/usr/lib) searched by the linker and specify the library name(without lib and .a) using -l
+    gcc -g -o pro pro.o -lxx
+
+    If the library resides in the dir not normally searched by the linker,we can specify the linker should search this additional dir using -L option
+    gcc -g -o pro pro.o -Lmydir -lxx
+  
+  If a program is built by linking against a static library,then the resulting executable file include all object files that are linked into the program
+  Thus when several different executables use the same object  modules,each executable has its own copy of object modules
+  This redundancy of code has following disadvantages:
+  1)Disk space is wasted storing the multiple copies of the same object modules
+    The wastage can be considerable
+  
+  2)If several different programs that use the same object modules are running at the same time,then each program holds an copy of the object modules in virtual memory,thus increasing the overall virtual memory demonds on the system
+
+  3)If a change is required to an module in a static library,then all executables that use the module must be relinked to incorporate the change
+   
+   Shared library is designed to address this problem
+
+4.Shared library
+  The key idea is that a single copy of object modules is shared by all programs requiring the modules
+  The modules are not copied into the executables
+  Instead the library is loaded into the memory at run time when the first program requiring the modules from the library is started
+  When other programs requiring the same shared library are later executed,they use the copy of library that has been loaded into memory
+  
+  The code of a shared library is shared among multiple processes
+  But its variables are not
+  Each process has its own copy of the global and static variables defined within the library
+
+  The shared library has the furthur advantages:
+  1)Overall program size is smaller and so it can be loaded into memory and start more quickly
+    It holds true only for large shared library that are already in use by another program
+    The first program to load a shared library will actually take longer to start
+  2)Since object modules are not copied into the exectuables but instead maintained in the shared library,it is possible to make changes to object library without requiring programs to be relinked to see the changes
+ 
+  The principal costs of shared library:
+  1)It's more complex than static library both at conceptual and pratical level
+  
+  2)Shared library must be compiled to use position-independent code which has performance overhead because it requires an extran register
+
+  3)Symbol relocation must be performered at run time
+    During symbol relocation,the references to each symbol in a shared library must be modified to correspond to the actual-runtime location at which the symbol is placed in virtual memory
+
+5.ELF: Executable and Linking Format for shared library 
+  Create a shared library 
+  1)Compile
+    gcc -g -c -fPIC -Wall mod1.c mod2.c
+    
+    a.-fPIC(postion indepedent code)
+      It specifies the compiler should generate that code
+      It changes the way that the compiler generate code for operations such as accessing global,static and externel variables and string constants and taking the address of function
+      These changes allow code to be located at any virtual address at run time
+      It's necessary for shared library since there is no way of knowing at link time where the shared library code will be located in memory
+      We can check the presence of name _GLOBAL_OFFSET_TABLE_ in the object file's symbol table to determine whether an existing object file has been compiled with -fPIC
+      CMDs: nm mod1.o | grep _GLOBAL_OFFSET_TABLE_ 
+            readelf -s mod1.0 | grep _GLOBAL_OFFSET_TABLE_ 
+
+      The string TEXTREL indicates the presence of a object module whose text segment contains a referrence that requires run-time relocation
+  2)Link
+    gcc -g -shard -o libxx.so mod1.o mod2.o
+  
+  Combine together
+  gcc -g -fPIC -Wall mod1.c mod2.c -shared -o libxx.so
+  Unlike static library,it's not possible to add or remove modules from the built shard library 
+ 
+ Use a shared library
+ Two steps must occur that are not required for programs that use static library
+ 1)Embed the name of the shared library.
+   Since the executable file does't have the copies of the object files it requires,it must have some mechanism for identifying the shared library it needs at run time
+   It's done by embedding the name of the shared library inside the executable during the link phase
+   The list of all of a program's shared library dependencies is called dynamic dependency list
+
+   Embedding the name of the shared library inside the executable happens automitically when we link our program with a shared library 
+   gcc -g -Wall -o prog prog.c libxx.so
+ 
+ 2)Dynamic linking
+   At run time,it must have the mechanism for resolving the embedded library name --> To find the shared library fiels corresponding to the name and load it into memory if it's not already present
+   It's done by dynamic linker who is itself a shared library which is employed by every ELF executable that requires shared library 
+   The dynamic linker examines the dynamic dependency list and use a set of rules to find the library files in the file system 
+   Some of the rules specify a set of dirs in which shared libraries normally reside --> /lib /usr/lib
+
+   One way of informing the dynamic linker that a shared library resides in a nonstandard dir is to specify that dir as part of the colon-separated list of the dirs in the LD_LIBRARY_PATH environment variable
+   Ex: LD_LIBRARY_PATH=. ./prog --> it tells the dynamic linker to search for shared library in . dir
+
+6.static linking :Combine one or more object files into a single executable file
+  dynamic linking:The run-time loading of shared libraries 
+
+7.We can create shared library with a kind of alias --> The DT_SONAME tag in ELF parlance
+  If a shared library has a soname,then during static linking,the soname is embedded in the executable file and subsequently used by dynamic linker when searching for the library at run time
+  The purpose of soname is to provide a level of indirection that permits an executable to use a version of shared library that is different from the library against which it was linked
+  Ex:
+  1)Specify the soname when creating the shared library 
+    gcc -g -c -fPIC -Wall mod1.c mod2.c
+    gcc -g -shard -Wl,-soname,libyy.so -o libxx.so mod1.o mod2.o
+    The (-Wl,-soname,libyy.so) is the instruction to linker to mark the shared library libxx.so with soname libyy.so
+
+    We can use following CMDs to check the soname of an existing shared library 
+    objdump -p libxx.so |grep SONAME
+    readelf -d libxx.so |grep SONAME
+
+  2)Create the executable as usual
+    gcc -g -Wall -o prog prog.c libxx.so
+    The linker detects the library libxx.so contains the soname libyy.so and embeds the latter name inside executable 
+  3)Run program
+    ln -s libyy.so libxx.so      --> We must create a symbol link from soname to real name
+    LD_LIBRARY_PATH= . ./prog
+
+8.Useful tools for working with shared libraries 
+  1)ldd(list dynamic dependencies)
+    Ex: ldd prog
+    For most ELF executables,ldd will list for at least the dynamic linker and the standard C library 
+
+  2)objdump
+    It's used to obtain various information including disasembled machine code from an executable,compiled object and shared library 
+    It can also display information from the headers of the various ELF selections
+
+  3)readelf
+    It resembles objdump but display information in different format 
+
+  4)nm
+    It lists a set of symbols defined within an object library and an executable program
+    It's used to find out which of the libraries use defined the symbol
+    Ex: nm -A libxx.o > /dev/null | grep symbol
+    -A specify the library name should shoule be listed at start of each line displaying a symbol
+    We discard stderr output to hide error messages about files in formats unrecognized by nm 
+
+9.The real name employs the format convention: libname.so.major-id.minor-id 
+  id:version + patch pevel
+
+  The soname employs the format convention:libname.so.major-id
+
+  For a particular major version of shared library,there may be several libraray files distinguished by different minor-id
+  Normally,the soname corresponding to major library version points to the most recent minor version within the major version
+  The static-linking embeds a copy of the soname in the executable and the soname symbol link may subsequently be modified to point to a newer version of the shared library.So it's possible to ensure that an executable loads the most up-to-date minor version of the shared library at run time
+  Furthermore,since different major versions of a shared library have different sonames,they can happily coexist and be accessed by the programs that require them
+
+10.linker name 
+   It's defined for shared library which is used when linking an executable against the shared library 
+   It's a symbol link to latest real name or latest soname that has the form: libname.so
+   It allows us to construct version-independent CMDs that automatically operate with the correct version of the shared library 
+   Typically it is created in the same dir as file to which it refers to
+
+Ex:creating a shared library with standard convention
+   1)Create object files
+     gcc -g -c -fPIC -Wall mod1.c mod2.c
+   2)Create shared library with real name(libdemo.so.1.0.1) and soname(libdemo.so.1)
+     gcc -g -shared -Wl,-soname,libdemo.so.1 -o libdemo.so.1.0.1 mod1.o mod2.o
+   3)Create symbol links for soname and linker name
+     ln -s libdemo.so.1.0.1 libdemo.so.1
+     ln -s libdemo.so.1   libdemo.so
+   4)Build executable with linker name and Run it
+     gcc -g -Wall prog prog.c -L. -ldemo
+     LD_LIBRARY_PATH=. ./prog
+
+11.Overtime we may need to make changes to the code of a shared library 
+   Such changes result in a new version of the library that is either compatiable with previous version meaning that we need to change only the minor-id of the real name,or incompatiable meaning that we must define a new major version
+   More see pdf 850
+
+12.Usually a shared library is installed in one of a number of standard shared library dirs
+   1)/usr/lib
+     Contain the most standard libraries 
+   2)/lib
+     Contain the libraries required during the system startup
+   3)/usr/local/lib
+   4)One of dirs listd in /etc/ld.so.conf
+  Copy a file into one of the dirs require superuser priviledge
+  After installation,the symbol links for the soname and linker name must be created
+  Ex:
+  su
+  mv libdemo.so.1.0.1 /usr/lib && cd /usr/lib
+  ln -s libdemo.so.1.0.1 libdemo.so.1
+  ln -s libdemo.so.1 libdemo.so
+
+13.ldconfig CMD
+   It addresses two potential problems with shared libraries 
+    1)Shared libraries could reside in a variety of dirs
+      If the dynamic linker have to search all of the dirs to find the required shared library,then it will be slow
+    2)As new version of libraries are installed or old versions are removed,the soname symbol links may become out of date
+  
+  It solves these problem by performing two tasks
+  1)It search a set of dirs and creates or updates a cache file /etc/ld.so.cache to contain a list of major library versions in all of these dirs
+    The dynamic linker in turn use this cache file when resolving library names at run time
+    To build the cache,idconfig searches the dirs specified in /etc/ld.so.conf and include /lib /usr/lib /usr/local/lib
+    ldconfig -p --> display the current contents of /etc/ld.so.cache
+
+  2)It examines the latest minor version of major version of each library to find the embedded soname and then creates relative symbol links for each soname in the same dir
+
+  Options for ldconfig
+  1)-N:Prevent rebuilding of the cache
+  2)-X:Inhibits the creation of symbol links
+  3)-v:Display output describling its actions
+  Ex see in pdf 849
+
+14.We can upgrade shared library even it's being used
+   All we need to do is to create a new library version,install it in appropriate dir and update soname and linker name symbol links as required
+   Ex see in 850
+
+15.The ways of informing the dynamic linker of the location of shared libraries 
+   1)Use LD_LIBRARY_PATH environment variable
+   2)Install a shared library in one of the standard library dirs(/lib /usr/lib one of the dirs listed in /etc/ld.conf)
+   3)During editing phase,we can insert into the executable a list of dirs that should be searched at run time for shared libraries 
+     It's useful if we have the library in fixed location that is not among the standard locations searched by dynamic linker
+     We use -rpath option when we create an executable 
+     gcc -g -Wall -Wl,-rpath,/home/mtk/pdir -o prog prog.c libdemo.so
+     This CMD copies the string /home/mtk/pdir into the run-time library path(rpath) list of the executable 
+     So the dynamic linker will also research this dir for shared library 
+
+     An alternative to -rpath option is the LD_RUN_PATH environment variable which can be assigned a string containing a series of colon-separated dirs
+     LD_RUN_PATH is employed only if the -rpath option is not specified when building the executable 
+
+     Ex see in pdf 852
+   
+   The rpath list is embedded in an executale or a shared library 
+   It corresponds to the DT_RPATH or DT_RUNPATH flag in the ELF file
+   The difference between two types of rpath list is their relative precedence with respect to LD_LIBRARY_PATH environment variable when the dynamic linker searches for shared libraries at run tiem:DT_RPATH has higher precedence while DT_RUNPATH has lower precedence
+   By default,the linker creates the rpath list as a DT_RPATH tag
+   We can additionally employ --enable-new-dtags linker option to create the rpath list as the DT_RUNPATH tag
+   Dynamic linkers that understand DT_RUNPATH ignores DT_RPATH
+
+16.$ORIGIN in rpath
+   Suppose we want to distribute an app that uses some of its own shared libraries,but we don't want to require the user to install the libraries in one of the standard  dirs
+   Instead we want the user to unpack the app under an arbitrary dir of their choice and then immediately be able to run it
+   The problem is that the app has no way of determing where the shared libraries are located,unless it requests the user to set LD_LIBRARY_PATH or requires the user to run some sort of installation script that identifies the required dirs
+   Neither of the approches is desirable
+
+   To get around this probelm,the dynamic linker is built to understand a string $ORIGN
+   The linker interprets the string to mean "the dir containing the app"
+   Ex:build an app
+      gcc -Wl,-rpath,'$ORIGIN'/lib
+      It presumes that at run time the shared libraries will reside in the subdirectory lib under the dir that contains the app executable 
+
+17.Finding shared libraries at run time
+   When resolving the library dependencies,the dynamic linker first inspects the dependency string to see if it contains a slash (/) which can occur if we specified an explicit library pathname when linking the executable 
+   If the / is found,the dependency string is interpreted as a pathname and the library is loaded using that pathname
+   Otherwise the dynamic linker searches for shared libraries using the following rules
+    1)If the executable has any dirs listed in its DT_RPATH rpath list and doesn't have DT_RUNPATH list,then these dirs are searched
+    
+    2)If the LD_LIBRARY_PATH environment variable is defined,then each of colon-separated dirs listed in this value is searched in turn
+      If the executable is a set-userID or set-groupID program,then LD_LIBRARY_PATH is ignored
+      It's security measure to prevent the user from tricking the dynamic linker into loading the private version of a private library with the same name as the library required by the executable 
+
+    3)If the executable has any dirs listed in DT_RUNPATH rpath list,then these dirs are searched
+    
+    4)The /etc/ld.so.cache is checked to see if it contains an entry for the library 
+
+    5)/lib and /usr/lib are searched 
+
+18.Run-time symbol resolution 
+   See in pdf 854 
+
+19.Use a static library instead of a shared library 
+   See in pdf 856

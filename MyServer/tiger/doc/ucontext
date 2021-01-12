@@ -1,0 +1,38 @@
+1)Data Type:ucontext_t
+  It's defined to have the following elements:
+   1)ucontext_t* link
+     It points to next context structure which is used if the context described in the current strcture returns
+   2)sigset uc_sigmask
+     Set of signals which are blocked when this context is used
+   3)stack_t uc_stack
+     Stack used for this context
+   4)mcontext_t uc_mcontext
+     It contains the actual state of the process
+
+1.functions to control the execution path
+  1)int getcontext(ucontext_t* ucp)
+    It initializes the ucp with the context of the calling thread
+    The context contains the registers,signal mask and current stack
+    Execute the context will start at the point where the getcontext() just returned
+    It's similar to setjump(),but it doesn't provide any indication of whether getcontext() is returning for the first time or whether an initialized context has just been restored
+    The user has to determine this himself
+    Once the context varaible is initialized,it can be used or modified by makecontext()
+
+  2)void makecontext(ucontext_t* ucp,void(*func)(void),int arc,...)
+    The context will be modified in a way such that: If the context is resumed,it will start by calling the func() 
+    Before the call to makecontext(),the ucp should be initialized by getcontext().
+    And the uc_stack and uc_link should also be initialized
+    uc_link:It points to the context to be executed when the func() returns
+  
+  3)int setcontext(const ucontext_t* ucp)
+    It restores the context described by ucp ----> replace the current context 
+    If the context is created by getcontext(),the execution resumes with the registers filled with the same values and the same stacks as if the getcontext() just returned
+    If the context is modified,the execution continues with the function passed to makecontext 
+    When the function returns,the execution is resumed in the context which is referenced by the uc_link
+    If the uc_link is null,then the app terminates normally with exit status value of EXIT_SUCCESS
+
+  4)swapcontext(ucontext_t* restrict oucp,context ucontext_t* restrict ucp)
+    It is similar to setcontext,but instead of just replacing the current context,it saves current context in oucp as if there is a call to getcontext()
+    Once the current context is saved,the context described in ucp is installed and execution continues in the ucp context
+    The saved context would resume after the call to swapcontext()
+

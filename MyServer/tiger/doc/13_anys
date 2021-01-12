@@ -1,0 +1,18 @@
+
+1.reinterpret_cast<type> (expr)
+  用于指针之间的转换
+
+
+2.void* align(size_t alignment,size_t size,void*& ptr,size_t& space)
+  该函数在ptr指向的大小为space的内存中进行对齐方式的调整，将ptr开始的size大小的数据调整为按alignment对齐
+  1)alignment 
+    Requested alignment,in bytes
+  2)size
+    Size of element to be aligned,in bytes
+  3)ptr
+    value-result
+    It points to contigunuous storage of at least space bytes
+  4)space
+    value-result
+    Maximum size of the buffer to consider for alignment
+  

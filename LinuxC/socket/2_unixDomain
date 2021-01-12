@@ -1,0 +1,73 @@
+1 In UNIX domain,a socket address takes the form of a pathname
+  The domain-specific socket address is sockaddr_un
+  struct sockaddr_un{
+    sa_family_t sun_family; //always AF_UNIX
+    char sun_path[108]; //Null-terminated socket pathname
+  }
+
+Binding a UNIX domain socket
+  //create a sokcet
+  int sfd = socket(AF_UNIX,SOCK_STREAM,0);
+
+  //initialize the sockaddr_un
+  struct sockaddr_un addr;
+  //clear structrue --> char [] is full of terminating null bytes
+  memset(&addr,0,sizeof(struct sockaddr_un));
+  //specify the fields
+  addr.sun_family=AF_UNIX;
+  const char* SOCKNAME="/tmp/mysock";
+  strncpy(addr.sun_path,SOCKNAME,sizeof(addr.sun_path)-1);  //why -1 --> ensure this field always has a terminating 
+                                                                         null byte
+
+  //bind the socket
+  if(bind(sfd,(struct sockaddr*)&addr,sizeof(struct sockaddr_un)) == -1)
+    errExit("bind");
+
+  Points worth noting about binding a UNIX domain socket
+  1)bind() will create an entry in file system  
+    The file type is S_IFSOCK and we can use stat() to check it or ls -l --> s
+
+  2)We can't bind a sokcet to an existing pathname  --> bind() fails with error EADDRINUSE
+  3)It is usual to bind a socket to an absolute pathname
+    If using relative pathname, it requires the app that wants to connect() this socket to know the current working directory of the app that performs the bind()
+  4)A socket may be bound to only one pathname and vice versa
+  5)We can't use open() to open a socket file
+  6)When the socket is no longer required, its pathname entry can be removed by using unlink()
+  7)Real-world app should bind UNIX domain socket to absolute pathnames in suitably secured directories
+    /tmp directory is normally present and writbale
+    But creating files in publicly writable dirs can lead various security vulnerabilities
+
+
+2 Creat a connected socket pair
+  Sometimes it's useful for a single process to create a pair of sockets and connect them together
+
+  int socketpair(int domain,int type,int protocol, int sockfd[2]);
+  1)Domain is only the UNIX domain -> AF_UNIX
+  2)Specifying type as SOCK_STRAM creates the equivalent of bidirectional pipe.Both sockets can be used for reading and writing
+  3)The sockets are not bound to any address --> avoid a whole class of security vulnerabilities
+  
+  4)A socket pair is used in a similar fashion to a pipe
+    After socketpair() call,the process creates a child via fork().
+    The child inherits the copies of parent's fds,including the fds referring to the socket pair
+    Then the parent and child can use socket pair for IPC
+
+3 The linux abstract socket namespace
+  1)It allows us to bind a UNIX domain socket to a name without that name being created in file system
+  2)Potential advantages
+    a.Needn't worry about possible collisions with existing file name
+    b.It's not necessary to unlink the socket pathname when finished using socket.
+      The abstract name will be automatically removed when the socket is closed
+
+  3)How to create 
+    sun_path[0] = \0 --> distinguish an abstract name from conventional socket name 
+    sun_path[1~~~size-2] --> abstract file name
+    sun_path[size-1] = \0 --> null bytes to terminate
+    Example:
+    struct sockaddr_un addr;
+    memset(&addr,0,sizeof(struct sockaddr_un));
+    strncpy(&addr.sun_path[1],name,sizeof(struct sockaddr_un)-2);
+
+    Warning:
+    strncpy(&addr,name,sizeof(struct sockaddr_un)-1);  ----> if the name happens to point to a zero-length string,we may create an abstract socket binding
+
+4.For UNIX domain datagram sockets,datagram tansmission is carried out within the kernel so that it's reliable

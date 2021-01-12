@@ -1,0 +1,287 @@
+1.Semaphores allow processes to synchronize their actions
+  One common use of shared memory is to prevent one process from accessing a block of shared memory at the same time as another process is updating it
+  A semaphore is a kernel-maintained integer whose value is restricted to be >= 0
+  Various operations can be performed on a seamphore,including the following
+  1)Set the semaphore to an absolute value
+  2)Add a number to the current value of the semaphore
+  3)Substract a number from the current value of the semaphore 
+  4)Wait for a semaphore value to be >= 0
+  The last two operations may cause the calling process block
+
+2.The general steps for using a System V semaphore are the following
+  1)Create or open a semaphore set using semget()
+  2)Initialize the semaphores in the set using the semctl() SETVAL or SETALL operation
+  3)Perform operations on semaphore valuse using semop() to indicate the acquisition and release of a shared resource
+  4)When all processes have finished using the semaphore set,remove the set using semctl() IPC_RMID operation
+
+  System V semaphores are allocated in groups called semaphore sets
+  The number of semaphore in a set is specified when creating the set using semget()
+  Such mechanism allows us to atomically perform a group of operations on multiple semaphores in the same set
+
+3.Create or open a semaphore set
+  int semget(key_t key,int nsems,int semflg)
+  1)nsems
+    When creating a new semaphore set,it specifies the number of semaphores in that set and must be >= 0.The semaphores within a set are numbered starting at 0
+    When obtaining the id of an existing set,it must be <= the size of the set
+    It's impossible to change the number of semaphores in an existing set
+  
+  2)semflg
+    IPC_CREAT and IPC_EXCL are similar to O_CREAT and O_EXCL
+
+4.Semaphore control operations
+  int semctl(int semid,int semnum,int cmd,...)
+  1)semnum
+    For those operations performered on a single semaphore,it identifies a particular semaphore within that set
+    For other operations,it's specified as 0
+  
+  2)...  ---> arg
+    It's a union-defined argument and  certain operations requires it
+    Ex:
+    union semu{
+      int                 val;
+      struct semid_ds*    buf;
+     if defined(_linux_)
+      struct seminfo      __buf;
+     #endif
+    };
+  
+  3)cmd
+    Generaic control operations
+    IPC_RMID,IPC_STAT,IPC_SET
+    In each case,the semnum is ignored
+    
+    Retrieve and initialize semaphore value operations
+    retrieving needs read permission and initializing requires write permission
+    1)GETVAL
+      Return the value of semnum-th semaphore and arg is not required
+
+    2)SETVAL
+      Initialize the value of semnum-th semaphore specified in arg.val
+
+    3)GETALL
+      Retrieve the values of all semaphores in the set,placing them in an array pointed to by arg.array
+      The array must be of sufficient size 
+      The number of semaphores in a set can be obtained from the sem_nsems field of the semid_ds data structrue retrieved by an IPC_STAT operation
+      The semnum argument is ignored
+   
+    4)SETALL
+      Initialize all semaphores in a set 
+
+      Changing the value of a semaphore with SETVAL or SETALL clears undo entries for that semaphore in all processes
+      The information returned by GETVAL and GETALL may be out of date by the time the calling process comes to use it
+    
+    Retrieve semnum-th semaphore information
+    read permission on the set is required and arg argument is not required
+    1)GETPID
+      The PID of last process to perform a smeop() on this semaphore 
+    2)GETNCNT
+      Number of processes waiting for the semaphore value to increase
+    3)GETZCNT
+      Number of processes waiting for the semaphore value to become 0
+
+5.Semaphore associated data structure
+struct semid_ds{
+  fields see in pdf 972
+}
+
+6.Semaphore initialization
+  The programmer must explicitly initialize the semaphore using semctl()
+  Since the semaphore creation and initialization are performered by separate sysCall instead of a single atomic step,it may lead to possible race conditions
+
+  Suppose we have an app consisting of multiple processes employing a single semaphore to coordinate their actions
+  Since no single process is guaranteed to be the first to use the semaphore,each process must be prepared prepared to create and initialize the semaphore if it does't exist
+
+  The code may be the following:
+  semid = semget(key,1,IPC_CREAT | IPC_EXCL | perms);
+  if(semid != -1){            //successfully created the semaphore 
+    union semun arg;
+
+    //xxxxxxxxxxxxxxxxx
+    
+    //initialize the semaphore
+    arg.val = 0;
+    if(semctl(semid,0,SETVAL,arg) == -1)
+      errExit("semctl");
+  }else{       //We didn't create the semaphore
+    if(errno != EEXIST){    //Unexpected error from semget()
+      semid = semget(key,1,perms);        //Retrieve ID of existing set
+      if(semid == -1)
+        errExit("semget");
+    }
+  }
+  //Perform semaphore operations 
+  sops[0].sem_op=1;
+  sops[0].sem_num=0;
+  sops[0].sem_flag=0;
+  if(semop(semid,sops,1) == -1)
+    errExit("semop");
+
+  Problem:
+   If the first process's time slice exactly expires at the point marked by xxxx in the code,it may have two prolems
+   1)The process B perform operations on uninitialized semaphore 
+   2)The process A overrites the changes that made by processB
+  Solution
+   When a semaphore set is first created,the sem_otime is initialized to 0 and it's changed only by subsequent semop()
+   We can insert extra code to force the second process to wait until the first process has both initialized the semaphore and executed a semop() but doesn't modify the semaphore's value
+   Code:
+   semid = semget(key,1,IPC_CREATE | IPC_EXCL | perms);
+   if(semid != -1){
+     union semun arg;
+     struct sembuf sop;
+
+     //initialize it
+     arg.val=0;
+     if(semctl(semid,0,SETVAL,arg) == -1)
+       errExit("semctl");
+     
+     //perform semaphore operation -----> changes sem_otime so other processes can see we've initialize the set
+   sops[0].sem_op=1;
+   sops[0].sem_num=0;
+   sops[0].sem_flag=0;
+   if(semop(semid,sops,1) == -1)
+     errExit("semop");
+   }else{  //We didn't create the semaphore set
+     const int MAX_TRIES = 10;
+     if(errno != EEXIST)
+       errExit("semget");
+     semid = semget(key,1,perms);
+     if(semid == -1)
+       errExit("semget");
+     
+     //wait until another process has called semop()
+     union semun arg;
+     struct semid_ds ds;
+     arg.buf = &ds;
+     fpr(int i=0;i<MAX_TRIES;i++){
+       if(semctl(semid,0,IPC_STAT,arg) == -1)
+         errExit("semctl");
+       if(ds.sem_otime != 0 )
+         break;            //performed semop
+       sleep(1);
+     }
+     if(ds.sem_otime == 0)
+       fatal("Existing semaphore not initialized");
+   }
+  We don't need this if one process is guaranteed to create and initialize the semaphore before any other processes attempts to use it. Parent ---> child
+
+7.Semaphore operations
+  int semop(int semid,struct sembuf* sops,unsigned int nsops)
+  1)nsops
+    It specifies the size of following array
+  2)sops
+    It points to array that contains the operations to be performered
+    Ex:
+    struct sembuf{
+      unsigned short sem_num;              //Semaphore number
+      short sem_op;                        //Operations to be performered
+      short sem_flg;                       //Operation flags (IPC_NOWAIT and SEM_UNDO)
+    }
+    sem_op:
+     a.>=0
+       The value of sem_op is added to semaphore value
+       As a result,other processes waiting to decrease the semaphore value may be awakened and perform their actions
+       It requires write permission
+     b.=0
+       The value of semaphore value is checked whetehr it equals 0
+       If does,the operation completes immediately
+       Otherwise,semop() blocks until the semaphore value becomes 0
+       It requires read permission
+     c.<0
+       Decrease the semaphore value
+       If current value is >= |sem_op|,then the operation completes immediately
+       Otherwise,semop() blocks until semaphore >= |sem_op|
+       It requires write permission
+    Semantically,increasing the semaphore value corresponds to making a resource avaliable to that ohters can use it,while decreasing value corresponds to reserving a source for use
+  
+  3)When a semop() blocks,the semop() blocks until one of the following occurs
+    a.Another process modifies the semaphore value so that the requested operation can proceed
+    b.A signal interrupts the semop() call --> EINTR
+      semop() is never automatically restarted after being interrupted by signal handler
+    c.Another process deletes the semaphore referred to by semid
+      In this case,semop() fails with EIDRM 
+   
+  4)We can prevent semop() from blocking by setting IPC_NOWAIT flag in the corresponding field
+    It instead fails with error EAGAIN
+
+  5)int semtimedop(int semid,struct sembuf* sops,unsigned int nsops,struct timespec* timeout)
+    It performs the same task as semop() except that the timeout argument specifies an upper limit on which the call will block
+    If the spcified time interval expires before it's possible to complete the semaphore operation,semtiemdop() fails with EAGIN
+
+8.Semaphore undo values
+  Suppose that,having adjusted the value of a semaphore,the process then terminates,either deliberately or accidently
+  By default,the semaphore value is left unchanged
+  Then it may constitue a problem for other processes using semaphore since they may be blocked waiting for the terminated process to undo the change it made
+
+  To avoid such problem,we can use SEM_UNDO flag via semop()
+  If this flag is specified,then the kernel records the effect of the semaphore operation and undoes the operation if the process terminates
+  The kernel doesn't need keep records of all operations using SEM_UNDO
+  It suffices to record the sum of all of the semaphore adjusments using SEM_UNDO in a per-semaphore,per-process integer --> semadj
+  When the process terminates,all that need to do is substract this total from the semaphore current value
+  When a semaphore value is set using semctl() SETVAL or SETALL operation,the corresponding semadj values are cleared to 0 in all processes using that semaphore 
+
+  A child created via fork() inherits its parent's semadj value,since it makes no sense for a child to undo its parent semaphore operations
+
+  semadj value is preserved acorss exec()
+  It permits us to adjust the semaphore value and then exec() a program that performs no operation on the semaphore but automatically adjust the semaphore on the process termination
+  
+  Limitations of SEM_UNDO
+  1)Modify the semaphore typically corresponds to acquiring or releasing the shared source
+    The use of SEM_UNDO is insufficient for multiprocess app to recorver in the event that a process unexpectedly terminates.
+    Unless it returns the shared resource to a consistent state.It's almost impossible
+  
+  2)In some cases,it's not impossible to adjust semaphore values when process terminates
+    Ex:
+    There is a semaphore whose initial value is 0
+    Process A increases the semaphore value by 2,specifying SEM_UNDO flag for that operation
+    Process B decreases the semaphore value by 1,so that the semaphore value becomes 1
+    Process A terminates 
+    The semaphore value is too low to adjust --->Decrease the value by 2 ----> Then it will become -1
+    Three possible ways to reslove this situation
+    1)Force the process to block until the value is possible to adjust ---> It's infeasible since it may enforce a terminating process to block forever
+    2)Adjust the value as far as possible 
+    3)Exit without adjusting
+
+9.Binary Semaphores 
+  It has two values: avaliable(1) and reserved(0)
+  Three operations
+   1)Reserve(-1)
+     Attempt to reserve the semaphore for exclusive use
+     If the semaphore was already reserved,then block until the semaphore is released
+   2)Release(+1)
+     Free a currently used semaphore so it can be reserved by other processes
+   3)Reserve conditionally
+     Make a nonblocking attempt to reserve the semaphore for exclusive use
+     If the semaphore was already reserved,then immediately return a status indicating the semaphore is unavaliable
+
+10.Semaphores limits
+   Various limits are imposed on System V semaphores 
+   1)SEMAEM
+     Maximum value that can be recorded in semajd
+     It's defined to have the same value as SEMVMX
+   2)SEMMNI
+     System-wide limit on the number of of semaphore identifiers that can be created
+   3)SEMMSI
+     Maximum number of semaphores that can be allocated in a single semaphore set
+   4)SEMMNS
+     System-wide limits on the number of semaphores that can allocated in all semaphore sets
+   5)SEMOPM
+     Maximum number of operations per semop() call
+   6)SEMVMX
+     Maximum value for a semaphore
+   7)SEMMNU
+     System-wide limit on the total number of semaphore undo structrues 
+   8)SEMUME 
+     Maximum number of undo entries per semaphore undo structrue
+
+   Some of the limits can be modified by changing the values stored in /proc/sys/kernel/sem file 
+   Four limits are listed:SEMMSL SEMMNS SEMOPM SEMMNI 
+
+   We can also use semctl() IPC_INFO operation to retrieve a structrue of type seminfo which contains the values of  these limits
+   Ex:
+    union semun arg;
+    struct seminfo buf;
+    arg.__buf=&buf;
+    semctl(0,0,IPC_INFO,arg);
+
+11.Disadvantages of System V semaphores
+   See in pdf 993

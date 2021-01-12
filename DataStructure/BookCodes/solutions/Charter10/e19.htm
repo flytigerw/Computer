@@ -1,0 +1,60 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 19<BR>
+<BR>
+</H1>
+<dl compact>
+<dt>(a)
+<dd>
+<center>
+<font color=blue>
+<img src=table3.gif>
+<br>
+<img src=table3a.gif>
+<br>
+<img src=table4.gif>
+<br>
+<img src=table5.gif>
+</font>
+</center>
+<br><br>
+<dt>(b)
+<dd>
+The loading factor is <code class=var>10/27 = 0.37</code>.
+<br><br>
+<dt>(c)
+<dd>
+The number of buckets examined during an unsuccessful
+search that starts at home bucket <code class=var>i</code>
+is <code class=var>[1, 1, 1, 1, 1, 1, 1, 4, 3, 2, 1, 3, 2, 1, 4, 3, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1]</code>.
+The average is <code class=var>42/27 = 1.56</code>.
+<br><br>
+<dt>(d)
+<dd>
+When searching for each of <code class=var>[7, 42, 25, 70, 14, 38, 8, 21, 34, 11]</code>
+the number of buckets examined is
+<code class=var>[1, 1, 1, 1, 1, 1, 1, 1, 3, 2]</code>. The average is
+<code class=var>13/10 = 1.3</code>.
+<br><br>
+<dt>(e)
+<dd>
+When the loading density is <code class=var>0.37</code>, the formulas
+yield <code class=var>1.76</code> and <code class=var>1.29</code>
+as the expected value for the average number of buckets examined
+in an unsuccessful and a successful search, respectively.
+These numbers are quite close to those in our example. However, you
+should remember that
+the formulas do not tell you what will happen in an
+individual case but what happens on average as the number of elements in the
+table becomes very large.
+</dl>
+
+</FONT>
+</BODY>
+</HTML>

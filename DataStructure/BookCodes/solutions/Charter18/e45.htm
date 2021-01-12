@@ -1,0 +1,63 @@
+
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 45<BR>
+<BR>
+</H1>
+
+
+As was the case for the insertion-sort decision tree, we use
+the notation <code class=var>i:j</code> to denote a comparison
+between <code class=var>a[i]</code> and <code class=var>a[j]</code>.
+The element/array indexes are <code class=var>[0123]</code>.
+In merge sort, the segments <code class=var>[01]</code>
+and <code class=var>[23]</code> are sorted first and then merged
+together to form the sorted sequence.
+The decision tree is:
+<br><br>
+<pre class=figure>
+                                                            0:1
+                                  ________________________/     \
+                                 |                               R
+                                2:3
+            __________________/     \__________________
+           |                                           |
+          0:2                                         0:3
+        /     \                                     /     \
+      /        \                                   /       \
+    1:2        0:3                               1:3       0:2
+   /   \      /   \                             /   \     /   \
+  /     \    /     \                           /     \   /     \
+0123   1:3  2301   1:3                     0132     1:2  3201   1:2
+      /   \       /   \                            /   \       /   \
+     /     \     /     \                          /     \     /     \
+  0213   0231  2013   2031                    0312     0321  3012   3021
+</pre>
+<br><br>
+where the right subtree <code class=var>R</code> is
+<br><br>
+<pre class=figure>
+                                2:3
+            __________________/     \__________________
+           |                                           |
+          1:2                                         1:3
+        /     \                                     /     \
+      /        \                                   /       \
+    0:2        1:3                               0:3       1:2
+   /   \      /   \                             /   \     /   \
+  /     \    /     \                           /     \   /     \
+1023   0:3  2310   0:3                     1032     0:2  3210   0:2
+      /   \       /   \                            /   \       /   \
+     /     \     /     \                          /     \     /     \
+  1203   1230  2103   2130                    1302     1320  3102   3120
+</pre>
+</FONT>
+</BODY>
+</HTML>

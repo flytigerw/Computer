@@ -1,0 +1,178 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 17, Exercise 7<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt> (a)
+<dd>
+Let <code class=var>G</code> be the greedy selection of tasks and let
+<code class=var>O</code> be the optimal selection.  If
+<code class=var>G</code> and
+<code class=var>O</code> have the same number of tasks, then the greedy selection is
+also optimal.  Assume that the greedy selection has fewer tasks than does
+the optimal selection.  Arrange the tasks in each selection in increasing
+order of finish time.  Now compare the two selections from left to right
+and find the least <code class=var>i</code> such that the <code class=var>i</code>th
+tasks in the greedy and optimal selections are different.
+Such an <code class=var>i</code> must exist as otherwise the greedy
+selection agrees fully with the left part of the optimal selection.
+This is not possible because
+the greedy algorithm would have selected at least one more task
+(since the optimal has a task with start time <code class=code>&gt;</code>
+largest
+finish time of any task in the greedy selection).
+<br><br>
+From the way the greedy algorithm works, we see that
+the finish time of task <code class=code>i</code> of the greedy
+selection is <code class=code>&lt;=</code> that of task
+<code class=code>i</code> of the optimal selection.
+Task <code class=code>i</code> of the greedy selection is not
+one of the tasks selected by he optimal algorithm.  Replace
+task <code class=code>i</code> of the optimal selection with
+task <code class=code>i</code> of the greedy selection.  The result is
+a new optimal selection which agrees with the greedy selection at least up to
+the <code class=var>i</code>th tasks.
+<br><br>
+By repeating this replacement step several times (bounded by
+the total number of tasks), we transform the
+original optimal solution into a new optimal solution in which
+the first <code class=var>|G|</code> tasks (<code class=var>|G|</code>
+is the number of tasks in <code class=var>G</code>) are
+the tasks in the greedy solution.  From the way the greedy algorithm works,
+we know that it is not possible to add any tasks with larger finish time
+to the selection.  Therefore, the optimal solution cannot contain any
+additional tasks.  So the greedy selection is of the same size as
+the optimal selection; it is, therefore, an optimal selection.
+<br><br>
+<dt> (b)
+<dd>
+If we choose to use the hint, we can begin by initializing a min heap
+with the tasks and then extract the tasks from the min heap in nondecreasing
+order of finish time.  When a task is extracted from the min heap,
+we see if it is possible to add it to the set of already selected tasks.
+An alternative strategy is to first sort the tasks into nondecreasing
+order of finish time and then examine them one at a time in this order.
+<br><br>
+<!--
+The code we develop uses a top-level nested class <code class=code>Task</code>,
+which
+implements the interface <code class=code>Comparable</code>.
+
+<br><br>
+The code for the greedy task assignment
+algorithm is given below.
+
+<HR class = coderule>
+<pre class = code>
+public class MaximumNumberOfTasks
+{
+   // top-level nested class
+   static class Task implements Comparable
+   {
+      // instance data members
+      int start;                  // task start time
+      int finish;                 // task finish time
+      int id;                     // task ID
+
+      // constructor
+      Task(int theStart, int theFinish, int theId)
+      {
+         start = theStart;
+         finish = theFinish;
+         id = theId;
+      }
+
+      // method of Comparable 
+      public int compareTo(Object x)
+      {
+         int xStart = ((Task) x).start;
+         if (start &lt; xStart)
+            return -1;
+         if (start == xStart)
+            return 0;
+         return 1;
+      }
+   
+      /** @return true iff this = x */
+      public boolean equals(Object x)
+         {return start == ((Task) x).start;}
+   }
+   
+   /** input tasks and output a maximum selection that can be done
+     * on a single machine */
+   public static void main(String [] args)
+   {
+      // establish input stream as System.in
+      MyInputStream keyboard = new MyInputStream();
+
+      // input the number of tasks
+      System.out.println("Enter the number of tasks");
+      int n = keyboard.readInteger();
+      if (n &lt; 1)
+      {
+         System.out.println("Number of tasks must be more than 0");
+         System.exit(1);
+      }
+   
+      // input and store the n tasks in a task array
+      Task [] t = new Task [n + 1];
+      for (int i = 1; i &lt;= n; i++)
+      {
+         System.out.println("Enter the start and finish time of task " + i);
+         t[i] = new Task(keyboard.readInteger(),
+                         keyboard.readInteger(),
+                         i);
+         if (t[i].start &lt; 0 || t[i].finish &lt;= 0
+             || t[i].start &gt;= t[i].finish)
+         {
+             System.out.println("Bad start and/or finish time");
+             System.exit(1);
+          }
+      }
+   
+      // initialize a min heap with n tasks
+      MinHeap h = new MinHeap(1);
+      h.initialize(t, n);
+
+      // select tasks
+      System.out.print("The selected tasks are ");
+      int avail = 0;                // time machine gets free
+      for (int i = 1; i &lt;= n; i++)
+      {
+         // get task with least finish time
+         Task w = (Task) h.removeMin();
+         if (w.start &gt;= avail)
+         {// select the task
+            System.out.print(w.id + " ");
+            avail = w.finish;
+         }
+      }  
+      System.out.println();
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+It takes
+<code class=var>O(n)</code>
+time to initialize the min heap. Each <code class=code>removeMin</code>
+operation on the min heap takes 
+<code class=var>O(log n)</code> time.  After a task is extracted from
+the min heap, it takes <code class=var>Theta(1)</code> time to decide
+whether it should be selected.
+So, the total time spent selecting tasks is
+<code class=var>O(n log n)</code>.
+Therefore, the overall complexity of our code is
+<code class=var>O(n log n)</code>.
+--!>
+
+</FONT>
+</BODY>
+</HTML>

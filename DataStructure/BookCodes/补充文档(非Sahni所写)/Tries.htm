@@ -1,0 +1,1090 @@
+
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Tries<br>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<a href = "#what">What is a Trie?</a>
+<br>
+<a href = "#searching">Searching a Trie</a>
+<br>
+<a href = "#different">Keys With Different Length</a>
+<br>
+<a href = "#height">Height of a Trie</a>
+<br>
+<a href = "#space">Space Required and Alternative Node Structures</a>
+<br>
+<a href = "#insert">Inserting into a Trie</a>
+<br>
+<a href = "#remove">Removing an Element</a>
+<br>
+<a href = "#prefix">Prefix Search and Applications</a>
+<br>
+<a href = "#compress">Compressed Tries</a>
+<br>
+<a href = "suffix">Suffix Trees</a>
+<br>
+<a href = "exercises">Exercises</a>
+<br>
+<a href = "#reference">References and Selected Readings</a>
+<br><br>
+
+<a name = "what"></a>
+<font color=blue><big><big>What Is A Trie?</big></big></font><br>
+Let us, for a moment, step back and reflect on the many sort methods
+developed in the text. We see that the majority of these methods
+(e.g., insertion sort, bubble sort, selection sort, heap sort,
+merge sort, and quick sort) accomplish the sort by
+comparing pairs of elements. Radix sort (and bin sort, which is a
+special case of radix sort), on the other hand,
+does not perform a single comparison between elements. Rather,
+in a radix sort, we decompose keys into digits using some radix; and
+the elements are sorted digit by digit using a bin sort.
+<br><br>
+Now, let us reflect on the dictionary methods developed in the text.
+The hashing methods use a hash function to determine a home bucket,
+and then use element (or key) comparisons to search either the home bucket
+chain (in the case of a chained hash table) or a contiguous collection
+of full buckets beginning with the home bucket (in the case of linear
+open addressing). The search tree data structures direct the
+search based on the result of comparisons performed
+between the search key and the element(s) in the root of the current subtree.
+We have not, as yet, seen
+a dictionary data structure that is based on the digits
+of the keys!
+<br><br>
+The <strong>trie</strong> (pronounced ``try'' and derived from the word
+re<em>trie</em>val) is a data structure that uses the
+digits in the keys to organize and search the dictionary.
+Although, in practice, we can use any radix to decompose the keys into
+digits, in our examples, we shall choose our radixes so that
+the digits are natural entities such as decimal digits
+(<code class=var>0, 1, 2, 3, 4, 5, 6, 7, 8, 9</code>) and
+letters of the English alphabet (<code class=var>a-z, A-Z</code>).
+<br><br>
+Suppose that the elements in our dictionary are student records that
+contain fields such as student name, major, date of birth, and
+social security number (SS#). The key field is the social security number,
+which is a nine digit decimal number. To keep the example manageable,
+assume that the dictionary has only five elements.
+The name and
+SS# fields
+for each of the five elements in our dictionary are
+shown below.
+
+<br><br>
+<pre class=figure>
+Name    | Social Security Number (SS#)
+Jack    | 951-94-1654
+Jill    | 562-44-2169
+Bill    | 271-16-3624
+Kathy   | 278-49-1515
+April   | 951-23-7625
+</pre>
+<font color=blue>
+Figure 1 Five elements (student records) in a dictionary</font><br><br>
+
+To obtain a trie representation for these five elements, we first
+select a radix that will be used to
+decompose each key into digits. If we use the radix
+<code class=var>10</code>, the decomposed digits are just the decimal digits
+shown in Figure 1. We shall examine the digits of the key field (i.e.,
+SS#) from left to right. Using the first digit of the SS#, we
+partition the elements into three groups--elements whose SS# begins
+with <code class=var>2</code> (i.e., Bill and Kathy), those that begin with
+<code class=var>5</code> (i.e., Jill),
+and those that begin with <code class=var>9</code> (i.e., April and Jack).
+Groups with more than one element are partitioned using the next digit in
+the key. This partitioning process is continued until every group has
+exactly one
+element in it.
+<br><br>
+The partitioning process described above naturally results in a tree structure
+that has <code class=var>10</code>-way branching as is shown in Figure 2.
+The tree employs two types of nodes--<strong>branch nodes</strong> and
+<strong>element nodes</strong>.
+Each branch node has <code class=var>10</code> children (or pointer/reference)
+fields. These fields, <code class=code>child[0:9]</code>,
+have been labeled <code class=var>0, 1, ..., 9</code>
+for the root node of Figure 2.
+<code class=code>root.child[i]</code> points to the root of a subtrie
+that contains all elements whose first digit is <code class=var>i</code>.
+In Figure 2, nodes <code class=var>A, B, D, E, F,</code>
+and <code class=var>I</code> are branch nodes.
+The remaining nodes, nodes <code class=var>C, G, H, J,</code> and
+<code class=var>K</code> are element nodes. Each element node contains
+exactly one element of the dictionary.
+In Figure 2, only the key field of each element is shown in the element nodes.
+<center>
+<font color=blue>
+<img src=triefig1.gif>
+<br>Figure 2 Trie for the elements of Figure 1
+</font>
+</center>
+<br><br>
+
+
+<a name = "searching"></a>
+<font color=blue><big><big>Searching a Trie</big></big></font><br>
+To search a trie for an element with a given key, we start at the
+root and follow
+a path down the trie until we either fall off the trie (i.e.,
+we follow a <code class=code>null</code> pointer in a branch
+node) or we reach an element node. The path we follow is
+determined by the digits of the search key.
+Consider the trie of Figure 2. Suppose we are to search for an element with
+key <code class=var>951-23-7625</code>. We use the first digit,
+<code class=code>9</code>, in the key to move from the root node
+<code class=var>A</code> to the node <code class=var>A.child[9] = D</code>.
+Since <code class=code>D</code> is a branch node, we use the next digit,
+<code class=var>5</code>, of the key to move further down the trie.
+The node we reach is <code class=var>D.child[5] = F</code>. To move to the
+next level of the trie, we use the next digit, <code class=var>1</code>, of the
+key. This move gets us to the node <code class=var>F.child[1] = I</code>.
+Once again, we are at a branch node and must move further down the trie.
+For this move, we use the next digit, <code class=var>2</code>, of the
+key, and we reach the element node <code class=var>I.child[2] = J</code>.
+When an element node is reached, we compare the search key and the
+key of the element in the reached element node. Performing this
+comparison at node <code class=var>J</code>, we get a match.
+The element in node <code class=var>J</code>, is to be returned as the
+result of the search.
+<br><br>
+When searching the trie of Figure 2 for an
+element with key <code class=var>951-23-1669</code>, we follow the
+same path as followed for the key
+<code class=var>951-23-7625</code>. The key comparison made at node
+<code class=var>J</code> tells us that the trie has no
+element with key
+<code class=var>951-23-1669</code>, and the search returns the value
+<code class=var>null</code>.
+<br><br>
+To search for the element with key
+<code class=var>562-44-2169</code>, we begin at the root
+<code class=var>A</code> and use the first digit, <code class=var>5</code>,
+of the search key to reach the element node <code class=var>A.child[5]
+= C</code>.
+The key of the element in node <code class=var>C</code> is compared with the
+search key. Since the two keys agree, the element in node
+<code class=var>C</code> is returned.
+<br><br>
+When searching for an element with key
+<code class=var>273-11-1341</code>, we follow the path
+<code class=var>A, A.child[2] = B, B.child[7] = E, E.child[3] = null</code>.
+Since we fall off the trie, we know that the trie contains no element whose key
+is <code class=var>273-11-1341</code>.
+
+<br><br>
+When analyzing the complexity of trie operations, we
+make the assumption that we can obtain the next digit of a key in
+<code class=var>O(1)</code> time. Under this assumption, we can search
+a trie
+for an element with a <code class=var>d</code> digit key in
+<code class=var>O(d)</code> time.
+
+<br><br>
+<a name = "different"></a>
+<font color=blue><big><big>Keys With Different Length</big></big></font><br>
+In the example of Figure 2, all keys have the same number of digits (i.e.,
+<code class=var>9</code>). In applications in which different
+keys may have a different number of digits, we normally add a special digit
+(say <code class=var>#</code>)
+at the end of each key
+so that no key is a prefix of another.
+To see why this is done, consider the example of Figure 2.
+Suppose we are to search for an element with the key
+<code class=var>27</code>. Using the search strategy just described, we
+reach the branch
+node <code class=var>E</code>. What do we do now? There is no next
+digit in the search key that can be used to reach the terminating
+condition (i.e., you either fall off the trie or reach
+an element node) for downward moves. To resolve this problem, we add
+the special digit <code class=var>#</code>
+at the end of each key and also increase the number of
+children fields in an element node by one. The additional child field
+is used when the next digit equals <code class=var>#</code>.
+
+<br><br>
+<a name = "height"></a>
+<font color=blue><big><big>Height of a Trie</big></big></font><br>
+In the worst case, a root-node to element-node path has
+a branch node for every digit in a key.
+Therefore, the height of a trie is at most <code class=var>number of digits
++ 1</code>.
+<br><br>
+A trie for social security numbers
+has a height that is at most <code class=var>10</code>.
+If we assume that it takes the same time to move down one level of a trie
+as it does to move down one level of a binary search tree, then with
+at most <code class=var>10</code> moves we can search a social-security trie.
+With this many moves, we can search a binary search tree
+that has at most <code class=var>2<sup>10</sup> - 1 = 1023</code> elements.
+This means that, we expect searches in the social security trie to be faster 
+than searches in a binary search tree (for student records) whenever
+the number of student records is more than <code class=var>1023</code>.
+The breakeven point will actually be less than <code class=var>1023</code>
+because we will normally not be able to construct full or complete
+binary search trees
+for our element collection.
+<br><br>
+Since a SS# is nine digits, a social security trie can have up to
+<code class=var>10<sup>9</sup></code> elements in it. An AVL tree
+with <code class=var>10<sup>9</sup></code> elements can have a height
+that is as much as (approximately)
+<code class=var>1.44 log<sub>2</sub>(10<sup>9</sup>+2) = 44</code>.
+Therefore, it could take
+us four times as much time to search for elements when we organize our
+student record dictionary as an AVL tree than when this dictionary is
+organized as a trie!
+
+
+<br><br>
+<a name = "space"></a>
+<font color=blue><big><big>Space Required and Alternative Node Structures</big></big></font><br>
+The use of branch nodes that have as many child fields as the radix
+of the digits (or one more than this radix when different keys may have
+different length) results in a fast search algorithm. However, this node
+structure is often wasteful of space because many of the child fields
+are <code class=var>null</code>. A radix <code class=var>r</code>
+trie for <code class=var>d</code> digit keys requires
+<code class=var>O(rdn)</code> child fields, where <code class=var>n</code>
+is the number of elements in the trie.
+To see this, notice that in a <code class=var>d</code> digit
+trie with <code class=var>n</code>
+information nodes, each information node may have at most
+<code class=var>d</code> ancestors, each of which is
+a branch node. Therefore, the number of branch nodes is at most
+<code class=var>dn</code>. (Actually, we cannot have this many
+branch nodes, because the information nodes have common ancestors
+like the root node.)
+<br><br>
+We can reduce the space requirements, at the expense of increased search time,
+by changing the node structure. For example, each branch node of a trie could be
+replaced by any of the following:
+<ol>
+<li>
+A chain of nodes, each node having the three fields
+<code class=var>digitValue, child, next</code>. Node
+<code class=var>A</code> of Figure 2, for example,
+would be replaced by the chain
+shown in Figure 3.
+
+<center>
+<img src=triefig4.gif>
+<font color=blue>
+<br>Figure 3 Chain for node A of Figure 2
+</font>
+</center>
+<br><br>
+The space required by a branch node changes from
+that required for
+<code class=var>r</code> children/pointer/reference fields to
+that required for
+<code class=var>2p</code> pointer fields and <code class=var>p</code>
+digit value fields, where <code class=var>p</code>
+is the number of children fields in the branch node that are not
+<code class=code>null</code>.
+Under the assumption that pointer fields and digit value fields are of the
+same size,
+a reduction in space is realized when more than two-thirds of the children
+fields in branch nodes are <code class=var>null</code>.
+In the worst case, almost all the branch nodes have only <code class=var>1</code>
+field that is not <code class=code>null</code> and the space savings
+become almost <code class=var>(1 - 3/r) * 100%</code>.
+<br><br>
+<li>
+A (balanced) binary search tree in which each node has a digit value
+and a pointer to the subtrie for that digit value.
+Figure 4 shows the binary search tree for node <code class=var>A</code> of
+Figure 2.
+
+<center>
+<font color=blue>
+<img src=triefig5.gif>
+<br>Figure 4 Binary search tree for node A of Figure 2
+</font>
+</center>
+<br><br>
+Under the assumption that digit values and pointers take the same amount of
+space, the binary search tree representation requires space for
+<code class=var>4p</code> fields per branch node, because each search tree node
+has fields for a digit value, a subtrie pointer, a left child pointer,
+and a right child pointer.
+The binary search tree representation of a branch node saves us
+space when more than three-fourths of the children fields in branch nodes
+are <code class=code>null</code>.
+Note that for large <code class=var>r</code>, the binary serach tree
+is faster to search than the chain described above.
+<br><br>
+<li>
+A binary trie (i.e., a trie with radix <code class=var>2</code>).
+Figure 5 shows the binary trie for node <code class=var>A</code> of
+Figure 2.
+The space required by a branch node represented as a
+binary trie is at most
+<code class=var>(2 * ceil(log<sub>2</sub>r) + 1)p</code>.
+
+<center>
+<font color=blue>
+<img src=triefig6.gif>
+<br>Figure 5 Binary trie for node A of Figure 2
+</font>
+</center>
+<br><br>
+<li>
+<a name = "hash"></a>
+A hash table. When a hash table with a sufficiently small loading
+density is used, the expected time performance is about the same as when
+the node structure of Figure 1 is used.
+Since we expect the fraction of <code class=code>null</code> child fields in
+a branch node to vary from node to node and also to increase
+as we go down the trie, maximum space efficiency is obtained by consolidating
+all of the branch nodes into a single hash table. To accomplish this,
+each node in the trie is assigned a number, and each parent to child pointer
+is replaced by a triple of the form <code class=var>(currentNode,
+digitValue, childNode)</code>.
+The numbering scheme for nodes is chosen so as to easily
+distinguish between branch and information nodes. For example, if
+we expect to have at most <code class=var>100</code> elements in the trie
+at any time, the numbers <code class=var>0</code> through <code class=var>99</code>
+are reserved for information nodes and the numbers <code class=var>100</code>
+on up are used for branch nodes. The information nodes are themselves
+represented as an array <code class=var>information[100]</code>.
+(An alternative scheme is to represent pointers as tuples of the form
+<code class=var>(currentNode,
+digitValue, childNode, childNodeIsBranchNode)</code>, where
+<code class=var>childNodeIsBranchNode = true</code> iff the child node
+is a branch node.)
+<br><br>
+Suppose that the nodes of the trie of Figure 2 are assigned numbers
+as given below. This number assignment assumes that the trie will
+have no more than <code class=var>10</code> elements.
+<br><br>
+<pre class=figure>
+Node      A   B   C   D   E   F   G   H   I   J   K 
+Number   10  11   0  12  13  14   1   2  15   3   4
+</pre>
+<br><br>
+The pointers in node <code class=var>A</code> are represented 
+by the tuples <code class=var>(10,2,11), (10,5,0)</code>,
+and <code class=var>(10,9,12)</code>.
+The pointers in node
+<code class=var>E</code> are represented by the tuples
+<code class=var>(13,1,1)</code> and <code class=var>(13,8,2)</code>.
+<br><br>
+The pointer triples are stored in a hash table using the first two
+fields (i.e., the <code class=code>currentNode</code> and
+<code class=code>digitValue</code>) as the key.
+For this purpose, we may transform the two field key into an integer
+using the formula <code class=var>currentNode * r + digitValue</code>,
+where <code class=var>r</code> is the trie radix, and use the division
+method to hash the transformed key into a home bucket.
+The data presently in information node <code class=var>i</code>
+is stored in <code class=code>information[i]</code>.
+<br><br>
+To see how all this works, suppose we have set
+up the trie of Figure 2 using the hash table scheme
+just described. Consider searching for an element
+with key <code class=var>278-49-1515</code>. We begin with the
+knowledge that the root node is assigned the number <code class=var>10</code>.
+Since the first digit of the search key is <code class=var>2</code>,
+we query our hash table for a pointer triple with key
+<code class=var>(10,2)</code>. The hash table search is successful
+and the triple <code class=var>(10,2,11)</code> is retrieved.
+The <code class=code>childNode</code> component of this triple is
+<code class=var>11</code>, and since all information nodes have
+a number <code class=var>9</code> or less, the child node is determined to be
+a branch node. We make a move to the branch node <code class=var>11</code>.
+To move to the next level of the trie, we use the second digit
+<code class=var>7</code> of the search key. For the move,
+we query the hash table for a pointer with key
+<code class=var>(11,7)</code>. Once again, the
+search is successful and the triple <code class=var>(11,7,13)</code>
+is retrieved. The next query to the hash table is for a triple
+with key <code class=var>(13,8)</code>. This time, we obtain the
+triple <code class=var>(13,8,2)</code>. Since, <code class=code>childNode
+= 2 &lt; 10</code>, we know that the pointer gets us to an information
+node. So, we compare the search key with the key of the element
+<code class=code>information[2]</code>. The keys match, and we have
+found the element we were looking for.
+<br><br>
+When searching for an element with key <code class=var>322-167-8976</code>,
+the first query is for a triple with key <code class=var>(10,3)</code>.
+The hash table has no triple with this key, and we conclude that the
+trie has no element whose key equals the search key.
+<br><br>
+The space needed for each pointer triple is about the same as that
+needed for each node in the chain of nodes representation
+of a trie node. Therefore, if we use
+a linear open addressed hash table with a loading density
+of <code class=var>alpha</code>, the hash table scheme will
+take approximately <code class=var>(1/alpha - 1) * 100%</code> more space than
+required by the chain of nodes scheme.
+However, when the hash table scheme is used, we can retrieve a
+pointer in <code class=var>O(1)</code> expected time, whereas
+the time to retrieve a pointer using the chain of nodes scheme
+is <code class=var>O(r)</code>. When the (balanced) binary search tree
+or binary trie schemes are used, it takes <code class=var>O(log r)</code>
+time to retrieve a pointer. For large radixes, the hash table scheme
+provides significant space saving over the scheme of Figure 2 and
+results in a small constant factor degradation in the
+expected time required to
+perform a search.
+<br><br>
+The hash table scheme actually reduces the expected time to insert
+elements into a trie, because when the node structure of Figure 2
+is used, we must spend <code class=var>O(r)</code> time
+to initialize each new branch node (see the description
+of the insert operation below). However, when a hash table is used,
+the insertion time is independent of the trie radix.
+<br><br>
+To support the removal of elements from a trie represented as a hash table,
+we must be able to reuse information nodes. This reuse is accomplished
+by setting up an available space list of information nodes that are
+currently not in use (see Section 3.5 (Simulating Pointers) of the text).
+</ol>
+<br><br>
+<a name = "insert"></a>
+<font color=blue><big><big>Inserting into a Trie</big></big></font><br>
+To insert an element <code class=code>theElement</code> whose key is
+<code class=code>theKey</code>, we first search the trie for an existing
+element with this key. If the trie contains such an element, then we
+replace the existing element with <code class=code>theElement</code>.
+When the trie contains no element whose key equals
+<code class=code>theKey</code>, <code class=var>theElement</code> is
+inserted into the trie using the following procedure.
+<br><br>
+<font color=blue>Case 1 For Insert Procedure</font><br>
+If the search for <code class=code>theKey</code> ended at an element
+node <code class=code>X</code>, then the key of the element in
+<code class=code>X</code> and <code class=code>theKey</code> are
+used to construct a subtrie to replace <code class=code>X</code>.
+<br><br>
+Suppose we are to insert an element with key
+<code class=var>271-10-2529</code> into the trie of Figure 2. The search for
+the key
+<code class=var>271-10-2529</code> terminates at node <code class=var>G</code>
+and we determine that the key, <code class=var>271-16-3624</code>,
+of the element in node
+<code class=var>G</code> is not equal to the key of the element to be inserted.
+Since the first three digits of the keys are used to get as far as
+node <code class=var>E</code> of the trie,
+we set up branch nodes for the fourth digit
+(from the left) onwards until we reach the first digit at which the two
+keys differ. This results in branch nodes for the fourth and fifth digits
+followed by element nodes for each of the two elements. Figure 6 shows the
+resulting trie.
+
+<center>
+<font color=blue>
+<img src=triefig2.gif>
+<br>Figure 6 Trie of Figure 2 with 271-10-2529 inserted
+</font>
+</center>
+<br><br>
+
+<br><br>
+<font color=blue>Case 2 For Insert Procedure</font><br>
+If the search for <code class=code>theKey</code> ends by falling off
+the trie from the branch
+node <code class=code>X</code>, then we simply add a child
+(which is an element node)
+to the node
+<code class=code>X</code>. The added element node contains
+<code class=code>theElement</code>.
+<br><br>
+Suppose we are to insert an element with key
+<code class=var>987-33-1122</code> to the trie of Figure 2.
+The search for an element with key equal to
+<code class=var>987-33-1122</code> ends when we fall off the trie while
+following the pointer <code class=code>D.child[8]</code>. We replace the
+<code class=code>null</code> pointer
+<code class=code>D.child[8]</code> with a pointer to a new element node that
+contains <code class=code>theElement</code>, as is
+shown in Figure 7.
+
+<center>
+<font color=blue>
+<img src=triefig3.gif>
+<br>Figure 7 Trie of Figure 2 with 987-33-1122 inserted
+</font>
+</center>
+<br><br>
+The time required to insert an element with a <code class=var>d</code> digit
+key into a radix <code class=var>r</code>
+trie is <code class=var>O(dr)</code> because the insertion may require
+us to create
+<code class=var>O(d)</code> branch nodes and it takes
+<code class=var>O(r)</code> time to intilize the children pointers
+in a branch node.
+
+<br><br>
+<a name="remove"></a>
+<font color=blue><big><big>Removing an Element<big></big></font><br>
+</strong><font color=black>
+To remove the element whose key is <code class=code>theKey</code>, we
+first search for the element with this key. If there
+is no matching element in the trie,
+nothing is to be done. So, assume that the trie contains an element
+<code class=code>theElement</code> whose
+key is <code class=code>theKey</code>.
+The element node <code class=var>X</code>
+that contains <code class=code>theElement</code> is discarded, and
+we retrace the path from <code class=var>X</code> to the root discarding
+branch nodes that are roots of subtries that
+have only <code class=var>1</code> element in them.
+This path retracing stops when we either reach a branch node that is not
+discarded or we discard the root.
+<br><br>
+Consider the trie of Figure 7. When the element with key
+<code class=var>951-23-7625</code> is removed, the element node
+<code class=var>J</code> is discarded and we follow the
+path from node <code class=var>J</code> to the root node
+<code class=var>A</code>.
+The branch node <code class=var>I</code> is discarded because the subtrie with
+root <code class=var>I</code> contains the single element node
+<code class=var>K</code>.
+We next reach the branch node <code class=var>F</code>. This node is also
+discarded, and we proceed to the branch node <code class=var>D</code>.
+Since the subtrie rooted at <code class=var>D</code> has
+<code class=var>2</code> element nodes (<code class=var>K</code>
+and <code class=var>L</code>), this branch node is not discarded.
+Instead, node <code class=var>K</code> is made a child of this branch
+node, as is shown in Figure 8.
+
+
+<center>
+<font color=blue>
+<img src=triefig7.gif>
+<br>Figure 8 Trie of Figure 7 with 951-23-7635 removed
+</font>
+</center>
+<br><br>
+To remove the element with key <code class=var>562-44-2169</code> from the
+trie of Figure 8,
+we discard the element node <code class=var>C</code>.
+Since its parent node remains the root of a subtrie that has more than
+one element, the parent node is not discarded and the removal  operation
+is complete.
+Figure 9 show the resulting trie.
+
+<center>
+<font color=blue>
+<img src=triefig8.gif>
+<br>Figure 9 Trie of Figure 8 with 562-44-2169 removed
+</font>
+</center>
+<br><br>
+The time required to remove an element with a <code class=var>d</code> digit
+key from a radix <code class=var>r</code>
+trie is <code class=var>O(dr)</code> because the removal may require
+us to discard
+<code class=var>O(d)</code> branch nodes and it takes
+<code class=var>O(r)</code> time to determine whether
+a branch node is to be discarded.
+The complexity of the remove operation can be reduced to
+<code class=var>O(r+d)</code> by adding a
+<code class=code>numberOfElementsInSubtrie</code>
+field to each branch node.
+
+<a name = "prefix"></a><br><br>
+<font color=blue><big><big>Prefix Search and Applications</big></big></font><br>
+You have probably realized that to search a trie we do not need the
+entire key. Most of the time, only the first few digits (i.e., a prefix)
+of the key is needed. For example, our search of the trie of
+Figure 2 for an element with
+key <code class=var>951-23-7625</code> used only the first four digits of the
+key. The ability to search a trie using only the prefix of a key enables
+us to use tries in applications where only the prefix might be known or where
+we might desire the user to provide only a prefix. Some of these applications
+are described below.
+
+<br><br><big><font color=blue>Criminology</font></big><br>
+Suppose that you are at the scene of a crime and observe the
+first few characters <code class=var>CRX</code>
+on the registration plate of the getaway car.
+If we have a trie of registration numbers, we can use the characters
+<code class=var>CRX</code> to reach a subtrie that contains all
+registration numbers that begin with <code class=var>CRX</code>.
+The elements in this subtrie can then be examined to see which cars
+satisfy other properties that might have been observed.
+
+<br><br><big><font color=blue>Automatic Command Completion</font></big><br>
+When using an operating system such as Unix or DOS, we type in
+system commands to accomplish certain tasks.
+For example, the Unix and DOS command <code class=code>cd</code> may be used
+to change the current directory.
+Figure 10 gives a list of commands that have the
+prefix <code class=var>ps</code> (this list was obtained by executing
+the command <code class=code>ls /usr/local/bin/ps*</code> on a Unix system).
+
+<br><br>
+<pre class=figure>
+ps2ascii      ps2pdf      psbook         psmandup      psselect
+ps2epsi       ps2pk       pscal          psmerge       pstopnm
+ps2frag       ps2ps       psidtopgm      psnup         pstops
+ps2gif        psbb        pslatex        psresize      pstruct
+</pre>
+<font color=blue>
+Figure 10 Commands that begin with "ps"</font><br><br>
+
+We can simply the task of typing in commands by providing a command
+completion facility which automatically types in the command suffix
+once the user has typed in a long enough prefix to uniquely
+identify the command. For instance, once the letters
+<code class=var>psi</code> have been entered, we know that the command
+must be <code class=var>psidtopgm</code> because there is only
+one command that has the prefix <code class=var>psi</code>. In this case,
+we replace the need to type in a <code class=var>9</code> character
+command name by the need to type in just the first <code class=var>3</code>
+characters of the command!
+<br><br>
+A command completion system is easily implemented when the commands are
+stored in a trie using ASCII characters as the digits. As the user types the
+command digits from left to right, we move down the trie. The command
+may be completed as soon as we reach an element node. If we fall off the trie in
+the process, the user can be informed that no command with the typed prefix
+exists.
+<br><br>
+Although we have described command completion in the context
+of operating system commands, the facilty is useful in other environments:
+<ol>
+<li>
+A network browser keeps a history of the URLs of sites that
+you have visited. By organizing this history as a trie, the user need only type
+the prefix of a previously used URL and the browser can complete the URL.
+<li>
+A word processor can maintain a dictionary of words and can complete words
+as you type the text. Words can be completed as soon as you have typed a long
+enough prefix to identify the word uniquely.
+<li>
+An automatic phone dialler can maintain a list of frequently called telephone
+numbers as a trie. Once you have punched in a long enough prefix to uniquely
+identify the phone number, the dialler can complete the call for you.
+</ol>
+
+
+<br><br><big><font color=blue>LZW Compression Algorithm</font></big><br>
+The LZW compression algorithm was developed in Section 7.5 of the text.
+Recall that the primary operation performed during compression is the
+determination of the longest prefix (of the uncompressed portion of the file
+that is begin compressed) for which we have a code in the code table.
+Let us call this operation <code class=code>longestPrefix</code>.
+<br><br>
+In Section 7.5.2, the code table was implemented
+as a hash table and the operation <code class=code>longestPrefix</code>
+was performed by searching this hash table first using a prefix of
+size <code class=var>1</code>, then a prefix of size <code class=var>2</code>,
+and so on until the first unsuccessful search. Since each hash table search
+has an expected complexity of <code class=var>O(1)</code>,
+a <code class=code>longestPrefix</code>
+operation takes <code class=var>O(s)</code>
+expected time, where <code class=var>s</code> is the length of the
+longest prefix for which we have a code in our code table.
+<br><br>
+We may use a trie for the code table.
+In this application, we add a <code class=var>code</code> field to
+each branch node. The <code class=code>code</code> field of a branch node
+gives the code for the string defined by the path from
+the trie root to this branch node.
+The trie for LZW codes has no element nodes.
+<br><br>
+The
+<code class=code>longestPrefix</code> operation may be implemented as follows.
+Scan the characters in the uncompressed portion of the file from left to right.
+Use these characters to follow a path down the code trie until you fall off
+the trie. Once you fall off, the longest matching
+prefix is identified, and the code for this prefix is in the
+<code class=code>code</code> field of the
+branch node you fell off of.
+
+<br><br>
+Using a trie, the actual complexity of
+the <code class=code>longestPrefix</code>
+operation is <code class=var>O(s)</code>.
+
+<br><br>
+<a name = "compress"></a>
+<font color=blue><big><big>Compressed Tries</big></big></font><br>
+Take a close look at the trie of Figure 2. This trie has a few branch nodes
+(nodes <code class=var>B, D,</code> and <code class=var>F</code>)
+that do not partition the elements in their subtrie
+into two or
+more nonempty groups.
+We often can improve both the time and space performance metrics of a trie
+by eliminating all branch nodes that have only one child. The resulting
+trie is called a <strong>compressed trie</strong>.
+<br><br>
+When branch nodes with a single child are removed from a trie, we need to keep
+additional information so that dictionary operations may be performed
+correctly. The additional information stored in three
+compressed trie structures is described below.
+<br><br><big><font color=blue>Compressed Tries with Digit Numbers</font></big><br>
+In a <strong>compressed trie with digit numbers</code>, each branch node
+has an additional field <code class=code>digitNumber</code> that tells us which
+digit of the key is used to branch at this node.
+Figure 11 shows the compressed trie with digit numbers that corresponds
+to the trie of Figure 2.
+The leftmost field of each branch node of Figure 11 is the
+<code class=code>digitNumber</code> field.
+
+<center>
+<font color=blue>
+<img src=triefiga.gif>
+<br>Figure 11 Compressed trie with digit numbers
+</font>
+</center>
+<br><br>
+<big><font color=blue>Searching a Compressed Trie with Digit Numbers</font></big><br>
+A compressed trie with digit numbers may be searched by following a path
+from the root. At each branch node, the digit, of the search
+key, given in the branch node's
+<code class=code>digitNumber</code> field is used to determine
+which subtrie to move to. For example, when searching
+the trie of Figure 11
+for an element with key <code class=var>951-23-7625</code>,
+we start at the root of the trie. Since the root node is a branch node
+with <code class=var>digitNumber = 1</code>, we use the first digit
+<code class=var>9</code> of the search key to determine which
+subtrie to move to. A move to node <code class=var>A.child[9] = I</var>
+is made. Since, <code class=var>I.digitNumber = 4</code>,
+the fourth digit, <code class=var>2</code>,
+of the search key tells us which subtrie to move to.
+A move is now made to node <code class=var>I.child[2] = J</code>.
+We are now at an element node, and the search key is compared with the
+key of the element in node <code class=var>J</code>. Since the
+keys match, we have found the desired element.
+<br><br>
+Notice that a search for an element with key
+<code class=var>913-23-7625</code> also terminates at node
+<code class=var>J</code>. However, the search key
+and the element key at node <code class=var>J</code> do not match
+and we conclude that the trie contains no element with key
+<code class=var>913-23-7625</code>.
+<br><br>
+<big><font color=blue>Inserting into a Compressed Trie with Digit Numbers</font></big><br>
+To insert an element with key <code class=var>987-26-1615</code> into the
+trie of Figure 11, we first search for an element with this key.
+The search ends at node <code class=var>J</code>. Since, the
+search key and the key, <code class=var>951-23-7625</code>,
+of the element in this node do not match, we
+conclude that the trie has no element whose key matches
+the search key. To insert the new element, we find the first digit where
+the search key differs from the key in node <code class=var>J</code>
+and create a branch node
+for this digit. Since, the first digit where the search key
+<code class=var>987-26-1615</code> and the element key
+<code class=var>951-23-7625</code> differ is the second digit,
+we create a branch node with <code class=code>digitNumber = 2</code>.
+Since, digit values increase as we go down the trie, the proper place to
+insert the new branch node can be determined by retracing the path
+from the root to node <code class=var>J</code> and stopping as soon as
+either
+a node with digit value greater than <code class=var>2</code> or
+the node <code class=var>J</code> is reached.
+In the trie of Figure 11, this path retracing stops at node
+<code class=var>I</code>. The new branch node is made the parent of
+node <code class=var>I</code>, and we get the trie of Figure 12.
+
+
+<center>
+<font color=blue>
+<img src=triefigd.gif>
+<br>Figure 12 Compressed trie following the insertion of 987-26-1615 into the compressed trie of Figure 11
+</font>
+</center>
+<br><br>
+Consider inserting an element with key <code class=var>958-36-4194</code>
+into the compressed trie of Figure 11. The search for an element with this
+key terminates when we fall of the trie by following the pointer
+<code class=var>I.child[3] = null</code>. To complete the insertion,
+we must first find an element in the subtrie
+rooted at node <code class=var>I</code>. This element is found by
+following a downward path from node <code class=var>I</code> using
+(say) the first non <code class=code>null</code> link in each
+branch node encountered. Doing this on the compressed trie of
+Figure 11, leads us to node <code class=var>J</code>. Having reached an
+element node, we find the first digit where the element key and the
+search key differ and complete the insertion as in the previous example.
+Figure 13 shows the resulting compressed trie.
+
+<center>
+<font color=blue>
+<img src=triefige.gif>
+<br>Figure 13 Compressed trie following the insertion of 958-36-4194 into the compressed trie of Figure 11
+</font>
+</center>
+<br><br>
+Because of the possible need to search for the first non <code class=code>null</code>
+child pointer in each branch node, the time required to insert an element
+into a compressed tries with digit numbers is <code class=var>O(rd)</code>,
+where <code class=var>r</code> is the trie radix and <code class=var>d</code>
+is the maximum number of digits in any key.
+<br><br>
+<big><font color=blue>Removing an Element from a Compressed Trie with Digit Numbers</font></big><br>
+To remove an element whose key is <code class=var>theKey</code>, we
+do the following:
+<ol>
+<li>
+Find the element node <code class=var>X</code>
+that contains the element whose key is
+<code class=code>theKey</code>.
+<li>
+Discard node <code class=code>X</code>.
+<li>
+If the parent of <code class=var>X</code> is left with only
+one child, discard the parent node also. When the parent of
+<code class=var>X</code> is discarded, the sole remaining child of
+the parent of
+<code class=var>X</code> becomes a child of the
+grandparent (if any) of <code class=var>X</code>.
+</ol>
+<br><br>
+To remove the element with key <code class=var>951-94-1654</code>
+from the compressed trie of Figure 13, we first locate the node
+<code class=var>K</code> that contains the element that is to be removed.
+When this node is discarded, the parent <code class=var>I</code>
+of <code class=var>K</code> is left with only one child.
+Consequently, node <code class=var>I</code> is also discarded,
+and the only remaining child <code class=var>J</code> of node
+<code class=var>I</code> is the made a child of the grandparent
+<code class=var></code> of <code class=var>K</code>.
+Figure 14 shows the resulting compressed trie.
+
+<center>
+<font color=blue>
+<img src=triefigf.gif>
+<br>Figure 14 Compressed trie following the removal of 951-94-1654 from the compressed trie of Figure 13
+</font>
+</center>
+<br><br>
+Because of the need to determine whether a branch node is left with two
+or more children, removing a <code class=var>d</code> digit
+element from a radix <code class=var>r</code> trie takes
+<code class=var>O(d+r)</code> time.
+<br><br><big><font color=blue>Compressed Tries with Skip Fields</font></big><br>
+In a <strong>compressed trie with skip fields</strong>, each branch node
+has an additional field <code class=code>skip</code> which tells us the
+number of branch nodes that were originally between the current
+branch node and its parent.
+Figure 15 shows the compressed trie with skip fields that corresponds
+to the trie of Figure 2.
+The leftmost field of each branch node of Figure 15 is the
+skip field.
+
+<center>
+<font color=blue>
+<img src=triefigb.gif>
+<br>Figure 15 Compressed trie with skip fields
+</font>
+</center>
+<br><br>
+The algorithms to search, insert, and remove are very similar to those
+used for a compressed trie with digit numbers.
+<br><br><big><font color=blue>Compressed Tries with Edge Information</font></big><br>
+In a <strong>compressed trie with edge information</strong>, each branch node
+has the following additional information associated with it:
+a pointer/reference <code class=var>element</code>
+to an element (or element node) in the subtrie,
+and an integer <code class=code>skip</code>
+which equals the number of branch nodes eliminated
+between this branch node and its parent.
+Figure 16 shows the compressed trie with edge information
+that corresponds
+to the trie of Figure 2.
+The first field of each branch node is its
+<code class=code>element</code> field, and the second field is the
+<code class=code>skip</code> field.
+
+
+<center>
+<font color=blue>
+<img src=triefigc.gif>
+<br>Figure 16 Compressed trie with edge information
+</font>
+</center>
+<br><br>
+Even though we store the ``edge information'' with branch nodes, it is
+convenient to think of this information as
+being associated with the edge that comes into the branch node from its parent
+(when the branch node is not the root). When moving
+down a trie, we follow edges, and
+when an edge is followed. we skip over the number of digits given by the
+<code class=var>skip</code> field of the edge information. The value of the
+digits that are skipped over may be determined by using the
+<code class=var>element</code> field.
+<br><br>
+When moving from node <code class=var>A</code> to node <code class=var>I</code>
+of the compressed trie of Figure 16, we use digit <code class=var>1</code>
+of the key to determine which child field of <code class=var>A</code>
+is to be used. Also, we skip over the next <code class=var>2</code> digits,
+that is, digits <code class=var>2</code> and <code class=var>3</code>,
+of the keys of the elements in the subtrie rooted at <code class=var>I</code>.
+Since all elements in the subtrie <code class=var>I</code> have the same
+value for the digits that are skipped over, we can determine the value of these
+skipped over digits from any of the elements in the subtrie. Using the
+<code class=code>element</code> field of the edge information, we access
+the element node <code class=var>J</code>, and determine that the digits
+that are skipped over are <code class=var>5</code> and
+<code class=var>1</code>.
+<br><br>
+<big><font color=blue>Searching a Compressed Trie with Edge Information</font></big><br>
+When searching a compressed trie with edge information,
+we can use the edge information to terminate unsuccessful searches
+(possibly) before we reach an element node or fall off the trie.
+As in the other compressed trie variants, the search is done by following a path
+from the root.
+Suppose we are searching
+the compressed trie of Figure 16
+for an element with key <code class=var>921-23-1234</code>.
+Since the <code class=code>skip</code> value for the root node is
+<code class=var>0</code>, we use the first digit
+<code class=var>9</code> of the search key to determine which
+subtrie to move to. A move to node <code class=var>A.child[9] = I</var>
+is made. By examining the edge information
+(stored in node <code class=var>I</code>),
+we determine that, in making the move from node
+<code class=var>A</code> to node <code class=var>I</code>,
+the digits
+<code class=var>5</code> and
+<code class=var>1</code> are skipped.
+Since these digits do not agree with the next two digits of the search key,
+the search terminates with the conclusion that the trie
+contains no element whose key equals the search key.
+<br><br>
+<big><font color=blue>Inserting into a Compressed Trie with Edge Information</font></big><br>
+To insert an element with key <code class=var>987-26-1615</code> into the
+compressed trie of Figure 16, we first search for an element with this key.
+The search terminates unsuccessfully when we move from node
+<code class=var>A</code> to node <code class=var>I</code> because of
+a mismatch between the skipped over digits and the corresponding
+digits of the search key.
+The first mismatch is at the first skipped over digit.
+Therefore, we insert a branch node <code class=var>L</code> between nodes
+<code class=var>A</code> and <code class=var>I</code>.
+The <code class=var>skip</code> value for this branch node is 
+<code class=var>0</code>, and its <code class=var>element</code> field is set
+to reference the element node for the newly inserted element.
+We must also change the <code class=var>skip</code> value of
+<code class=var>I</code> to <code class=var>1</code>.
+Figure 17 shows the resulting compressed trie.
+
+<center>
+<font color=blue>
+<img src=triefigg.gif>
+<br>Figure 17 Compressed trie following the insertion of 987-26-1615 into the compressed trie of Figure 16
+</font>
+</center>
+<br><br>
+Suppose we are to insert an element with key <code class=var>958-36-4194</code>
+into the compressed trie of Figure 16. The search for an element with this
+key terminates when we move to node <code class=var>I</code>
+because of a mismatch between the digits that are skipped over
+and the corresponding digits of the search key.
+A new branch node is inserted between nodes
+<code class=var>A</code> and <code class=var>I</code> and we get
+the compressed trie that is shown in Figure 18.
+
+<center>
+<font color=blue>
+<img src=triefigh.gif>
+<br>Figure 18 Compressed trie following the insertion of 958-36-4194 into the compressed trie of Figure 16
+</font>
+</center>
+<br><br>
+The time required to insert a <code class=var>d</code> digit element
+into a radix <code class=var>r</code> compressed trie with edge information
+is <code class=var>O(r+d)</code>.
+<br><br>
+<big><font color=blue>Removing an Element from a Compressed Trie with Edge Information</font></big><br>
+This is similar to removal from a compressed trie with digit numbers except
+for the need to update the <code class=code>element</code> fields of
+branch nodes whose <code class=code>element</code> field references
+the removed element.
+</ol>
+<br><br>
+<big><font color=blue>Space Required by a Compressed Trie</font></big><br>
+Since each branch node partitions the elements in its subtrie into
+two or more nonempty groups, an <code class=var>n</code> element
+compressed trie has at most <code class=var>n-1</code> branch nodes.
+Therefore, the space required by each of the compressed trie variants
+described by us is <code class=var>O(nr)</code>, where <code class=var>r</code>
+is the trie radix.
+<br><br>
+When compressed tries are represented as <A href="#hash">hash tables</A>,
+we need an additional data structure to store the nonpointer fields of
+branch nodes. We may use an array (much like we use the array
+<code class=code>information</code>) for this purpose.
+
+<br><br>
+<a name = "Exercises"></a>
+<big><big><font color=blue>Exercises</font></big></big><br>
+<ol>
+<li>
+Draw the compressed trie with digit numbers for the keys
+<code class=var>aabbbbaaa, bbbaaabb, aaabaabb, aaaaabaaa, bbbaabaa,</code>
+and <code class=var>aabba</code>. You will need to append a special
+symbol (code class=var>#</code> to each of the keys.
+<li>
+Draw the information on edge compressed trie for the keys
+<code class=var>aabbbbaaa, bbbaaabb, aaabaabb, aaaaabaaa, bbbaabaa,</code>
+and <code class=var>aabba</code>. You will need to append a special
+symbol (code class=var>#</code> to each of the keys.
+<li>
+Develop the class <code class=var>CompressedTrieWithDigitNumber</code> which
+implements compressed tries with digit numbers.
+Use nodes that have as many children fields as the alphabet size plus one
+(for the special symol at the end of each key).
+You must include methods to search (both exact match and prefix match),
+insert, and remove.
+<li>
+Develop the class <code class=var>CompressedTrieWithDigitNumber</code> which
+implements compressed tries with digit numbers.
+Use the hash table scheme.
+You must include methods to search (both exact match and prefix match),
+insert, and remove.
+<li>
+Develop the class <code class=var>CompressedTrieWithEdgeInformation</code> which
+implements compressed tries with digit numbers.
+Use nodes that have as many children fields as the alphabet size plus one
+(for the special symol at the end of each key).
+You must include methods to search (both exact match and prefix match),
+insert, and remove.
+<li>
+Develop the class <code class=var>CompressedTrieWithEdgeInformation</code> which
+implements compressed tries with digit numbers.
+Use the hash table scheme.
+You must include methods to search (both exact match and prefix match),
+insert, and remove.
+</ol>
+
+<br><br>
+<a name = "reference"></a>
+<big><big><font color=blue>References and Selected Readings</font></big></big><br>
+For more information on tries, see the texts:
+<ol>
+<li>
+<em>The Art of Computer Programming: Sorting and Searching</em>,
+Second Edition,
+by D. Knuth, Addison-Wesley, 1998.
+<li>
+<em>Fundamentals of Data Structures in C++</em>, by E. Horowitz, S. Sahni,
+and D. Mehta, Computer Science Press, 1995.
+</ol>
+<br><br>
+In these texts,
+the discussion of alternatives to scanning keys from left to right,
+external tries, and the data structure Patricia
+(<font color=blue>p</font>ractical <font color=blue>a</font>lgori<font color=blue>t</font>hm fo<font color=blue>r</font> <font color=blue>i</font>nformation <font color=blue>c</font>oded <font color=blue>i</font>n <font color=blue>a</font>lphanumeric),
+which is a binary trie in which
+element nodes are replaced by a single element field in each
+branch node is of particular interest.
+</html>

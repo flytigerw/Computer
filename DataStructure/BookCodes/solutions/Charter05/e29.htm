@@ -1,0 +1,62 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 29<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithMerge.h</code>. Test code is
+included in <code class=code>arrayListWithMerge.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithMerge : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithMerge(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void merge(const arrayListWithMerge&lt;T&gt;& a,
+                 const arrayListWithMerge&lt;T&gt;& b);
+};
+
+template&lt;class T&gt;
+void arrayListWithMerge&lt;T&gt;::merge(const arrayListWithMerge&lt;T&gt;& a,
+                                  const arrayListWithMerge&lt;T&gt;& b)
+{// Make this the result of merging the sorted lists a and b.
+   int ca = 0;                       // cursor for a
+   int cb = 0;                       // cursor for b
+   int ct = 0;                       // cursor for this
+   // get big enough array for result
+   // if you opt to do this only when arrayLength &lt; a.listSize + b.listSize
+   // make sure you delete any unneeded elements in original list this.
+   delete [] element;
+   arrayLength = a.listSize + b.listSize;
+   element = new T [arrayLength];
+
+   // merge from a and b
+   while ((ca &lt; a.listSize) && (cb &lt; b.listSize))
+      if (a.element[ca] &lt;= b.element[cb])
+         element[ct++] = a.element[ca++];
+      else
+         element[ct++] = b.element[cb++];
+
+   // take care of left overs
+   copy(a.element + ca, a.element + a.listSize, element + ct);
+   ct += a.listSize - ca;
+   copy(b.element + cb, b.element + b.listSize, element + ct);
+   ct += b.listSize - cb;
+
+   listSize = ct;
+}
+</pre>
+<hr class=coderule>
+The complexity of the method is <code class=code>O(a.listSize + b.listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

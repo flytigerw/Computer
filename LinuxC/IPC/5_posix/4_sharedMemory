@@ -1,0 +1,33 @@
+
+1.System V shared memory and shared file mapping have potential drawbacks
+  1)System V shared memory model,which use key and ids,it not consistent with standard UNIX I/O mode,which use fd
+    It means we require an entirely new set of CMDs and sysCalls for woring with the mode
+  2)Using shared file mapping for IPC requires the creation of disk file,even if we are not interested in having a persistent backing store for the shared region
+
+2.Linux uses dedicated tmpfs file system mounted under /dev/shm to identify the shared memory objects
+  The file system has kernel persistence --> The shared memory objects will persist even if no process currently has it open.It will be lost if the system is shut down
+
+3.Two steps are performered to use POSIX shared memory object
+  1)Use shm_open() to create or open an object with speciifed name
+    As a result,it returns a fd referring to the object
+  2)Pass the fd obtained in previous call to mmap() that specifies MAP_SHARED
+    It maps the shared memory objects into the process's virtual address space
+    Once we have mapped the object,we can close the fd without affecting the mapping
+  The relationship between shm_open() and mmap() is analogous to that between shmget() and shmat()
+
+4.Create and open
+  int shm_open(const char* name,int oflag,mode_t mode)
+  1)oflag
+    See in pdf 1109
+  2)When a new object is created,its ownership and group ownership are taken from the EUID and GID of the calling process
+  3)mode
+    It specifies the permissions to be placed on new object 
+    The bit values are the same as for files
+    The permission mask is masked agains the process umask
+  4)The close-on-exec flag is set on the fd returned by shm_open() so that the fd is automatically closed if the process performs an exec().
+    It's consistent with the fact the mappings are unmapped when an exec() is performered
+  5)When a new object is created,it initially has zero length
+    We normally use ftruncate() to set the size of the object before calling mmap()
+  6)We can apply fstat() to the fd returned by shm_open() in order to obtain a stat structure which contains the information about the object
+    The ownership permission can be changed using fchown() and fchmod()
+

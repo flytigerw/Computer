@@ -1,0 +1,55 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 5<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithTrimToSize.h</code>. Test code is
+included in <code class=code>arrayListWithTrimToSize.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithTrimToSize : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithTrimToSize(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void trimToSize();
+};
+
+template&lt;class T&gt;
+void arrayListWithTrimToSize&lt;T&gt;::trimToSize()
+{// Make array length equal to max{listSize, 1}
+
+   if (arrayLength == listSize)
+      return;
+
+   if (listSize == 0)
+      {// replace with array of length 1
+         delete [] element;
+         element = new T[1];
+         arrayLength  = 1;
+         return;
+      }
+
+
+   // need to change array length and copy eleements into new array
+   changeLength1D(element, listSize, listSize);
+   arrayLength = listSize;
+}
+</pre>
+<hr class=coderule>
+
+The complexity of this function is the same as that of <code class=code>changeLength1D</code>,
+i.e., <code class=code>O(listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

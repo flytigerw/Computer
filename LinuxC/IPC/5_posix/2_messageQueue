@@ -1,0 +1,163 @@
+
+1.It's similar to System V message queue
+  But there are also some notable differences
+  1)It's reference counted
+    A queue that is marked for deletion is removed only after all processes that are currently usting it have closed it
+  2)POSIX messages have an associated priority and messages always strictly queued in priority order
+  3)It provides a feature that allows a process is asynchronously notified when a message is avaliable on a queue
+    mq_notify() allows a process to register for message notifaction from a queue
+    The process is notified of the availbility of a message by delivery of a signal or by the invocation of a function in a separated thread
+  4)Each message has an associate set of attributes
+ 
+2.Create and Open
+  mqd_t mq_open(const char* name,int oflag,... /*mode_t mode, struct mq_attr* attr*/)
+  1)oflag
+    See in pdf 1065
+    If O_CREAT is specified,two furthur arguments are required: mode and attr
+  2)mode
+    It specified the permissions to be placed on new message queue
+    The bit values that may be specified are the same for fiels
+  3)attr
+    It specifies attributes for new message queues
+    If it's NULL,the new queue is created with implementation-defined default attributes 
+  4)Upon successful call,it returns a message queue descriptor,a value of type mqd_t,which can used in subsequent calls to refer to that open message queue
+
+3.During fork() the child receives copies of the parent's mqds which refer to the same open message queue descriptions
+  The child doesn't inherit any of its parent's message notification registrations
+  During exec() and process termination,all of the process's mqds are closed
+  As a consequence of closing the mqds,the process's corresponding message registrations are deregistered
+
+4.Close a mqd
+  int mq_close(mqd_t mqd)
+  If the calling process has registered for message notifaction from the queue,then the notifaction registration is automatically removed
+  A mqd is automatically closed when a process terminates or calls exec()
+  As with fds,we should explicitly close the mqds in order to prevent the process from running out of the mqds
+
+5.Remove
+  int mq_unlink(const char* name)
+  It marks the queue to be destroyed once all processes cease using it
+
+6.Message queue descriptor and message queue description
+  The relationship between mqd and open message queue is analogous to the relationship between fd and open file
+  A mdq is a per-process handle that refers to an entry in the system-wide table of open message descritpions,and the entry in turn to refers to a open message queue object
+  
+  Two processes can hold mqds that refer to the same message queue description ---> fork()
+  Two processes can hold mqds that refer to different message queue descriptions that refer to the same message queue object 
+
+7.Message queue attributes
+struct mq_attr{
+  long mq_flags;         //O_NONBLOCK
+  long mq_maxmsg;        //Maximum number of messages on queue
+  long mq_msgsize;       //Maximum message size
+  long mq_curmsgs;       //Number of messages currently in queue
+};
+  1)int mq_getattr(mqd_t mqd,struct mq_attr* attr)
+  
+  2)int mq_setattr(mqd_t mqd,const struct mq_attr* newattr,struct mq_attr* oldattr)
+    It performs the following task
+    a.It uses the mq_flags in the mq_attr structure pointed to by newattr to change the flags of the message queue description
+    b.If oldattr is not-NULL,it returns an mq_attr structrue containing the previous message queue description flags and message queue attributes
+    Codes of adding O_NONBLOCK flag
+    if(mq_getattr(mqd,&attr) == -1)
+      errExit("mq_getattr");
+    attr.mq_flags |= O_NONBLOCK;
+    if(mq_setattr(mqd,&attr,NULL) == -1)
+      errExit("mq_setattr");
+
+8.Exchange messages
+  1)int mq_send(mqd_t mqd,const char* msg_ptr,size_t msg_len,unsigned int msg_prio)
+    a.msg_len
+      If it's >= the message queue attribute -- mq_msgsize,then mq_send() fails with errno EMSGSIZE
+    b.prio
+      Messages are ordered in queue in the descending order of priority
+      The upper limit for message priority -- MQ_PRIO_MAX or sysconf(_SC_MQ_PRIO_MAX)
+    c.If the queue was already full,then mq_send() either blocks until some space becomes avaliable or if the O_NONBLOCK is in effect,it fails with errno EAGAIN
+  
+  2)ssize_t mq_receive(mqd_t mqd,char* msg_ptr,size_t msg_len,unsigned int* msg_prio)
+    a.It removes the oldest message with the highest priority from the queue
+    b.msg_len
+      It must be >= mq_msgsize attribute
+      Otherwise,mq_receive fails with errno EMSGSIZE
+      We can obtain mq_msgsize by using mq_getattr() in advance
+    c.msg_pro
+      If it's not-NULL,then the priority of received message is copied into the location pointed to by it
+    d.If the queue was already empty,then mq_receive() either blocks until a message becomes avaliable or if the O_NONBLOCK is in effect,it fails with errno EAGAIN
+  
+  3)int mq_timedsend(mqd_t mqd,const char* msg_ptr,size_t len,unsigned int prio,const struct timespec* abs_timeout)
+    ssize_t mq_timedreceive(mqd_t mqd,char* msg_ptr,size_t msg_len,unsigned int* msg_prio,const struct timespec* abs_timeout)
+    Above funcs won't be performed immediately
+    O_NONBLOCK is not in effect for the message queue description 
+    
+    abs_timeout 
+     It specifies a limit on the time for which the call will block
+     To perform a relative timeout,we can fetch the current value of CLOCK_REALTIME clock by using clock_gettime() and add the required amount to that value to produce a suitably initialized timespec structure
+     If the calls time out without being able to complete its operation,then the call fails with ETIMEDOUT
+     If abs_timeout is specified to NULL,it indicates an infinate timeout
+
+9.Message notification
+  Details of this mechanism
+   1)At any time,only one process can be registered to receive message notifaction from a particular message queue
+     If there was already a process registered to the queue,furthur attempts to register a process to the queue will fail with errno EBUSY
+
+    2)The registered process is notified only when a new message arrive on a queue that was previously empty
+    
+    3)After one nofification is sent to the registered process,the registration is removed
+      So,as long as the process wishes to keep receiving nofifications,it must register itself after each nofification 
+    4)The registered process is notified only if some other process is not currently blocked in a call to mq_receive() for a call
+
+    5)A process can deregister itself by using mq_notify() with notifaction of NULL
+
+  int mq_notify(mqd_t mqd,const struct sigevent* nofification)
+  It registers the calling process for message notifaction 
+  struct sigevent{
+    int       sigev_notify;               //Notification method
+    int       sigev_signo;                //Notification signal for SIGEV_SIGNAL
+    union sigval sigev_value;             //Value passed to signal handler or thread function
+    void(* sigev_notify_function)(union sigval);      //Thread notification function
+    void* sigev_notify_attributes;                  
+  }
+  
+  union sigval{
+    int   sival_int;             
+    void* sival_ptr;
+  }
+
+  sigev_notify 
+   a.SIGEV_NONE
+     The process can be registered for notifaction but it won't actually be notified
+   b.SIGEV_SIGNAL
+     Notify the process by generating the signal specified in sigev_signo field
+     If sigev_signo is a realtime signal,then sigev_value specifies the data to accompany the signal
+     This data can be retrieved via the si_value of siginfo_t structure that is passed to the signal handler or returned by siwaitinfo() or sigtimedwait()
+     Following fields of siginfo_t are also filled
+      si_code --> SI_MESGQ    sig_signo ---> signal number  si_pid si_uid 
+   
+   c.SIGEN_THREAD
+     Notify the process by calling the function specified in sigev_notify_function as if it were the start function in new thread
+
+10.Linux-specific features
+   Display and delete message queue object via CMD line
+   POSIX IPC objects are implemented as files in virutal file system and these files can be listed and removed with ls and rm
+   Mount the message queue file system(virtual file system)
+    mount -t mqueue source mountPoint
+    source can be any name.It's significance is that it appears in /proc/mounts and is displayed by the mount and df
+    Ex:
+    mkdir /dev/mqueue
+    mount -t mqueue none /dev/mqueue 
+    ./msgQueue_create -c /myQueue
+    ls /dev/mqueue
+   
+   Obtain information about a message queue
+    We can display the contents of files in the message queue file system
+    Each of these virtual files contains the information about the associated message queue
+    Ex: cat /dev/mqueue/myQueue
+    Displayed fields
+     QSIZE :Total number of bytes of data in the queue
+     NOTIFY:It corresponds to the sigev_notify --> 0(SIGEV_SIGNAL),1(SIGEV_NONE),2(SIGEV_THREAD)
+     SIGNO :The signal that is delievered for queue notification
+     NOTIFY_PID : The PID of process that has been registered for notification
+
+11.Limits
+   See in pdf 1085
+
+12.POSIX message queues can be monitored using poll() select() and epoll

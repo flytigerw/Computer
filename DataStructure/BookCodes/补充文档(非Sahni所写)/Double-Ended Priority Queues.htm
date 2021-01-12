@@ -1,0 +1,627 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Double-Ended Priority Queues<br>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<a href = "#definition">Definition</a>
+<br>
+<a href = "#application">Application to External Sorting</a>
+<br>
+<a href = "#generic">Generic Methods for DEPQs</a>
+<br>
+<a href = "#interval">Interval Heaps</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#interval definition">Definition</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#interval insert">Inserting an Element</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#interval remove">Removing the Min Element</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#interval initialize">Initializing an Interval Heap</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#interval complexity">Complexity of Interval Heap Operations</a>
+<br>
+&nbsp;&nbsp;&nbsp;<a href = "#range search">The Complementary Range Search Problem</a>
+<br>
+<a href = "#references">References and Selected Readings</a>
+<br><br>
+<a name = "definition"></a>
+<font color=blue><big><big>Definition</big></big></font><br>
+A <strong>double-ended priority queue (DEPQ)</strong>
+is a collection of zero or more elements.
+Each element has a priority or value.
+The operations performed on a double-ended priority queue are:
+<ol>
+<li>
+<code class=code>isEmpty()</code> ... return true iff the DEPQ is empty
+<li>
+<code class=code>size()</code> ...  return the number of elements in the DEPQ
+<li>
+<code class=code>getMin()</code> ...
+return element with minimum priority
+<li>
+<code class=code>getMax()</code> ...
+return element with maximum priority
+<li>
+<code class=code>put(x)</code> ...
+insert the element <code class=code>x</code> into the DEPQ
+<li>
+<code class=code>removeMin()</code> ...
+remove an element with minimum priority and return this element
+<li>
+<code class=code>removeMax()</code> ...
+remove an element with maximum priority and return this element
+</ol>
+<br><br>
+<a name = "application"></a>
+<font color=blue><big><big>Application to External Sorting</big></big></font><br>
+The internal sorting
+method that has the best expected run time
+is quick sort (see Section 18.2.3). The basic idea in quick sort is to
+partition the elements to be sorted into three groups <code class=var>L</code>,
+<code class=var>M</code>,
+and
+<code class=var>R</code>.
+The middle group
+<code class=var>M</code> contains a single element
+called the <strong>pivot</strong>, all elements in the left group
+<code class=var>L</code> are <code class=var>&lt;=</code> the pivot, and
+all elements in the right group
+<code class=var>R</code> are <code class=var>&gt;=</code> the pivot.
+Following this partitioning, the left and right element groups
+are sorted recursively.
+<br><br>
+In an external sort, we have more elements than can be held in the
+memory of our computer. The elements to be sorted are initially
+on a disk and the sorted sequence is to be left on the disk.
+When the internal quick sort method outlined above is extended to
+an external quick sort, the middle group <code class=var>M</code>
+is made as large as possible through the use of a DEPQ. The external
+quick sort strategy is:
+<ol>
+<li>
+Read in as many elements as will fit into an internal DEPQ.
+The elements in the DEPQ will eventually be the middle group of elements.
+<li>
+Read in the remaining elements.
+If the next element is
+<code class=var>&lt;=</code> the smallest element in the DEPQ, output this
+next element as part of the left group.
+If the next element is
+<code class=var>&gt;=</code> the largest element in the DEPQ, output this
+next element as part of the right group.
+Otherwise, remove either the max or min element from the DEPQ (the
+choice may be made randomly or alternately); if the max element
+is removed, output it as part of the right group; otherwise, output
+the removed element as part of the left group; insert the newly input element
+into the DEPQ.
+<li>
+Output the elements in the DEPQ, in sorted order, as the middle group.
+<li>
+Sort the left and right groups recursively.
+</ol>
+<br><br>
+<a name = "generic"></a>
+<font color=blue><big><big>Generic Methods for DEPQs</big></big></font><br>
+General methods exist to arrive at efficient DEPQ data structures from
+single-ended priority queue (PQ) data structures that also provide an efficient
+implementation of the <code class=code>remove(theNode)</code> operation (this operation
+removes the node <code class=code>theNode</code> from the PQ).
+The simplest of these methods, <strong>dual structure method</strong>,
+maintains both a min PQ and a max PQ of all the DEPQ elements together
+with <strong>correspondence pointers</strong>
+between the nodes of the min PQ and the max PQ that contain
+the same element.
+Figure 1 shows a dual heap structure for the elements <code class=var>6, 7, 2,
+5, 4</code>. Correspondence pointers are shown as red arrows.
+<center>
+<font color=blue>
+<img src=dualfig1.gif>
+<br>Figure 1 Dual heap
+</font>
+</center>
+<br><br>
+Although the figure shows each element stored in both the min and the max heap,
+it is necessary to store each element in only one of the two heaps.
+<br><br>
+The <code class=code>isEmpty</code> and <code class=code>size</code> operations are
+implemented by using a variable <code class=code>size</code>
+that keeps track of the number of elements in the DEPQ. The minimum element is
+at the root of the min heap and the maximum element is at the root of the
+max heap. To insert an element <code class=code>x</code>, we insert
+<code class=code>x</code> into both the
+min and the max heaps and then set up correspondence pointers between
+the locations of <code class=code>x</code> in the min and max heaps. To remove the
+minimum element, we do a <code class=code>removeMin</code> from the min heap
+and a <code class=code>remove(theNode)</code>, where <code class=code>theNode</code> is the corresponding node for the removed element, from the max heap.
+The maximum element is removed in an analogous way.
+<br><br>
+<strong>Total and leaf correspondence</strong> are more sophisticated
+correspondence methods. In both of these, half the elements are
+in the min PQ and the other half in the max PQ. When the number of elements
+is odd, one element is retained in a buffer. This buffered element is not
+in either PQ.  In total correspondence, each element <code class=var>a</code>
+in the min PQ is
+paired with a distinct element <code class=var>b</code> of the max PQ.
+<code class=var>(a,b)</code> is a corresponding pair of elements such that
+<code class=var>priority(a) &lt;= priority(b)</code>.
+Figure 2 shows a total correspondence heap for the <code class=var>11</code>
+elements <code class=var>2, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10</code>. The element
+<code class=var>9</code> is in the buffer. Corresponding pairs are
+shown by red arrows.
+
+<center>
+<font color=blue>
+<img src=dualfig2.gif>
+<br>Figure 2 Total correspondence heap
+</font>
+</center>
+<br><br>
+In leaf correspondence, each leaf element of the min and max PQ is required
+to be part of a corresponding pair. Nonleaf elements need not be in any
+corresponding pair. Figure 3 shows a leaf correspondence heap.
+
+<center>
+<font color=blue>
+<img src=dualfig3.gif>
+<br>Figure 3 A leaf correspondence heap
+</font>
+</center>
+<br><br>
+Total and leaf correspondence structures require less space than do dual
+structures. However, the DEPQ algorithms for total and leaf correspondence
+structures are more complex than those for dual structures. Of the three
+correspondence types, leaf correspondence generally results in the fastest
+DEPQ correspondence structures.
+<br><br>
+Using any of the described correspondence methods, we can arrive at DEPQ
+structures from heaps, height biased leftist trees, and
+<A href="pairing.htm">pairing heaps</A>. In these DEQP structures,
+the operations
+<code class=code>put(x)</code>,
+<code class=code>removeMin()</code>,
+and
+<code class=code>removeMax()</code> take <code class=var>O(log n)</code> time
+(<code class=var>n</code>
+is the number of elements in the DEPQ, for pairing heaps, this is an
+<A href="../c2/amortize.htm">amortized
+complexity</A>), and the remaining DEPQ operations take
+<code class=var>O(1)</code> time.
+
+
+<br><br>
+<a name = "interval"></a>
+<font color=blue><big><big>Interval Heaps</big></big></font><br>
+<a name = "interval definition"></a>
+<font color=blue><big>Definition</big></font><br>
+Although the idea of correspondence results in generic strategies to
+obtain an efficient DEPQ structure from an efficient PQ structure
+that also supports the <code class=code>remove(theNode)</code> operation,
+we can, at times, obtain more elegant and more efficient
+DEPQ structures using a custom strategy.
+This, for example, is the case when adapting the heap structure.
+For the heap structure, many adaptation strategies are possible.
+These strategies have resulted in the DEPQ structures min-max heaps,
+twin heaps, deaps, diamond deque, and interval heaps.
+The simplest and most efficient of these is the interval heap.
+<br><br>
+An <strong>interval heap</strong> is a complete binary tree in which
+each node, except possibly the last one (the nodes of
+the complete binary tree are ordered using a level order traversal),
+contains two elements.
+Let the priorities of the two elements (in the sequel, we do not differentiate
+between an element and its priority) in node <code class=var>P</code>
+be <code class=var>a</code> and <code class=var>b</code>, where
+<code class=var>a &lt;= b</code>. We say that the node
+<code class=var>P</code> represents the closed interval
+<code class=var>[a,b]</code>.
+<code class=var>a</code> is the left end point of the interval of
+<code class=var>P</code>, and <code class=var>b</code> is its right end point.
+
+The interval
+<code class=var>[c,d]</code> is contained in the interval
+<code class=var>[a,b]</code> iff
+<code class=var>a &lt;= c &lt;= d &lt;= b</code>.
+<em>In an interval heap, 
+the intervals
+represented by the left and right children (if they exist) of each node
+<code class=var>P</code>
+are contained in the interval represented by <code class=var>P</code>.
+When the last node contains a single element with priority
+<code class=var>c</code>, then
+<code class=var>a &lt;= c &lt;= b</code>, where
+<code class=var>[a,b]</code> is the interval of the parent (if any)
+of the last node.</em>
+<br><br>
+Figure 4 shows an interval heap with <code class=var>26</code>
+elements, only the element priorities are shown. You may verify that the
+intervals represented by the children of any node <code class=var>P</code>
+are contained in the
+interval of <code class=var>P</code>.
+
+<center>
+<font color=blue>
+<img src=heapfig1.gif>
+<br>Figure 4 An interval heap
+</font>
+</center>
+<br><br>
+The following facts are immediate:
+<ol>
+<li>
+The left end points of the node intervals define a min heap,
+and the right end points define a max heap. In case the number of elements
+is odd, the last node has a single element which may be regarded as a member
+of either the min or max heap.
+Figure 5 shows the min and max heaps defined by the interval heap
+of Figure 4.
+
+<center>
+<font color=blue>
+<img src=heapfig2.gif>
+<br>Figure 5 Min and max heaps embedded in Figure 4
+</font>
+</center>
+<br><br>
+<li>
+When the root has two elements, the left end point of the root
+is the minimum priority in the interval heap and the right
+end point is the maximum priority.
+When the root has only one element, the interval heap contains
+just one element. This element is both the minimum and maximum element.
+<li>
+An interval heap can be represented compactly by mapping into an array
+as is done for ordinary heaps. However, now, each array position
+must have space for two elements.
+<li>
+The height of an interval heap with <code class=var>n</code> elements
+is <code class=var>Theta(log n)</code>.
+</ol>
+<br><br>
+<a name = "interval insert"></a>
+<font color=blue><big>Inserting an Element</big></font><br>
+Suppose we are to insert an element into the interval heap of Figure 4.
+Since this heap currently has an even number of elements, the heap following
+the insertion will have an additional node <code class=var>A</code>
+as is shown in Figure 6.
+
+<center>
+<font color=blue>
+<img src=heapfig3.gif>
+<br>Figure 6 Interval heap of Figure 4 after one node is added
+</font>
+</center>
+<br><br>
+The interval for the parent of the new node <code class=var>A</code>
+is <code class=var>[6,15]</code>. Therefore, if the priority of the new
+element is between <code class=var>6</code> and <code class=var>15</code>,
+the new element may be inserted into node <code class=var>A</code>.
+When the priority of the new element is less than the left end point
+<code class=var>6</code> of the parent interval,
+the new element is inserted into the min
+heap embedded in the interval heap. This insertion is done using
+the min heap
+insertion procedure starting at node <code class=var>A</code>.
+When the priority of the new element is greater than the right end point
+<code class=var>15</code> of the parent interval,
+the new element is inserted into the max
+heap embedded in the interval heap. This insertion is done using
+the max heap
+insertion procedure starting at node <code class=var>A</code>.
+<br><br>
+If we are to insert an element with priority <code class=var>10</code>
+into the interval heap of Figure 4, this element is put into the node
+<code class=var>A</code> shown in Figure 6.
+To insert an element with priority <code class=var>3</code>, we follow a path
+from node <code class=var>A</code> towards the root, moving left end points
+down until we either pass the root or
+reach a node whose left end point is <code class=var>&lt;=
+3</code>. The new element is inserted into the node that now has no
+left end point. Figure 7 shows the resulting interval heap.
+
+<center>
+<font color=blue>
+<img src=heapfig4.gif>
+<br>Figure 7 The interval heap of Figure 4 with 3 inserted
+</font>
+</center>
+
+<br><br>
+To insert an element with priority <code class=var>40</code> into the
+interval heap of Figure 4, we follow a path
+from node <code class=var>A</code> (see Figure 6)
+towards the root, moving right end points
+down until we either pass the root or
+reach a node whose right end point is <code class=var>&gt;=
+40</code>. The new element is inserted into the node that now has no
+right end point. Figure 8 shows the resulting interval heap.
+
+<center>
+<font color=blue>
+<img src=heapfig5.gif>
+<br>Figure 8 The interval heap of Figure 4 with 40 inserted
+</font>
+</center>
+<br><br>
+Now, suppose we wish to insert an element into the
+interval heap of Figure 8.
+Since this interval heap has an odd number of elements,
+the insertion of the new element does not increase the number of nodes.
+The insertion procedure is the same as for the case when
+we initially have an even number of elements. Let <code class=var>A</code>
+denote the last node in the heap.
+If the priority of the new element lies within the interval
+<code class=var>[6,15]</code> of the parent
+of <code class=var>A</code>, then the new element is inserted into
+node <code class=var>A</code> (the new element becomes the left
+end point of
+<code class=var>A</code> if its priority is less than that of the
+element currently in <code class=var>A</code>).
+If the priority of the new element is less than the left end point
+<code class=var>6</code> of the parent
+of <code class=var>A</code>, then the new element is inserted into
+the embedded min heap; otherwise, the new element is inserted into
+the embedded max heap.
+Figure 9 shows the result of inserting an element with priority
+<code class=var>32</code> into the interval heap of Figure 8.
+
+<center>
+<font color=blue>
+<img src=heapfig6.gif>
+<br>Figure 9 The interval heap of Figure 8 with 32 inserted
+</font>
+</center>
+<br><br>
+<a name = "interval remove"></a>
+<font color=blue><big>Removing the Min Element</big></font><br>
+The removal of the minimum element is handled as several cases:
+<ol>
+<li>
+When the interval heap is empty, the <code class=code>removeMin</code>
+operation fails.
+<li>
+When the interval heap has only one element, this element is the element
+to be returned. We leave behind an empty interval heap.
+<li>
+When there is more than one element, the left end point of the
+root is to be returned. This point is removed from the root. If the root
+is the last node of the interval heap, nothing more is to be done.
+When the last node is not the root node, we remove the left point
+<code class=var>p</code> from
+the last node. If this causes the last node to become empty, the last node
+is no longer part of the heap. The point <code class=var>p</code>
+removed from the last node is
+reinserted into the embedded min heap by beginning at the root. As we move
+down, it may be necessary to swap the current <code class=var>p</code> with the
+right end point <code class=var>r</code>
+of the node being examined to ensure that
+<code class=var>p &lt;= r</code>.
+The reinsertion is done using the same strategy as used to reinsert into an
+ordinary heap (see Program 13.3 of the text).
+</ol>
+<br><br>
+Let us remove the minimum element from the interval heap
+of Figure 9.
+First, the element with priority <code class=var>2</code> is removed
+from the root. Next, the left end point <code class=var>15</code> is removed
+from the last node and we begin the reinsertion procedure at the root.
+The smaller of the min heap elements that are the children of the root
+is <code class=var>3</code>. Since this element is smaller than
+<code class=var>15</code>, we move the <code class=var>3</code> into the root
+(the <code class=var>3</code> becomes the left end point of the root)
+and position ourselves at the left child <code class=var>B</code>
+of the root. Since,
+<code class=var>15 &lt;= 17</code> we do not swap the right end point of
+<code class=var>B</code> with the current <code class=var>p = 15</code>.
+The smaller of the left end points of the children of <code class=var>B</code>
+is <code class=var>3</code>. The <code class=var>3</code> is moved from
+node <code class=var>C</code> into node <code class=var>B</code> as its
+left end point and we position ourselves at node <code class=var>C</code>.
+Since <code class=var>p = 15 &gt; 11</code>, we swap the two and
+<code class=var>15</code> becomes the right end point of node
+<code class=var>C</code>. The smaller of left end points
+of <code class=var>C</code>s children is <code class=var>4</code>. Since
+this is smaller than the current <code class=var>p = 11</code>, it is moved into
+node <code class=var>C</code> as this node's left end point. We now position
+ourselves at node <code class=var>D</code>. First, we swap <code class=var>p
+= 11</code> and <code class=var>D</code>s right end point. Now, since
+<code class=var>D</code> has no children, the current <code class=var>p =
+7</code> is inserted into node <code class=var>D</code> as
+<code class=var>D</code>s left end point. Figure 10 shows the result.
+
+<center>
+<font color=blue>
+<img src=heapfig7.gif>
+<br>Figure 10 The interval heap of Figure 9 with minimum element removed
+</font>
+</center>
+<br><br>
+The max element may removed using an analogous procedure.
+<br><br>
+<a name = "interval initialize"></a>
+<font color=blue><big>Initializing an Interval Heap</big></font><br>
+Interval heaps may be initialized using a strategy similar to that used
+to initialize ordinary heaps--work your way from the heap bottom to the
+root ensuring that each subtree is an interval heap. For each subtree, first
+order the elements in the root; then reinsert the left end point of this
+subtree's root using the reinsertion strategy used for the
+<code class=code>removeMin</code> operation, then reinsert the right end point
+of this subtree's root using the strategy used for the
+<code class=code>removeMax</code> operation.
+<br><br>
+<a name = "interval complexity"></a>
+<font color=blue><big>Complexity of Interval Heap Operations</big></font><br>
+The operations
+<code class=code>isEmpty()</code>,
+<code class=code>size()</code>,
+<code class=code>getMin()</code>,
+and
+<code class=code>getMax()</code> take <code class=var>O(1)</code> time each; 
+<code class=code>put(x)</code>,
+<code class=code>removeMin()</code>,
+and
+<code class=code>removeMax()</code> take <code class=var>O(log n)</code> each;
+and initializing an <code class=var>n</code> element interval heap takes
+<code class=var>O(n)</code> time.
+
+<br><br>
+<a name = "range search"></a>
+<font color=blue><big>The Complementary Range Search Problem</big></font><br>
+In the <strong>complementary range search</strong> problem, we have
+a dynamic collection
+(i.e., points are added and
+removed from the collection as time goes on)
+of one-dimensional
+points
+(i.e., points have only an x-coordinate associated
+with them)
+and we are to answer queries of the
+form: what are the points outside of the interval
+<code class=var>[a,b]</code>?
+For example, if the point collection is <code class=var>3, 4, 5, 6,
+8, 12</code>, the points outside the range <code class=var>[5,7]</code> are
+<code class=var>3, 4, 8, 12</code>.
+<br><br>
+When an interval heap is used to represent the point collection, a
+new point can
+be inserted or an old one removed in <code class=var>O(log n)</code> time,
+where <code class=var>n</code> is the number of points in the collection.
+Note that given the location of an aribtrary element in an interval heap,
+this element can be removed from the interval heap
+in <code class=code>O(log n)</code>
+time using an algorithm similar to that used to remove an arbitrary
+element from a heap (see Exercise 13.13 of the text).
+<br><br>
+The complementary range query can be answered in <code class=var>Theta(k)</code>
+time, where <code class=var>k</code> is the number of points outside
+the range <code class=var>[a,b]</code>. This is done using the following
+recursive procedure:
+<ol>
+<li>
+If the interval tree is empty, <code class=code>return</code>.
+<li>
+If the root interval is contained in <code class=var>[a,b]</code>,
+then all points are in the range (therefore, there are no points
+to report), <code class=code>return</code>.
+<li>
+Report the end points of the root interval that are not in the
+range <code class=var>[a,b]</code>.
+<li>
+Recursively search the left subtree of the root for additional points that are
+not in the range <code class=var>[a,b]</code>.
+<li>
+Recursively search the right subtree of the root for additional points that are
+not in the range <code class=var>[a,b]</code>.
+<li>
+<code class=code>return</code>
+</ol>
+<br><br>
+Let us try this procedure on the interval heap of Figure 9. The query
+interval is <code class=var>[4,32]</code>. We start at the root. Since the
+root interval is not contained in the query interval, we reach step 3
+of the procedure. Whenever step 3 is reached, we are assured that at least one
+of the end points of the root interval is outside the
+query interval. Therefore,
+each time step 3 is reached, at least one point is reported. In our example,
+both points <code class=var>2</code> and <code class=var>40</code>
+are outside the query interval and so are reported.
+We then search the left and right subtrees of the root for additional points.
+When the left subtree is searched, we again determine that the root
+interval is not contained in the query interval. This time only one of the
+root interval points (i.e., <code class=var>3</code>) is
+to be outside the query range. This point is reported and we proceed
+to search the left and right subtrees of <code class=var>B</code> for
+additional points outside the query range. Since the interval of the
+left child of <code class=var>B</code> is contained in the query range,
+the left subtree of <code class=var>B</code> contains no points
+outside the query range. We do not explore the left subtree
+of <code class=var>B</code>
+further. When the right subtree of <code class=var>B</code> is searched,
+we report the left end point <code class=var>3</code>
+of node <code class=var>C</code> and proceed to search the left and right
+subtrees of <code class=var>C</code>. Since the intervals of the
+roots of each of these subtrees is contained in the query interval, these
+subtrees are not explored further. Finally, we examine the root of the
+right subtree of the overall tree root, that is the node with interval
+<code class=var>[4,32]</code>. Since this node's interval is contained
+in the query interval, the right subtree of the overall tree is not
+searched further.
+<br><br>
+The complexity of the above six step procedure is <code class=var>Theta(number
+of interval heap nodes visited)</code>. The nodes visited in the preceding
+example are the root and its two children,
+node <code class=var>B</code> and its two children,
+and node <code class=var>C</code> and its two children.
+Thus, <code class=var>7</code> nodes are visited and a total of
+<code class=var>4</code> points are reported.
+<br><br>
+We show
+that the total number of interval heap nodes visited is
+at most <code class=var>3k + 1</code>, where <code class=var>k</code>
+is the number of points reported. If a visited node reports one
+or two points, give the node a count of one. If a visited node
+reports no points,
+give it a count of zero and add one to the count of its parent
+(unless the node is the root and so has no parent). The number
+of nodes with a nonzero count is at most <code class=var>k</code>.
+Since no node has a count more than <code class=var>3</code>,
+the sum of the counts is at most <code class=var>3k</code>.
+Accounting for the possibility that the root reports no point,
+we see that the number of nodes visited is at most
+<code class=var>3k+1</code>. Therefore, the complexity of the
+search is
+<code class=var>Theta(k)</code>.
+This complexity is asymptotically optimal because every algorithm that
+reports <code class=var>k</code> points must spend
+at least <code class=var>Theta(1)</code> time per reported point.
+<br><br>
+In our example search, the root gets a count of <code class=var>2</code>
+(<code class=var>1</code> because it is visited and reports at least one
+point and another <code class=var>1</code> because its right child is visited
+but reports no point), node <code class=var>B</code> gets a count of
+<code class=var>2</code>
+(<code class=var>1</code> because it is visited and reports at least one
+point and another <code class=var>1</code> because its left child is visited
+but reports no point), and node <code class=var>C</code> gets a count of
+<code class=var>3</code>
+(<code class=var>1</code> because it is visited and reports at least one
+point and another <code class=var>2</code> because its left and right children
+are visited and neither
+reports a point). The count for each of the remaining nodes in the interval
+heap is <code class=var>0</code>.
+<br><br>
+<a name = "references"></a>
+<font color=blue><big><big>References and Selected Readings</big></big></font><br>
+You can find out more about the different correspondence methods from the
+paper <A href="http://www.cise.ufl.edu/~sahni/corresp.pdf">Correspondence
+based data structures for double ended priority queues</A>, by
+K. Chong and S. Sahni.
+This paper also compares, experimentally, the performance of various
+DEPQ data structures.
+<br><br>
+For a description of DEPQ structures that are adaptation of heaps, see
+the following papers:
+<ol>
+<li>
+<em>Interval heaps</em>, by J. van Leeuwen and D. Wood, The Computer Journal,
+36, 3, 1993, 209-216.
+<li>
+<em>Algorithm 232</em>, by J. Williams, Communications of the ACM, 7, 1964,
+347-348 (this paper describes twin heaps).
+<li>
+<em>Min-max heaps and generalized priority queues</em>, by M. Atkinson,
+J. sack, N. Santoro, and T. Strothotte, Communications of the ACM, 29,
+1986, 996-1000.
+<li>
+<em>The deap: A double-ended heap to implement double-ended priority
+queues</em>, by A. Carlsson, Information Processing Letters, 26, 1987, 33-36.
+<li>
+<em>Diamond deque: A simple data structure for priority deques</em>,
+by S. Chang amd M. Du, Information Processing Letters, 46, 1993, 231-237.
+</ol>

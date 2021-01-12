@@ -1,0 +1,277 @@
+
+1.主从复制
+  1)用户可通过SLAVEOF  master_server 命令，让当前服务器作为slave_server，去复制master_server.以达到主从一致
+  
+  2)复制包括同步和命令传播两个操作
+    a.同步
+      将当前服务器更新到主服务器所处的状态
+    b.命令传播
+      为了此后能够长时间地保持主从一致，主服务器上的写命令必须传播到从服务器上
+
+  3)同步过程
+    a.slave向master发送SYNC命令
+    b.master收到SYNC后，开始执行BGSAVE ---> 生成RDB文件  ---> 占用较多的CPU,内存,磁盘IO资源
+      并用一个缓冲区记录此后master执行的写入命令         
+    c.master将生成的RDB文件发送给slave                   ---> 占用较多的网络带宽流量
+      slave接收并载入RDB文件                             ---> 阻塞载入，从服务器无法执行其他命令
+    d.master将缓冲区的写命令发送给slave                  
+      slave接收并执行
+
+  
+   
+   SYNC缺陷:断线重连效率低下
+   考虑情景:
+   t1时刻，主从服务器初次通过SYNC达到一致，此后进入命令传播阶段
+   t2时刻，主从服务器断开连接
+   t3时刻，主从服务器重新连接.此时从服务器会再次发送SYNC命令进行主从同步
+   缺陷:断线重连后的SYNC会复制主服务器从0~t3时刻以来所有数据
+        但实际上，从服务器已经有了0~t2时刻的数据，只需要t2~t3时间段的主服务器的写入命令
+  
+   改进的命令:PSYNC
+   核心:记录master上t2~t3时间段的写入命令，然后发送给断线重连后的slave
+   如何记录？
+   在缓冲区中记录写入命令，每条记录还含有执行该命令的"时间点"
+   "时间点":可以使用真的时间 
+            也可以用编号    --> 编号的大小体现时间的前后.
+            但master和slave都要使用一套相同的编号 ---> 就如master和slave都使用相同的UNIX时间 
+   Redis在master和slave上都维护一个复制偏移量:offset.初始值一致
+   每当master向slave发送N个字节的数据时,master.offset += N
+   每当slave接受master发送的N个字节数据时,slave.offset += N
+   通过比对主从服务器offset就可以知道二者是否一致
+
+   在master端还维护了固定大小的FIFO队列(可以丢弃过于悠久的历史数据):复制积压缓冲区
+   master向slave发送数据(写入命令)的同时，数据也会被记录该buffer中.
+   每条记录的格式:<字节值,offset>
+
+   断线重连后，slave向master发送PSYNC命令
+   PSYNC检测到此次复制是断线重连而不是初次复制
+   PSYNC会向master报告slave.offset
+   master遍历缓冲区，找到offset == slave.offset 的记录
+   将该条记录后的数据就是slave断线期间，master执行的写入命令 ---> 只需要将这一部分发送给slave即可
+   如果没有找到该记录，则说明断线过久，直接进行完整同步
+
+   复制积压缓冲区的大小设定:断线重连的平均时间(s)*每秒服务器产生的写命令数据量
+
+   如何判断主从复制是初次复制，还是断线重连复制呢?
+   1)采用标志位
+   2)每个服务器都有自己的ID
+     初次复制时，master会将自己的ID发送给slave.slave更新master_id字段(初始设为0)
+     PSYNC会将slave的master_id发送给master. PSYNC master_id offset
+     master进行匹配验证，若匹配，表明这是断线重连复制，否则就为初次复制.根据判断结果，发送不同的回复
+     a.初次复制
+       回复:+FULLRESYNC master_id offset  ---> 让slave的offset与master的offset保持一致
+       告诉slave进行完整同步操作 ---> 载入RDB文件
+     b.断线重连复制
+       回复:+CONTINUE
+       告诉slave执行部分同步操作 ---> 执行master发送的写入命令
+  
+  4)SLALVEOF master_server命令步骤
+    a.当前的slave会先记录master_server的信息
+      struct redisServer{
+          char* master_host;  //ip
+          int master_port;    //port
+      }
+    
+    b.主从服务器建立网络连接 
+      slave调用connet()
+      master调用accept()创建socket fd用于IO.并将其纳入到Reactor的监听中
+      因为slave会向master发送命令，所以在master端为slave创建redisClient
+      所以:在master眼里，slave为客户端
+           在用户眼里，slave为服务端
+
+    c.slave发送PING命令
+      用于监测网络连接状况，以及master能否为slave提供复制服务 
+      比如master正在处理一个超时运行的脚本,不能像slave提供复制服务
+      slave收到PONG回复，就表明网络状况良好，master可以为slave提供复制服务.然后进入下一步
+
+////////////////////////////////////
+    d.身份验证
+      在双方都开启了身份验证选项时，slave发送命令AUTH password
+      master则检查password是否正确
+
+    e.slave向master发送端口号 ----> master进行记录 ---> master端日志需要slave的端口号
+////////////////////////////////////
+
+    f.slave发送PSYNC命令进行同步
+      同步完以后将进入命令传播阶段 ----> master会向slave发送写命令
+      所以需要在slave端为mastet建立redisClient
+      即有:master和slave互相为对方的客户端
+  
+  4)命令传播阶段
+    slave每秒都会向master发送命令:REPLICON ACK <replication_offest>
+    作用:
+    a.检测二者的网络连接是否正常
+      若在1s内都没有收到master的REPLICON ACK回复,那么就判定网络连接出现问题
+    b.检测是否有写命令丢失 
+      若因为网络故障，主服务器的写入命令丢失 ---> 主从服务器的offset不一致
+      slave的REPLICON ACK <replication_offest>会将slave.offset发送给master
+      master检查到offset不一致后，会从复制积压缓冲区中找到缺失的数据，发送给slave
+
+2.Sentinel
+  服务器群的高可用性:其中一个关键服务器宕机以后，能够察觉到，并能启动一个新的服务器来代替之
+  Redis的高可用性采用Sentinel系统
+  该系统监视master+从属的slaves
+  大致思想:当master下线时，会从slaves中挑选一个成为新的master.若该master又重新上线，将其设置为新master的slave
+
+  Sentinel系统的运转过程:
+  1)启动并初始化
+------------------------------------------------------------------------
+    a.Sentinel本质上只是一个运行在特殊模式下的Redis Server
+      与普通Server的初始化过程不尽相同
+      差异点:
+       Sentinel不使用用数据库
+       所以在初始化时不会载入RDB或者AOF
+       与数据库相关的命令也不会用到  ---> Sentinel有自己的命令表 
+------------------------------------------------------------------------
+
+    b.普通server的结构为: strcut redisServer
+      Sentinel的结构则为: struct sentinelState
+      核心字段:
+       dict* masters  <master_name,sentinelRedisInstance*>
+       监视的master服务器
+
+------------------------------------------------------------------------
+    c.普通server为管理多个client，会为每个client创建一个redisClient结构
+      Sentinel为监视多个 master服务器,会为每个master服务器创建一个sentinelRedisInstance结构
+      Sentinel直接监视master,而master中含有属下的从服务器信息 ---> 间接监视slaves
+------------------------------------------------------------------------
+
+      核心字段:
+       1.name
+         主服务器的名字由用户在配置文件中设置
+         从服务器以及Sentinel的名字由Sentinel自动设置
+       2.IP + PORT
+         服务器的网络地址
+       3.config_epoch
+         配置纪元，用于故障转移
+       4.mstime_t down_after_period
+         实例无响应多少ms后，才会被判断为主观下线
+       5.int qurom
+         判断该实例为客观下线所需要的支持投票数量
+       6.用于故障转移的指示性信息
+
+------------------------------------------------------------------------
+       7.dict* slaves --> 与masters字典一样 --> <slaves_name,sentinelRedisInstance*>
+         该主服务器属下的从服务器
+
+       8.dict* sentinels   <sentinel_name,sentinelState*>
+         哨兵监视是通过定期向服务器发送命令来获取服务器的状态
+         单个哨兵获取的信息是有限的
+         应该使用多个哨兵，采用不同的定期时间，来全面地监视服务器
+------------------------------------------------------------------------
+
+      在Sentinel系统启动时，会载入配置文件
+      解析配置文件，生成sentinelRedisInstance结构，初始化dict* masters字典
+
+------------------------------------------------------------------------
+    d.然后Sentinel与各个主服务器建立网络连接
+      有两个连接
+      1.命令连接
+        用于向主服务器发送命令
+      2.订阅连接 
+        订阅__sentinel__:hello频道
+        即使命令连接挂掉，也能从该连接中获取频道信息  
+------------------------------------------------------------------------
+  
+
+------------------------------------------------------------------------
+  2)INFO master : 更新masters
+    Sentinel默认以每10s一次的频率，通过命令连接向主服务器发送INFO命令
+    并通过分析INFO命令的回复来获取主服务器的当前信息
+    回复内容:
+    a.主服务器本身的信息
+      比如ID,身份
+    b.主服务器属下的从服务器信息
+      比如:ip,port,state,offset,lag
+      根据IP+PORT,Sentinel无须用户提供从服务器的地址信息，就可以自动发现从服务器
+      根据获取的从服务器信息来更新sentinelRedisInstance中的slaves字典部分字段
+      如果是新的从服务器，则会在slaves中增加一条记录.
+      其中name自动设置为从服务器的IP+PORT
+      并与该从服务器建立两个连接      ---------------------------------------------------------------
+   
+  3)INFO slave : 详细地更新slaves
+    Sentinel默认以每10s一次的频率，通过命令连接向从服务器发送INFO命令
+------------------------------------------------------------------------
+
+  
+------------------------------------------------------------------------
+  4)向其他Sentinels广播当前Sentinels的信息，让多个监视同一主服务器的Sentinels建立相互连接的网络
+    以2s一次的频率向主服务器发送命令
+    PUBLISH __sentinel__:hello "<s_ip>,<s_port>,<s_id>,<s_epoch>,<m_name>,<m_ip>,<m_epoch>"
+    s表示sentinel本身的信息
+    m表示主服务器的信息
+
+    Sentinel即可通过命令连接向服务器的__sentinel__:hello频道发送消息
+            也可通过订阅连接从服务器的__sentinel__:hello频道接受消息
+
+    多个监视同一个主服务器的Sentinel都会订阅该服务器的__sentinel__:hello频道
+    一个Sentinel向该频道发送信息，其他Sentinel都会接收到该信息
+    其他Sentinel收到信息后，会通过<m_name>锁定到masters中的某个master sentinelRedisInstance 
+    再通过<s_ip><s_por>锁定到该master的sentinels中的某个sentinelState 
+    若该sentinelState不存在，则会增加一条记录，同时该sentinel建立命令连接 
+    若存在，则更新部分相关信息
+
+    Sentinels之间相互连接，实现信息共享
+------------------------------------------------------------------------
+ 
+
+------------------------------------------------------------------------
+  5)主观检测 是否有实例处于下线状态
+    默认Sentinel以1s一次的频率向所有 与其建立了命令连接的实体(主从服务器，Sentinel)发送PING命令
+    并根据命令回复来主观地判断该实例是否下线,若是，则将该实例对应结构中(sentinelRedisInstance,sentinelState)的flag设为SRI_S_DOWN
+    有效回复:+PONG,-LOADING,_MASTERDOWN
+    无效回复:除了有效回复的回复
+              在指定时间内没有回复 ---> 时间通过Sentinel配置文件中的down-after-milliseconds指定
+              不同的Sentinel的主观判断时间应该有差异 ---> 整体就显得客观
+   
+  6)客观检测 是否有实例处于下线状态
+    当某个Sentinel主观检测到某个master处于下线状态时
+    其接下来会询问其他监视该master的Sentinels是否也主观地判断了该master处于下线状态
+    如果有足够数量的Sentinels认为该master已经下线
+    则当前Sentinel客观地认为该master已经下线，为flag添加:SRI_O_DOWN状态
+    询问命令:
+    SENTINEL is-master-down-by-addr <ip> <port> <current_epoch> <runid>(*)
+    ip+port:被主观判断下线的master地址
+    current_epoch:Sentinel的配置纪元，用于选举领头Sentinel 
+    runid:为ID时用于选举领头.为*时用于客观下线判断
+
+    其他Sentinels收到该命令后，会检查ip+port对应的master是否已下线
+    然后向源Sentinel发送回复: <down_state> <leader_runid>(*) <leader_epoch>
+    down_state:master的状态.1表示下线.0则相反
+    leader_runid和leader_epoch:用于领头选举
+
+------------------------------------------------------------------------
+    在一个时间段内，可能有多个Sentinels判断出一个master已经处于需要客观下线状态
+    此时需要选举出一个领头Sentinel进行master的故障转移操作
+------------------------------------------------------------------------
+
+  
+  7)选举领头Sentinel
+    选举规则
+    a.所有在线的Sentinel都有成为领头的规则  --> 公平
+    b.每次进行领头Sentinel选举之后，不论是否选举成功，所有Sentinel的配置纪元都需自增 ---> 表示此次选举已经结束
+    c.在一个配置纪元里，所有Sentinel都有一次将某个Sentinel设为领头Sentinel的机会
+      并且，一旦领头设置好，那么在当前配置纪元里就不能更改
+    d.每个发现master进入客观下线的Sentinel都会要求其他Sentinel将自己设为局部领头  --> 拉票
+      通过发送拉票命令:SENTINEL is-master-down-by-addr <ip> <port> <current_epoch> ID
+
+      Sentinel设置局部领头的规则:先到先得
+      即最先向该Sentinel发送拉票命令的源Sentinel会得到选票 --> 通过回复拉票命令: 1 ID current_epoch  ---> 源Sentinel通过检测回复中的ID和current_epoch和自己的是否匹配 就能知道是否拉倒了该Sentinel的选票
+      接下来的拉票命令则会被拒绝  
+
+      源Sentinel则会统计自己的拉票结果
+      若选票数超过半数，则自己就是领头Sentinel.开始进行master的故障转移
+
+      若都没有超过半数，则选举失败
+      过一段时间，进行下次选举
+      直到选举出leader
+
+  8)故障转移
+    a.从下线master中的slaves中挑选一个作为新的master  --> 向其发送SLAVE NO ONE命令
+      挑选规则:书241
+      新的master肯定是状态良好，数据更具时效性
+    b.让其他slaves复制新的master --> 向slaves发送命令:SLAVEOF new_maser ---> 建立新的主从关系
+    c.当下线master重新上线时，将其设置为新master的slavef --> 向其发送SLAVEOF new_master
+------------------------------------------------------------------------
+
+

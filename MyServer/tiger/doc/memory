@@ -1,0 +1,156 @@
+2.内存模型
+  1)静态内存模型
+    考察对象在内存中的布局
+  2)动态内存模型
+    存储一致性模型
+    从行为方面看待 多个线程对同一个对象 进行并发操作时所做的约束
+
+    多线程下的顺序一致性包括两个方面:
+    1)从多个线程平行的角度来看
+      程序最终的执行结果相当于 多个线程 以某种交织执行的方式 的结果
+    2)从单个线程内部执行顺序来看
+      线程中的指令是按照程序事先已规定的顺序执行的(不考虑CPU的乱序执行和Memory order)
+   
+    顺序一致性代价太大，不利于程序的优化
+    现在的编译器在编译程序时，会将指令重新排序
+     比如:如果两个变量读写互不相关
+          编译器可能将读操作提前,或者延迟写操作
+    编译选项:
+    -O0:不作优化
+        汇编指令和源代码逻辑相同
+    -O2:会进行优化a,重排指令
+
+    现在的CPU大都支持多发射和乱序执行 ----> 指令执行逻辑和汇编逻辑不一致
+
+    在单线程环境中没有影响
+    但在多线程环境中，对共享变量的读写顺序应该严格的人为控制
+    所以要对CPU的乱序执行和编译器的优化做出适当的约束
+
+    所以内存模型就是程序员，编译器，CPU之间的契约
+
+    std::memory_order规定了 普通访存操作 和 相邻的原子访存操作 之间的操作次序 是如何安排的
+    Relax模型: 
+     std::memory_order_relaxed
+       只保证当前操作的原子性，不考虑线程间的同步，其他线程可能读到新值或者旧值
+
+    Acquire-Relase模型
+     std::memory_order_release 
+       施加release语义,这条语句前面的读写操作都无法重排到该操作之后，
+       当前线程内的所有写操作，对于 其他对这个原子变量进行acquire的 线程可见
+       当前线程内的 与这块内存有关的所有读操作，对于其他对这个原子变量进行 consume 的线程可见
+     std::memory_order_acqure
+       在代码中这条语句 后面 所有读写操作 都无法重排到这个操作 之前
+       在这个原子变量上施加 release 语义的操作发生之后，acquire 可以保证读到所有在 release 前发生的写入
+    
+     memory_order_consume:
+     对当前要读取的内存施加 release 语义
+     在代码中这条语句 后面 所有与这块内存有关的读写操作都无法被重排到这个操作之前
+     在这个原子变量上施加 release 语义的操作发生之后，acquire 可以保证读到所有在 release 前发生的并且与这块内存有关的写
+
+     std::memory_order_acq_rel
+       对读取和写入施加 acquire-release 语义，无法被重排
+       可以看见其他线程施加 release 语义的所有写入
+       同时自己的 release 结束后,所有写入对其他施加 acquire 语义的线程可见
+
+   顺序一致性模型:  
+    memory_order_seq_cst:（顺序一致性）
+       如果是读取就是 acquire 语义，如果是写入就是 release 语义，如果是读取+写入就是 acquire-release 语义
+       同时会对所有使用此 memory order 的原子操作进行同步，所有线程看到的内存操作的顺序都是一样的，就像单个线程在执行所有线程的指令一样
+       通常情况下，默认使用 memory_order_seq_cst，所以你如果不确定怎么这些 memory order，就用这个。
+
+3.https://blog.csdn.net/wxj1992/article/details/103649056du
+多核的典型架构:每个核都有自己的片内cache,多个核又共享片外cache
+难点:如何保持数据在各个核之间的一致性
+而且为了优化，CPU和编译器都会对指令进行重排
+
+CPU和编译器对指令的重排保证不会影响单线程的运行结果  ----> 这是底线
+但不能保证多线程的运行结果
+
+比如:
+   thread1                  thread2
+   p.init();				       if(ready)
+   ready = true;			    	 p.process()
+在thread1中，两条语句并没有关联 ----> 编译器可能对其重排  ---> 若ready=true被重排到前面,thread1运行完以后切换到thread2,但此时p并没有init ---> p.process()就可能出现严重错误
+Some instructions in p.bar() may be reordered before checking ready
+若将p.init()和ready = true纳入临界区，用锁保护，即使发生重排也无关紧要
+
+但是锁的缺点:会挂起未获得锁的线程，待时机成熟时再唤醒。挂起+唤醒比较费时
+可采用Lock Free技术进行替代
+
+4.基本的Lock Free技术为CAS操作
+CAS(Compare and Set)伪代码
+bool CAS(void* p,int expect,int new_value){
+	atomically{
+		if(*p == expect)
+		  *p = new_value;
+		return true;
+	}
+	return false
+}
+
+Look Free技术依赖原子操作和memory order
+为什么依赖memeory order呢?
+比如上面的例子,即使ready为原子变量,其依然可能被重排到p.init()前面 ----> 影响thread2的运行结果
+
+memory order:执行代码对内存的操作顺序.该order受编译器和CPU对指令重排的影响
+
+sequential consistency:所有线程都能看见一样的内存修改顺序，同时这个顺序和程序的源码顺序是一致的
+	           				   优点在于程序的行为容易预期
+					             但当前并没有主流的CPU支持这种memory order  ---> 多多少少会有指令重排
+
+5.编译器和CPU会对指令进行重排(内存操作的顺序发生改变) ---> 程序的运行结果不符合我们编写的代码的预期 
+  所以需要对指令的重排进行一定的控制，保证程序符合预期
+  Memory Model就定义了特定处理器上的内存的操作顺序  ---> 限制某些指令重排
+
+6.内存操作分为读(load)和写(store)
+  内存操作的reorder分为四种类型
+  Load-Load   reorder,
+  Load-Store  reorder 
+  Store-Load  reorder
+  Store-Store reorder
+  这几种重排在不同的平台上是否会出现也就决定了平台对应的Memory Model的强弱  ---> 出现的越多表明Memory Model对指令重排的限制效果就越弱 ---> weak
+  
+
+7.程序员可以用代码来限制 编译阶段 和 运行阶段 的重排   --> barrier技术  --> 为什么叫barrier呢
+  1)Compiler Barrier
+    限制编译器编译时对源码的重排
+    比如:
+    int a,b;
+    void foo(){
+      a = B + 1;
+      b = 0;
+    }
+    B先读后写.
+    开启编译器优化选项 -O2 --> 可能会造成重排
+    得到的部分汇编如下:
+    mov eax,DOWRD PTR b[rip]
+    mov DWORD PTR b[rip],0       // b = 0
+    add eax,1                     //b+1
+    mov DWORD PTR a[rip],eax     // a = b+1
+
+    在b=0建立Compiler Barrier:asm volatile("":::"memory")
+    保证代码不会被重排到Barrier后面
+
+    如果B是先写后读呢
+    b = 0
+    a = b+1
+    汇编为:
+    mov DWORD PTR b[rip],0
+    mov DWORD PTR a[rip],1
+    这里优化为:在b还没有写入内存之前，就直接使用在CPU中的值(即为0)
+    而对b添加关键字volatile可限制该优化
+
+  2)runtime memory barrier
+    限制运行时的重排
+    通过特定的CPU指令进行实现
+    根据Memory Model的分类，对应的barrier也有四种类型
+    Load-Load   barrier
+    Load-Store  barrier
+    Store-Load  barrier
+    Store-Store barrier
+    即保证barrier前的操作不会被重排到barrier后
+
+8.C++11 Memory Order
+  不用平台下runtime memory barrier指令不尽相同.
+  Memory Order则屏蔽的底层差异，就像一套通用协议，程序员只要按此规定就能得到想要的内存序，而不需要关心在什么平台下运行，用什么编译器编译
+

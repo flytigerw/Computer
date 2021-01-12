@@ -1,0 +1,62 @@
+1.注意事项
+  1)大小写敏感
+  2)使用缩进表示层级关系
+    缩进的空格数不重要，只要相同层级的元素左右对齐即可
+  3)不能使用tab,只能使用空格
+
+2.支持的数据类型
+  1)对象
+    键值对:key: value
+    复杂对象格式:
+    Ex:对象的value由两个对象构成
+     key:
+         child_key1: value1
+         child_key2: value2
+    EX:对象的value和key都复杂
+       使用?+空格指示一个复杂的key
+       使用:+空格指示一个复杂的value
+       ? 
+         -complexkey1
+         -complexkey2
+       : 
+         -complexvalue1
+         -complexvalue2
+  2)数组
+     以-开头的行构成一个数组
+     - A
+     - B
+     - C
+    Ex2:
+     companies:
+       - 
+         id: 1
+         name: company1
+         price: 200w
+       -
+         id: 2
+         name: company2
+         price: 500w
+    
+  3)Scalar
+    基本的，不可再分的值
+    字符串，布尔值，整数，浮点数，日期
+    Ex:
+     boolen: 
+        - TRUE
+        - FALSE
+
+
+//在程序中打印yaml步骤
+
+1)加载YAML文件，得到root node
+  YAML::Node root = YAML::LoadFile("/home/sylar/workspace/sylar/bin/conf/log.yml");
+
+2)print_yaml(const YAML::Node& root)
+  判断root的类型,对于不同的类型采用不同的访问策略
+  IsScalar()  ----> node.Scalar()
+  IsMap()     ----> 每个Node为pair<key,value>,其中key也为Node类型.通过迭代器遍历访问每个node，先提取出key，再对value递归调用print_yaml()
+  Sequence()----> 顺序遍历每一个Node ----> 递归调用print_yaml()
+  isNull()    ----> 
+  node.Type() ----> 给出Node的type信息
+  
+

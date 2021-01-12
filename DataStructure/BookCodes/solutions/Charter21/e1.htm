@@ -1,0 +1,46 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 21, Exercise 1<BR>
+<BR>
+</H1>
+
+The solution space tree is that of Figure 20.2.  In a LIFO branch and
+bound, the list of live nodes bahaves as a stack.  The first E node is
+node <code class=var>A</code>.  It is expanded to get nodes <code class=var>B</code> and <code class=var>C</code>.  Since both are feasible,
+both are added to the stack.  Suppose they are added to the stack in this order.
+The next E node is the node <code class=var>C</code> which is currently at the top of the stack.
+Node <code class=var>C</code> is deleted from the live node stack and expanded to get nodes
+<code class=var>F</code> and <code class=var>G</code>.  Both of these are feasible nodes and are added to the stack.
+The next E node is node <code class=var>G</code>.  When it expanded, we get nodes <code class=var>N</code> and <code class=var>O</code>.
+Both are feasible leaves.  Node <code class=var>N</code> represents a solution that is better than the
+best found so far.  Therefore, this solution is saved.
+The value for this solution is <code class=var>25</code>.
+<br><br>
+The next E node is node <code class=var>F</code>.  When expanded, it yields the leaves <code class=var>L</code> and <code class=var>M</code>.
+Although both leaves are feasible, only <code class=var>L</code> corresponds to a solution
+with value more than <code class=var>25</code>.  The solution value at <code class=var>L</code> is <code class=var>50</code>.
+<code class=var>B</code> is the next E node.  Its left child <code class=var>D</code> is infeasible.
+So it is discarded.  Its right child <code class=var>E</code> is saved on the live node stack.
+<code class=var>E</code> becomes the next E node. Its left child is infeasible and its right child
+is a leaf with value less than <code class=var>50</code>.
+<br><br>
+As no live nodes remain, the algorithm terminates with node <code class=var>L</code>
+yielding the best knapsack packing.
+<br><br>
+LIFO branch and bound is not the same as backtracking.
+In backtracking, as soon as we generate a feasible child of the
+current E node, this feasible child becomes the new E node.
+In branch and bound, all children of the current E node are
+generated, the feasible ones saved on a live node list, and the
+infeasible children discarded.
+In backtracking, a node can become the E node many times, while in
+branch and bound, a node can be the Enode at most once.
+
+</FONT>
+</BODY>
+</HTML>

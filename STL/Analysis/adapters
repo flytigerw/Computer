@@ -1,0 +1,13 @@
+
+
+
+1.将一个class的接口转换为另一个class的接口,使得原本因接口不兼容而不能合作的classes可以一起运作
+  比如将vector的部分接口封装为queue的接口 ---> queue是封装在vector之上的
+  核心要点在于:组合再封装
+
+2.function object adapters的价值在于可以通过他们之间的绑定，组合，修饰操作来创造出各种可能的表达式
+  比如不小于12的表达式: greater_equal 或者  not1(bind2nd(less<int>(),12)) ---> 将less的第二参数绑定为12,再加上否定
+  比如对序列中的每个元素做某个特殊运算:f(g(x)) ---> 表达为:compose1(f(x),g(y))
+  比如为:(x+2)*3 ---> f(x) = x*3 g(y) = y+2 ---> compose1(bind2nd(multiplies<int>(),3),bind2nd(plus<int>(),2))
+
+

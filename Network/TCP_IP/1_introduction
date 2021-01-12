@@ -1,0 +1,147 @@
+1.Effective communication depends on the use of a common language
+
+2.protocol suite:A collection of related protocols
+  architecture or referrence for the protocol suite:The design that specifies how various protocols of a protocol suite relate to each other and divide up tasks to be accomplished
+
+  TCP/IP architecture evolved from the work that addressed the need to provide interconnection between multiple different packet-switched computer networks
+  It's accomplished using a set of gateways/routers that provides a translation function between incompatible networks
+  
+  Designing an architecture is more art than science
+
+
+3.Up to 1960s,the concept of network is based largely on the telephone network
+  A call is normally implemented by establishing a connection between two end points
+  Establishing a connection means that a circuit(initially physical circuit) is made between one telephone and another one for the duration of a call
+  When the call is completed,the connection is cleared,allowing the circuit to be used by other user's call
+  More can be seen in pdf 42
+
+4.Packet switching
+  chunks/pakcets of digital information comprising some number of bytes are carried through the network somewhat independently
+  Chunks coming from different sources can be mixed together and pulled apart later --> multiplexing
+  When packets are received at a packet switch,they are ordinarily stored in buffer memory
+  They can be scheduled in FIFO fashion
+  FIFO buffer management and on-demand scheduling are easily combined to implement statistical multiplexing in which the traffic is mixed together based on the arrival statistics or timing pattern of the traffic
+  The downside of this approach is limited predictability ---> The performance seen by any particular app depends on the statistics of other apps that are sharing the network
+
+  time-division multiplexing and static multiplexing typically reserve a certain amount of time or other resources for data on each connection
+  They can lead more predictability but may not utilize the network capacity because unreserved bandwith may go unused
+
+  virtual circuit:It can exhibit many of the behaviours of circuit but does't depend on phsycial circuit switches and can be implemented atop connection-oriented packets
+  The VC abstraction and connection-oriented packet networks requires some information or state stored in each switch on each connection
+  Each packet carries only a small bit of overhead information that provides an index to a state table
+  Ex:
+   Logical Channel Identifier(LCI) and Logical Channel Number(LCN) are used in conjunction with per-flow state at switch to determine the next switch along the path for the packet
+   The per-flow state is established prior to the exchange of the data on a VC using a signling protocol that supports connection establishment,clearing and status information
+  
+   Datagram is a special type of packet in which all the identifying informaiton of the source and destination reside in the packet itself instead of in the packet switches
+   Message boundaries can be seen in pdf 44
+
+5.When a large system such as an opearting system and protocol suite are being designed,a question often arise as to where a particular feature or function should be placed
+  One of the most important principals that influences the design of TCP/IP suite is end-to-end argument
+  It argues that the correctness and completeness can be achieved only by involving the app or the ultimate user of the communication system ---> The important functions(error control,delivery ack) should usually not be implemented at low levels of the system
+  
+  Fate sharing suggests placing all the necessary states to maintain an active communication association at the same location with communicating endpoints
+  With this reasoning,the only type of failure that destroys communication is one that also destroy one or more endpoints
+
+
+6.There are some circumstances where the data within the network is damaged and lost
+  It can be for a variety of reason such as hardware problem,radition that modifies the bits while being transmitted
+,being out of range in a wireless network
+  Error control can be implemented in the systems constituting the network infrastructure 
+  The end-to-end argument and fate sharing would suggest that the error control be implemented close to or within the app
+
+  best-effort delivery:The network doesn't expand much effort to ensure the data is delivered without errors.Certain types of errors are detected using error-detecting codes or checksums.When such errors are detected,errant datagram is merely discarded instead of being retransmitted
+  
+  If best-delivery is successful,a fast sender can produce information at a rate that exceeds the receiver's ability to consume it
+  flow control that operate outside the network layer and at higher levels of the communication system is used to slow down the fast sender.In particular,TCP handles this problem
+
+7.With layering,each layer is responsible for a different facet of communications
+  Open Systems Interconnection(OSI)
+  1.Application
+    It specifies methods for accomplishing user-initiated task
+    The protocol should be devised and implemented by app developers
+    Ex:FTP
+
+  2.Presentation
+    It specifies the methods of expressing data formats and translation rules for apps
+    Ex:character encoding conversion
+
+  3.Session
+    It specifies the methods for multiple connections constituting a communication session
+
+  4.Transport
+    It specifies the methods for connections or associations between multiple programs runing on the same computer system
+    TCP protocol 
+
+  5.Network
+    It specifies the methods for communicating in a multihop fashion across potentailly different types of networks
+    For packet network,it describes an abstract packet format and its standard addressing structrue
+    IP protocol 
+  
+  6.Link
+    It includes methods and protocols for establishing connectivty to a neighbor sharing the same medium
+    When more than one neighbor access the same shared network,the network is said to be a multi-access network(WI-FI and Ethernet)
+    Error detection is often included in this laryer,along with link-layer address formats
+    Ex:Ethernet,WI-FI
+
+  7.Physical
+    It specifies connectors,data rates and how bits are encoded on the same media and defines the methods of moving digital information across a communication media
+    Portions of Ethernet and WI-FI standards are here
+    It also supports low-level detection and correction
+    
+
+9.ARPNET reference model can be seen in pdf 14
+  
+  Transport layer protocol 
+   1)TCP(Transmission Control Protocol)
+   2)UDP(User Datagram Protocol)
+   3)DCCP(Datagram Congestion Control Protocol)
+     It provides a type of service midway between TCP and UDP:connection-oriented exchange of unreliable datagrams but with congestion control
+    Congestion control consists of a number of techniques whereby a sender is limited to a sending rate to avoid overwhelming the network
+   4)SCTP(Stream Control Transmission Protocol)
+     It provides reliable delivery like TCP but doesn't require the sequencing of data to be strictly maintained
+     It also allows multiple streams to logically be carried on the same connection and provides a message abstraction
+  
+  Application layer
+    It's concerned with the details of the app and not with the movement of data across the network
+    The lower layers are oppsite:They know nothing about the app but handles all communication details
+    
+10.At each layer,there is an id that allows the receiving system to determine which protocol and datastream belongs together
+  Example explains how demultiplexing from the link layer is performered
+   1.An arriving Ethernet frame contains a 48-bit address(MAC-Media Access Control) and 16-bit field called Ethernet type which is used to select which network protocol to be used 
+    A value of 0x0800 indicates that the frame contains an IPv4 datagram 
+    0x0806 and 0x86DD indicate ARP and IPv6 repsectively
+    If the destination address matches one of the receiving system' address,then the frame is received and checked for errors.
+
+  2)The IP datagram contained in the received frame is given to IP for processing
+    IP checks the destination IP address in the datagram.
+    If the address matches one of its own and the datagram contains no error in its header,then the 8-bit IPv4 protocol filed is checked to determine which protocol is to invoke next
+    Common values: 1(ICMP),2(IGMP),4(IPv4),6(TCP),7(UDP)
+  3)The resuling datagram(reassemble from fragments if necessary) is passed to transport layer for processing
+    At the transport layer,most protocols use port numbers for demultiplexing to appropriate receiving app
+
+11.internet means multiple networks connected together using a common protocol suite
+   Internet refers to a collection of hosts around the world that can communicate with each other using TCP/IP
+   intranet refers to a private network usually run by a enterprise
+     It provides access to resources avaliable only to members of the particular enterprise 
+     Users may connect to the intranet using a virtual private network(VPN) 
+    
+   The easiest way to build an internet is to connect two networks with a router
+   A router is a special-purpose device for connecting networks
+   It provides connections for many differnet types of physical networks:Ethernet,WI-FI,DSL,point-to-point links 
+   The value of computer network is proportional to the square of the number of connected endpoints
+
+12.Some applications are desigened in a more distributed fashion where there is no single server
+   Instead,each app acts both as a server and as client and is capable of forwarding requests
+   A concurrent p2p app may receive an incoming request,determine if it's able to respond the request and if not,forwards the request to some other peer
+   One of the primary problems in p2p apps is the discovery problem
+   How does one peer find which other peers can peovide the data or service it wants in a network where the peers may come and go
+   It's usually handled by a bootstraping procedure whereby each client is initially configured with the addresses and port numbers of some peers that are likely to be operating
+
+13.Attacks involving the Internet architecture
+   Internet architecture delivers IP datagram based on destination IP addresses
+   As a result,the malicious uses can insert whatever IP address they choose into source IP address field of each datagram they send
+   It may be difficult or impossible to determine the origin of a datagram received from Internet
+   Denial-of-service(Dos) attacks usually involve so much important resource that legitaimate users are denied service
+
+   

@@ -1,0 +1,99 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 33<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+The steps in the proof are:
+<ol>
+<li>
+The number of groups (and hence medians) is
+<code class=var>floor(n/9)</code>
+<li>
+At least
+<code class=var>ceil(floor(n/9)/2)</code>
+of these
+<code class=var>floor(n/9)</code> medians are less than or equal to the
+pivot element.
+<li>
+In each group, at least <code class=var>5</code> elements are less than
+or equal to the group median.
+<li>
+Therefore, at least
+<code class=var>5 * ceil(floor(n/9)/2) &gt;=
+2.5 * floor(n/9)
+</code> elements are less than or equal to the pivot.
+<li>
+Therefore, at most
+<code class=var>n - 2.5 * floor(n/9)</code>
+elements are greater than the pivot.
+<li>
+From the way the partitioning code works, we see that
+the right segment has maximum size when the number of elements
+that are greater than the pivot is maximum and the remaining elements
+are equal to the pivot.  At most half of these remaining elements
+can end up in the right segment because each element in the right segment
+that is equal to the pivot got into the right segment
+as a result of a swap with an element that is equal to or smaller than
+the pivot. The swapped element must be in the left segment when done.
+<li>
+Therefore, the size of the right segment is at most
+<code class=var>n - 2.5 * floor(n/9) + 1.25 * floor(n/9)
+<br>
+= n - 1.25 * floor(n/9)
+<br>
+&lt; n - 1.25 (n/9 - 1)
+<br>
+= 31n/36 + 1.25
+<br>
+&lt;= 63n/72 for n &gt;= 90</code>
+</ol>
+
+<br><br>
+<dt>(b)
+<dd>
+The steps in the proof are:
+<ol>
+<li>
+The number of groups (and hence medians) is
+<code class=var>floor(n/5)</code>
+<li>
+At least
+<code class=var>ceil(floor(n/5)/2)</code>
+of these
+<code class=var>floor(n/5)</code> medians are less than or equal to the
+pivot element.
+<li>
+In each group, at least <code class=var>3</code> elements are less than
+or equal to the group median.
+<li>
+Therefore, at least
+<code class=var>3 * ceil(floor(n/5)/2) &gt;=
+1.5 * floor(n/9)
+</code> elements are less than or equal to the pivot.
+<li>
+Therefore, at most
+<code class=var>n - 1.5 * floor(n/5)</code>
+elements are greater than the pivot.
+<li>
+Since all elements are distinct, the size of the right segment is at most
+<code class=var>n - 1.5 * floor(n/5)
+<br>
+&lt;= n - 1.5 (n/5 - 4/5)
+<br>
+= 0.7n + 1.2
+<br>
+&lt;= 3n/4 for n &gt;= 24</code>
+</ol>
+</FONT>
+</BODY>
+</HTML>

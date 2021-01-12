@@ -1,0 +1,39 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 15<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithSet.h</code>. Test code is
+included in <code class=code>arrayListWithSet.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithSet : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithSet(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void set(int theIndex, const T& theElement);
+};
+
+template&lt;class T&gt;
+void arrayListWithSet&lt;T&gt;::set(int theIndex, const T& theElement)
+{// Set element i to theElement.
+
+   checkIndex(theIndex);
+   element[theIndex] = theElement;
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

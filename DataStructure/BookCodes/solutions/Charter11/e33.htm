@@ -1,0 +1,151 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 11, Exercise 33<BR>
+<BR>
+</H1>
+Suppose we are told that the preorder and inorder listings of
+a binary tree are <code class=var>preList[0:6] =
+[0, 1, 3, 5, 2, 4, 6]</code> and <code class=var>inList[0:6] =
+[3, 5, 1, 0, 2, 6, 4]</code>.
+From the definition of preorder we know that <code class=var>prelist[0]
+= 0</code>
+is the root.  From the definition of inorder we know that in inorder the
+root is preceded by its left subtree and followed by its right subtree.
+So <code class=var>inList[0:2]</code> is the inorder listing of the
+left subtree and
+<code class=var>inList[4:6]</code> is the inorder listing of the
+right subtree.  The left and right subtrees can now be constructed
+recursively using this information.
+<br><br>
+To implement the above strategy efficiently it is useful
+to construct an array <code class=var>inMap[]</code>
+with the property that <code class=var>inMap[i]</code>
+gives the location of <code class=var>preList[i]</code> in
+<code class=var>inList[i]</code>.  For the example above
+<code class=var>inMap[0:6] = [3, 2, 0, 1, 4, 6, 5]</code>.
+This mapping array enables us to quickly find the location of
+<code class=var>preList[i]</code> in
+<code class=var>inList[]</code>.
+<br><br>
+If we make the assumption that the data elements of an
+<code class=var>n</code> node binary tree are <code class=var>0, 1, ...,
+n-1</code>, we can construct <code class=var>inMap</code>
+in linear time as below.
+<HR class = coderule>
+<pre class = code>
+// construct inMap
+// first construct inverse of InList
+int *inverse = new int [n];
+for (int i = 0; i &lt; n; i++)
+   inverse[inList[i]] = i;
+
+// now construct inMap
+for (int i = 0; i &lt; n; i++)
+   inMap[i] = inverse[preList[i]];
+<hr class=coderule>
+</pre>
+
+When we cannot make this assumption we can construct
+<code class=var>inMap</code> by sorting both
+<code class=var>inList</code> and
+<code class=var>preList</code>.  This sort will take linear time
+if the range of data values is small (in this case bin sort
+(see Chapter 6) can be used), and the sort will take
+<code class = var>O(n log n)</code> time 
+when we must sort using the general purpose sorts of Chapters 12 (heap
+sort) and 18 (merge sort).
+<br><br>
+<!--
+The code to build the binary tree is given below.
+This code assumes that the elements are distinct integers in the
+range <code class=code>1</code> through <code class=code>n-1</code>,
+where <code class=code>n</code> is the number of elements/nodes in the tree.
+A test program and its ouput are given in the files
+<code class=var>BuildFromPreAndIn.*</code>.
+<HR class = coderule>
+<pre class = code>
+public class BuildFromPreAndIn
+{
+   // class data members
+   static int [] inMap;
+   static int [] preList;
+   static int startPre;
+
+   /** construct the unique binary tree with preorder listing
+     * thePreList[] and preorder listing theInList.
+     * The tree elements are assumed to be the distinct integers
+     * 0 through theInList.length - 1.
+     * return root of constructed binary tree */
+   public static BinaryTreeNode buildFromPreAndIn
+                 (int [] thePreList, int [] theInList)
+   {// set class data members and invoke theBuildFromPreAndIn
+
+      preList = thePreList;
+      startPre = 0;   // preorder list for subtree begins at preList[startPre]
+
+      // set inMap so that inMap[i] is the location of
+      // thePreList[i] in theInList[]
+      // first construct inverse of theInList
+      int [] inverse = new int[theInList.length];
+      for (int i = 0; i &lt; theInList.length; i++)
+         inverse[theInList[i]] = i;
+      // now construct inMap
+      inMap = new int [theInList.length];
+      for (int i = 0; i &lt; theInList.length; i++)
+         inMap[i] = inverse[preList[i]];
+
+      return theBuildFromPreAndIn(0, inMap.length - 1);
+   }
+
+
+   /** construct the unique binary tree with inorder listing
+     * inList[startIn:endIn] and whose preorder listing is
+     * preList[startPre ...]. inMap[i] is the location of
+     * preList[i] in inList[]. Note that inList is not a
+     * parameter of the method.
+     * return root of constructed binary tree */
+   static BinaryTreeNode theBuildFromPreAndIn(int startIn, int endIn)
+   {
+      if (startIn &gt; endIn)
+         // tree is empty
+         return null;
+     
+      // create a node for the root and set its element field
+      BinaryTreeNode root = new BinaryTreeNode(new Integer(preList[startPre]));
+
+      // verify that element is in the proper subtree
+      int inLocation = inMap[startPre++];
+      if (inLocation &lt; startIn || inLocation &gt; endIn)
+         throw new IllegalArgumentException
+                   ("incompatible preorder and inorder listings");
+
+      // construct left subtree recursively
+      root.leftChild = theBuildFromPreAndIn(startIn, inLocation - 1);
+   
+      // construct right subtree recursively
+      root.rightChild = theBuildFromPreAndIn(inLocation + 1, endIn);
+   
+      return root;
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+The complexity of <code class=var>theBuildFromPreAndIn</code>
+is <code class=var>O(n)</code>.  So the overall
+complexity of the construction process is determined
+by the complexity of constructing <code class=var>inMap</code>.
+Under the assumptions we have made, <code class=code>inMap</code>
+is constructed in <code class=code>O(n)</code> time.
+In general, however, it takes
+<code class = var>O(n log n)</code> time to construct <code class=code>inMap</code>.
+--!>
+
+</FONT>
+</BODY>
+</HTML>

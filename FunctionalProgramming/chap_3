@@ -1,0 +1,325 @@
+
+
+
+duck-typing : 如果它走路或叫声像鸭子，那它就是鸭子 --> 对象的身份(类型)可根据对象的行为进行判别
+
+函数对象:可以像被函数一样调用的对象
+         具有此行为特征:f(arg1....)
+
+类型:原生函数(Raw Function),重载了operator()的类(Functor),lambda
+
+1.函数返回值类型的推断
+  1)要保证return语句的返回类型一致
+    例:auto ask(bool flag){
+          if(flag)
+            return 42;                return int
+          else 
+            return string("42");      return string
+       }
+       推断出的返回类型不一致,编译器报错
+
+    编译器推断出返回值类型后,就可以用于函数中的其他部分,比如递归:
+    auto factorial(int n){
+      if(n == 0)
+        return 1;                     //推断出返回类型为int
+      else 
+        return factorial(n-1)*n;      //会利用已推断出来的类型:int  --> 不会报错
+    }
+
+  2)decltype(auto) func(..){
+        ...
+        return expr;
+    }
+    函数的返回值类型:decltype(expr) --> 将expr的类型原汁原味的返回给调用者
+    使用例子:用函数function处理object
+    template<typenanme Object,
+             typenanme Function>
+    decltype(auto) process_object(Object&& object,Function function){
+      //外层函数可以做一些参数处理,然后将其完美转发给内层函数
+      //或者根据标签,完美转发到对应的函数
+      return function(std::forward<Object>(object));
+    }
+    特点:
+    a.参数为万能引用,可接受左右值,避免了基于左右值的重载
+    b.外层函数将参数完美转发到内层函数 --> 保持了参数在传递过程中的左右值属性
+    c.返回值类型为decltype(auto) --> 可以原汁原味的获取内层函数的处理结果
+
+
+2.函数指针 41
+
+3.Functor: 重载调用操作符(operator())的类
+  特点:
+  1)可以像函数一样被调用
+  2)每个实例都可以有自己的状态变量 
+    函数参数为输入变量,由调用者指定变量值
+    内生的状态变量用于指导函数的行为 -> 函数功能的大方向不变,但含有一些可调整的状态
+    可以让函数更加具有通用性
+
+  例子:统计输入人群中,年龄大于42的人数
+  1)用普通的函数作为谓词条件
+    bool older_than_42(const person_t& person){
+        return person.age > 42;
+    }
+
+    count_if(people.cebgin(),people.cend(),
+             older_than_42);
+
+    缺点:扩展性低.
+         若修改年龄条件,则需要重新编写一套谓词函数
+
+  2)Functor作为谓词条件
+    class older_than{
+      private:
+        int m_limit = 0;        //状态变量
+
+      public:
+        older_than(int limit):m_limit(limit){}
+
+      public:
+        bool operator()(const person_t& person) const{
+          return person.age() > m_limit;
+        }
+    }
+
+    count_if(people.cbegin(),people.cend(),older_than(42));
+    count_if(people.cbegin(),people.cend(),older_than(16));
+  
+  3)older_than的缺点:只能以人作为函数输入
+                     但很多东西都有"年龄",比如要统计使用时长超过5年的汽车
+    用模板做进一步的通用性扩展
+    a.类模板
+      template<typenanme T>
+        class older_than{
+          private:
+            int m_limit = 0;        //状态变量
+
+          public:
+            older_than(int limit):m_limit(limit){}
+
+          public:
+            bool operator()(const T& object) const{
+             return object.age() > m_limit;
+          }
+      }
+      缺点:使用时,必须指定T,稍显冗余
+      count_if(people.cbegin(),people.cend(),
+               older_than<person_t>(42))
+      count_if(cars.cbegin(),cars.cend(),
+               older_than<car_t>(5))
+   
+    b.函数模板
+      class older_than{
+        private:
+          int m_limit = 0;        //状态变量
+
+        public:
+          older_than(int limit):m_limit(limit){}
+
+        public:
+        
+        //todo:要求object含有age()成员函数
+        template<typename T>
+           bool operator()(T&& object) const{
+              return forward<T>(object).age() > m_limit;        //object为左值和右值时,age()成员函数也许有不同的实现
+            }
+      }
+      older_than older_than_5(5);
+      count_if(people.cbegin(),people.cend(),
+               older_than_5)
+
+
+4.lambda:创建匿名的内联函数对象的语法糖
+  匿名:节省命令空间
+  内联:调用时,函数代码内联展开(由编译器负责) ---> 减少函数栈的开销
+       传统非内联函数定义在A处,在B处被调用时会生成一个函数栈来运行之 
+  
+  语法:见48+PPT
+  例子:
+  class Company{
+    private:
+      vector<person_t> m_employees;    //公司所有的职员
+
+    public:
+      string team_name_for(const person_t& employee) const;     //查找职员所在的team
+      int count_team(const string& team_name) const;            //统计某个team的成员数
+  }
+  
+  使用count_if+lambda:
+  int Company::count_team(const string& team_name) const{
+    return count_if(m_employees.cbegin(),m_employees.cend(),
+        
+        [this,&team_name]                   //值捕获this --> 在lambda中调用this->team_name_for()
+          (const person_t& employee){
+          return team_name_for(employee) == team_name;
+        });
+
+  }
+
+  lambda等价于一个Functor
+  在此例子中,其等价于:
+  class Lambada{
+    private:
+      //内部状态变量
+      const Company* m_this;
+      const string& m_team_name;
+
+    public:
+      Lambada(const Company* this_,const string& team_name):
+        m_this(this_),m_team_name(team_name){}
+
+    public:
+      bool operator()(const person_t& employee) const {           //const -> 不可修改类的成员变量
+        return m_this->team_name_for(employee) == m_team_name;
+      }
+  }
+
+5.默认:lambda的调用操作符为const  --> 不可修改捕获的状态变量
+  用mutable修饰lambda,让其可修改状态变量
+  例:
+  {
+    //统计以大写字母开头的单词数
+    int count = 0;
+    vector<string> words;
+    ....
+    for_each(words.cbegin(),words.cend(),
+        [&count]
+        (const string& word) mutable {          
+          if(isupper(word[0]))
+              ++count;
+        }
+      );
+  }
+  
+
+6."移动捕获"例子:
+  unique_ptr<session_t> session = create_session();
+  //发起异步网络请求,将请求到的数据用unique_ptr进行资源托管
+  auto request = server.request("GET /",session->id());
+
+  //注册回调,进行数据处理
+  //将资源的使用权转移到lambda内部
+  request.on_completed(
+    [session = std::move(session),time = current_time()]        //捕获层的参数变量:1)接收转移的资源  move
+                                                                                   2)指定内部状态变量的值
+
+      (response_t response){
+          cout << "Get response" << response      
+               << "for session" << session 
+               << "The request took:"
+               << (current_time() - time)
+               << "milliseconds";
+
+      }
+  )
+
+7.Functor可通过函数模板可实现一个通用函数对象 --> 可接收任意的object,只要其实现了xxx方法
+
+  lambda可用auto创建通用的函数对象
+  例:
+  auto predicate = [limit = 42](auto&& object){         //万能引用
+    return forward<decltype(object)>(object).age();     //保持参数的左右值属性
+  }
+  此处:lambda为调用操作符operator()模板化的类 而非 包含operator()的模板类
+           在调用时才进行模板推导                   在创建类的实例时就需要进行模板推导
+  
+  C++20允许在lambda中使用模板参数
+  []<typenanme T> (T first, T second){...}
+
+8.Web Client发出request,收到response
+  客户端对服务器的请求可能成功,可能失败 --> 通过response.error()体现
+  收到多个response后,用filter算法过滤出请求成功/失败的response
+  用lambda做为谓词
+   ok_responses = filter(reponses,
+       [](const response_t& response){
+           return !response.error();
+       });
+
+   failed_responses = filter(reponses,
+       [](const response_t& response){
+           return response.error();
+       });
+    
+   上述的lambda定义在调用处.调用时,直接内联展开
+   在调用处定义的lambda不具有通用性
+   而让object实现error()方法以实现错误检测是通用手段
+   解决:
+   1)可用auto存储通用lambda --> 一处定义,多处使用
+     auto error_true = [](auto&& obejct){
+       return decltype<object>(object).error();
+     }
+     auto error_false = [](auto&& obejct){
+       return !decltype<object>(object).error();
+     }
+   
+   2)使用重载了operator()的类   
+     class ErrorTest{
+       private:
+        bool m_error;
+       
+       public:
+        ErrorTest(bool error = true):m_error(error){}
+
+       public:
+        template<typenanme T>
+          bool operator()(T&& value) const{
+            return m_error == bool forward<T>(value).error();
+          }
+
+        //重载==和!操作符,让函数对象的使用可具有灵活性,让代码更加灵活
+        //比如期望如下写法:
+        //ErrorTest error_test;
+        //filter(reponses,error_test == true)
+        //filter(reponses,!error_test)
+        
+        ErrorTest operator==(bool test) const{            //依旧返回一个谓词!!!!
+          return ErrorTest(test ? m_error : !m_error);
+        }
+        ErrorTest operator!(bool test) const{
+          return ErrorTest(!m_error);
+        }
+     }
+     
+9.STL中含有 普通操作符 对应的函数对象   --> 操作符的包装器(wrapper)
+  比如:
+  操作符  :+
+  函数对象:plus
+  大体实现:
+  template<class T>
+  struct plus:binary_function<T,T,T>{
+    T operator()(const T& x,const T&y) const{
+      return x+y;
+    }
+  };
+  只要两个对象类型一致,且重载了operator+,
+  那么这两个对象就可以输入给plus进行处理
+
+  使用例子:求输入集合的元素之和
+  vector<int> numbers;
+  .....
+  accumulate(numbers.cbegin(),numbers.cend(),plus<int>() //实例化一个函数对象)
+  C++14允许省略类型信息:plus<>()即可
+
+  又比如降序排序:
+  sort(numbers.begin(),numbers.end(),greater<>())
+
+  其他操作符包装器见57页
+
+10.Boost库中的操作符包装器
+
+
+11.std::function : 适用于所有函数对象的超类型.可以存储任何类型的函数对象
+   怎样将模板化的函数对象作为的类的成员? --> 只能使用function修饰变量
+   使用方法: function<函数签名> var_name
+   例子:
+   function<float(float,float)> f;
+   f = multiplies<>();        //模板化的操作符包装器
+   f = [](auto x,auto b){    //稍通用的lambda
+     return a*b;
+   }
+   
+   其通过类型擦除技术来隐藏包含的类型,提供一个对所有函数对象的通用接口
+   它是基于虚成员函数调用 --> 虚调用在运行时进行,不能在编译器优化
+
+  
+
+

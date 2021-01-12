@@ -1,0 +1,157 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 59<BR>
+<BR>
+</H1>
+
+
+The initial 2-3 tree is shown below.
+<br><pre class=figure>
+                    [30, 80]
+                /       |      \
+              /         |        \
+            /           |          \
+        [20]         [50, 60]         [90]
+       /    \      /     |   \       /     \
+     [10]  [25] [35, 40] [55] [70] [82, 85] [95]
+</pre>
+When <code class=var>55</code> is removed, we borrow from the left sibling
+and get the following tree.
+<br><pre class=figure>
+                    [30, 80]
+                /       |      \
+              /         |        \
+            /           |          \
+        [20]         [40, 60]         [90]
+       /    \      /     |   \       /     \
+     [10]  [25]   [35] [50] [70] [82, 85] [95]
+</pre>
+To remove the <code class=var>40</code> we first replace it by
+<code class=var>35</code> and then resolve the deficiency in the former
+node for <code class=var>35</code> by combining with its right sibling.
+The result is shown below.
+<br><pre class=figure>
+                    [30, 80]
+                /      |      \
+              /        |        \
+            /          |          \
+        [20]         [60]         [90]
+       /    \      /     \       /     \
+     [10]  [25] [35, 50]  [70] [82, 85] [95]
+</pre>
+To remove the <code class=var>70</code>, we borrow from the left sibling.
+The result is shown below.
+<br><pre class=figure>
+                    [30, 80]
+                /      |      \
+              /        |        \
+            /          |          \
+        [20]         [50]         [90]
+       /    \      /     \       /     \
+     [10]  [25] [35]    [60] [82, 85] [95]
+</pre>
+The removal of <code class=var>35</code>, requires two combining steps.
+The result is shown below.
+<br><pre class=figure>
+                    [80]
+                /            \
+              /                \
+            /                    \
+        [20, 30]                  [90]
+       /    |   \                /     \
+     [10]  [25] [50, 60]     [82, 85] [95]
+</pre>
+Removing <code class=var>60</code> is easy.
+The result is shown below.
+<br><pre class=figure>
+                    [80]
+                /            \
+              /                \
+            /                    \
+        [20, 30]                  [90]
+       /    |   \                /     \
+     [10]  [25] [50]          [82, 85] [95]
+</pre>
+When <code class=var>95</code> is removed, we borrow from a left
+sibling.
+The result is shown below.
+<br><pre class=figure>
+                    [80]
+                /            \
+              /                \
+            /                    \
+        [20, 30]                  [85]
+       /    |   \                /     \
+     [10]  [25] [50]          [82]    [90]
+</pre>
+When <code class=var>90</code> is removed, we do a node combining
+followed by a borrow from a sibling.
+The result is shown below.
+<br><pre class=figure>
+                    [30]
+                /          \
+              /              \
+            /                  \
+        [20]                  [80]
+       /    \                /     \
+     [10]  [25]           [50]   [82, 85]
+</pre>
+Removing <code class=var>82</code> is easy.
+The result is shown below.
+<br><pre class=figure>
+                    [30]
+                /          \
+              /              \
+            /                  \
+        [20]                  [80]
+       /    \                /     \
+     [10]  [25]           [50]    [82]
+</pre>
+To remove <code class=var>80</code> we first replace it by
+<code class=var>50</code> to get the tree
+<br><pre class=figure>
+                    [30]
+                /          \
+              /              \
+            /                  \
+        [20]                  [50]
+       /    \                /     \
+     [10]  [25]           [  ]    [82]
+</pre>
+Next we combine two siblings to get the tree
+<br><pre class=figure>
+                    [30]
+                /          \
+              /              \
+            /                  \
+        [20]                  [  ]
+       /    \                /     
+     [10]  [25]           [50, 82]
+</pre>
+We again combine two siblings to get the tree
+<br><pre class=figure>
+                    [  ]
+                /     
+              /      
+            /       
+        [20, 30]
+       /    |    \  
+     [10]  [25]  [50, 82]
+</pre>
+Finally, the root is discarded to get the following tree.
+<br><pre class=figure>
+        [20, 30]
+       /    |    \  
+     [10]  [25]  [50, 82]
+</pre>
+
+</FONT>
+</BODY>
+</HTML>

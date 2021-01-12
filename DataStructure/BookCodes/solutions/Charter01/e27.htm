@@ -1,0 +1,85 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 27<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+<dl compact>
+<dt>(a)
+<dd>
+<code class=var>gcd(20, 30) = gcd(30, 20 mod 30) = gcd(30, 20)
+= gcd(20, 30 mod 20) = gcd(20, 10) = gcd(10, 20 mod 10) =
+gcd(10, 0) = 10</code>.
+<br><br>
+<code class=var>gcd(112, 42) = gcd(42, 112 mod 42) = gcd(42, 28)
+= gcd(28, 42 mod 28) = gcd(28, 14) = gcd(14, 28 mod 14) = gcd(14,0) = 0</code>.
+<br><br>
+<dt>(b)
+<dd>
+The base component is
+<code class=var>gcd(x, y) = x when y = 0</code>
+and the recursive component is
+<code class=var>gcd(x, y) = gcd(y, x mod y), y &gt; 0</code>.
+<br><br>
+A formal proof can be provided using induction.
+We provide an informal proof. When <code class=var>x &lt; y</code>,
+the first application of the definition
+gives us <code class=var>gcd(x, y) = gcd(y, x mod y) = gcd(y, x)</code>.
+Following this, the first parameter is <code class=var>&gt;</code> the
+second.  So, we may consider only the case when
+<code class=var>x &gt;= y</code>.
+
+<br><br>
+When <code class=var>x = y</code>, an application
+of the definition results in <code class=var>gcd(x,y) = gcd(y, x mod y)
+= gcd(y,0)</code> which is an occurrence of <code class=var>gcd</code>
+in the base component.
+
+<br><br>
+When <code class=var>x &gt; y</code>, an application
+of the definition results in <code class=var>gcd(x,y) = gcd(y, x mod y)
+= gcd(y,z)</code>, where <code class=var>0 &lt;= z &lt; y</code>.
+Each application of the recursive component decreases the second
+parameter. Therefore, after a sufficient number of
+applications (at most <code class=var>y</code>), the second
+parameter will become <code class=var>0</code> and we will
+have an occurrence of
+<code class=var>gcd</code> which is
+in the base component.
+
+<br><br>
+<dt>(c)
+<dd>
+The recursive methods <code class=code>applications.GCD.*</code>
+are given below.
+
+<BR>
+</P>
+<HR class = coderule>
+<PRE class = code>
+/** @return the gcd of x and y
+  * @throws IllegalArgumentException when x or y < 0 */
+public static int gcd(int x, int y)
+{
+   if (x < 0 || y < 0)
+      throw new IllegalArgumentException("x and y must be >= 0, "
+                               + "x = " + x + "  y = " + y);
+
+   return rgcd(x, y);
+}
+
+/** @return the gcd of x and y
+  * assumes x,y >= 0 */
+private static int rgcd(int x, int y)
+   {return (y == 0) ? x : rgcd(y, x % y);}
+</pre>
+<HR class=coderule><BR>
+</FONT>
+</BODY>
+</HTML>

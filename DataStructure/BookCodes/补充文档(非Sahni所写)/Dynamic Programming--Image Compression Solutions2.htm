@@ -1,0 +1,42 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 55, Exercise 2<BR>
+<BR>
+</H1>
+
+The recursive call is easily replaced by a
+<code class=code>while</code> loop.
+This transformation causes the segments to be output in the
+reverse order from that output by the recursive code.
+<br><br>
+The nonrecursive traceback method
+is given below. A test program, input, and output appear
+in the files <code class=code>recursiveDPImageCompression3.*</code>.
+This version is expected to run slightly faster as we have replaced
+the overhead of method calls by the smaller overhead of a
+<code class=code>while</code> loop.
+
+<HR class = coderule>
+<pre class = code>
+void traceback(int *kay, int n)
+{// Output the optimal segment boundaries.
+   while (n &gt; 0)
+   {
+      cout << "New segment begins at "
+               + (n - kay[n] + 1) << endl;
+      n -= kay[n];
+   }
+}
+<hr class=coderule>
+</pre>
+
+</FONT>
+</BODY>
+</HTML>

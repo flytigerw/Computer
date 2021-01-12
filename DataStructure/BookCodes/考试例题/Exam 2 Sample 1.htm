@@ -1,0 +1,152 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>Data Structures & Algorithms</H1>
+
+<H2>Exam 2</H2>
+<H2>Sample 1, 50 Minutes</H2>
+<BR>
+</H1>
+<ol>
+<li>
+An abbreviated version of the class <code class=var>BinaryTree</code>
+of the text is given below.
+<pre class=code>
+<hr class=coderule>
+template &lt;class T&gt;
+class BinaryTreeNode {
+   friend BinaryTree&lt;T&gt;;
+   private:
+      T data;
+      BinaryTreeNode&lt;T&gt; *LeftChild,  // left subtree
+                        *RightChild; // right subtree
+};
+template&lt;class T&gt;
+class BinaryTree {
+   public:
+      BinaryTree() {root = 0;};
+      ~BinaryTree(){}; 
+      BinaryTree&lt;T&gt;&amp; SwapChildren();
+   private:
+      BinaryTreeNode&lt;T&gt; *root;  // pointer to root
+};
+<hr class=coderule>
+</pre>
+The new member <code class=var>SwapChildren</code> swaps the
+left and right children of every node in a binary tree.
+It returns <code class=var>*this</code>.
+<dl compact>
+<dt>(a)
+<dd>
+[8]
+Write C++ code for the <code class=var>SwapChildren</code>
+member function.  You may define and implement new private
+member functions as needed.
+You may not create or delete any nodes or invoke any binary tree functions
+not defined in this problem unless you provide code for these functions.
+<dt>(b)
+<dd>
+[2] What is time complexity of your code as a function
+of the number of nodes in the binary tree?
+</dl>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<br><br>
+<li>
+A condensed version of the class <code class=var>MinHeap</code>
+is given below.
+<pre class=code>
+<hr class=coderule>
+template&lt;class T&gt;
+class MinHeap {
+   public:
+      MinHeap(int MinHeapSize = 10);
+      ~MinHeap() {delete [] heap;}
+      MinHeap&lt;T&gt;&amp; Insert(const T&amp; x);
+      MinHeap&lt;T&gt;&amp; DeleteMin(T&amp; x);
+   private:
+      T *heap;          // 1D array
+      int CurrentSize,  // number currently in heap
+          MaxSize;      // capacity of heap[]
+};
+
+template&lt;class T&gt;
+MinHeap&lt;T&gt;::MinHeap(int MinHeapSize)
+{// Min heap constructor.
+   MaxSize = MinHeapSize;
+   heap = new T[MaxSize+1];
+   CurrentSize = 0;
+}
+<hr class=coderule>
+</pre>
+<dl compact>
+<dt>(a)
+<dd>
+[8]
+Write C++ code for the <code class=var>Insert</code>
+member function.
+<dt>(b)
+<dd>
+[2] What is time complexity of your code as a function
+of <clode class=var>CurrentSize</code>?
+</dl>
+<br><br>
+
+<li>
+<dl compact>
+<dt> (a)
+<dd>
+[3]
+The expected performance of chained hash tables is given by the
+equations:<br>
+<font align = center>
+<em class=var>
+S <sub>n</sub> = 1 + alpha/2<br>
+U <sub>n</sub> = (1 + alpha)/2
+</em></font>
+<br>
+where <em class=var>alpha</em> &gt;= 1 is the loading density
+<em class=var>n/b</em>, <em class=var>n</em> is the number
+of elements in the table, and <em class=var>b</em> is the number of buckets.
+Suppose that the hash function in use is division and that
+we expect to have at most
+81 elements in the hash table.
+What divisor do you recommend using so that
+<em class=var>
+S <sub>n</sub> &lt;= 4 and
+U <sub>n</sub> &lt;= 2
+</em>?
+<br>
+<dt> (b)
+<dd>
+[3]
+Draw a tree that represents a set of elements.  The depth of your tree should be
+at least 7.  Show the tree that results following the operation
+<code class=var>Find(e)</code>, where <code class=var>e</code> is an element
+at level 7 and we are using path compaction.
+<br>
+ <dt> (c)
+<dd>
+[4]
+Suppose you have a binary tree whose data fields are single characters.
+When the data fields of the nodes are output in inorder, the output is
+<code class=var>ABCDEFGHIJ</code>, and when they are output in postorder,
+the output is
+<code class=var>BDCAEHGJIF</code>.
+Draw the binary tree showing the data in each node and the pointers between
+nodes.
+</dl>
+</ol>
+
+
+<center>
+<A href="http:s97.htm">Solutions</A>
+
+</html>

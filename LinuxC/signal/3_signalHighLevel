@@ -1,0 +1,170 @@
+1 特定信号会引发进程生成核心转储文件并终止运行
+  核心转储文件:含有进程终止时的内存映像
+  将该内存映像加载到调试器中，可查明信号到达时程序代码和数据的状态
+  core文件默认创建于进程的工作目录中，名为core
+
+  不产生core文件的情况:p371
+  
+  prctl()的PR_SET_DUMPABLE操作，可以为进程设置dumpable标志
+  当非文件属主(属组)用户运行 set-user-id(set-group-id)程序时，会立刻生成core文件
+
+  /proc/PID/coredump_filter可以对写入core文件的内存映射类型实施 进程级控制
+  该文件的值为4位掩码，代表: 私有匿名映射，私有文件映射，共享匿名映射，共享文件映射
+  默认为: 仅针对私有匿名映射和共享匿名映射进行转储
+
+  为core文件命令 p372
+
+2 SIGKILL和SIGSTOP
+  SIGKILL默认终止进程  ---> 即使进程处于停止状态
+  SIGSTOP默认暂停进程
+  二者默认处理无法改变   ---> 用sigaction()去改变会返回错误
+  也不能将这两个信号阻塞
+
+3 SIGCOUNT:可让进程因收到 SGISTOP,SIGTSTP,SIGTTIN,SIGTTOU 而暂停 得以恢复运行
+  这是唯一恢复处于停止状态进程的方法
+
+4 进程的睡眠状态
+  a.TASK_INTERRUPTIBLE: 进程在等待某一事件，比如等待终端输入
+                        此状态时间可长可短
+                        若为其产生一个信号，则会中断等待，传递的信号将唤醒进程
+  b.TASK_UNINTERRUPTIBLE:进程在等待某些特定类型事件，比如磁盘IO
+                         通常时间比较短
+                         信号不会送达
+    进程也可能因为其他原因在此状态长时间挂起 ---> 信号无法送达 ---> SIGKILL无法终止挂起进程 --> 只能reboot来消灭该进程
+  c.TASK_KILLABLE  : 类似TASK_UNINTERRUPTIBLE，但可以接收SIGKILL
+
+5 硬件产生的信号
+  SIGBUS,SIGFPE,SIGILL,SIGSEGV
+  若程序从以上sigs的handler中正常返回，或者进程忽略或者阻塞这些sigs ---> 进程的行为将未定义
+  原因:
+   a.从handler中正常返回 ----> 从中断处恢复执行 ----> 再次引发信号，调用handler --> 无限循环
+   b.忽略或阻塞硬件产生的信号不符合情理
+  正确处理硬件信号的方式
+   a.接受信号的默认行为(term)
+   b.编写不正常返回的handler，比如调用_exit(),siglongjmp()
+
+6 信号的同步和异步生成
+  异步生成:引发信号产生的事件，其发生于目标进程的执行无关
+  信号同步生成的例子:会立即传递信号
+   a.进程自身造成硬件异常
+   b.使用raise(),kill(),killpg()给自身发信号
+
+7 异步信号的传递
+  a.时机
+    在信号产生到信号传递期间，信号处于pending状态
+    内核将pending信号传给进程的时机: 该进程正在执行，且发生由 内核态切换到用户态时 --> 比如系统调用完成时或者再次获得调度时
+    若进程调用sigprocmask()解除了阻塞信号，则这些信号会立即传递给进程
+  b.顺序
+    默认按照 信号的升序来传递信号
+    当多个解除了阻塞的信号正在 等待传递时，若当前signal handler执行期间发生了 内核态到用户态的切换(比如该handler发起了system call)，那么该handler会被中断，转而去调用第二个信号handler
+
+8 signal()的历史遗留毛病: p376
+  signal()适用于将signal handler设为SIG_IGN,SIG_DFL ---> 具有良好的可移植性
+  但还是应该坚持使用sigaction
+
+9 实时信号
+  弥补对标准信号的种种限制
+  优势:
+   a.信号范围扩大，应用程序可自行定义使用，
+     标准信号中只有SIGUSR1和SIGUSR2可供应用程序随意使用
+   b.队列化管理。如果某一信号的多个实例发送给进程，即使处于pending状态，稍后也会依依传递给进程
+   c.信号可伴随其他数据发给handler使用
+   d.不同实时信号的传递顺序得到保证
+     信号编号越小，优先级越高，越优先传递
+   
+   相关系统常量:
+   SIGRTMIN 和 SIGRTMAX --->可用实时信号的边界  ---> 不一定是简单整数值 --> 可能为函数 --> #if SIGRTMIN+100 > SIGRTMAX可能也就会编译不通过
+   RTSIG_MAX ---> 实时信号的可用数量
+   指代实时信号编号时应采用: SIGRTMIN+x的形式
+
+   排队的实时信号需要内核维护专门的数据结构 --> 记录每个进程的排队信号 --> 会消耗内核内存 --> 需要为排队的实时信号数量进行限制
+   上限值:#define SIGQUEUE_MAX  N
+   或者  : lim = sysconf(_SC_SIGQUEUE_MAX) 获取上限值
+   
+10 发送实时信号  --- 伴随数据
+   #define _POSIX_C_SOURCE 199309
+   int sigqueue(pid_t pid, int sig, const union sigval data)
+   类似kill
+  union sigval{
+    int sival_int;
+    void* sival_ptr;       -->使用较少。因为指针的作用在进程内部，对另一进程毫无意义
+  }
+  一旦触及排队信号上限，就会调用失败，置errno为EAGIN，以示稍后再次发送
+
+11 为RTsignal install handler
+   信号指定: SIGRTMIN+x
+   要加上SA_SIGINFO标志 -->  handler才能获取信号的附加信息
+   此时handler的声明
+   void handler(int sig, siginfo_t siginfo, void* ucontext)
+   对于RTsignal，会在siginfo设置如下字段
+    a.si_signo  -> sig编号
+    b.si_code   -> sig来源，若是来于sigqueue,则为 SI_QUEUE(-1)
+    c.si_value  -> data
+    d.si_pid,si_uid
+   例子:
+    struct sigaction act;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_RESTART | SA_SIGINFO;
+    if(sigaction(SIGRTMIN+x,&act,NULL) == -1)
+      xxx
+   
+12 考虑场景:
+   1.临时阻塞一个信号，防止其中断某些关键代码片段
+   2.解除信号阻塞，暂停执行，直到信号到来
+   实现:
+    1.构造信号掩码blockMask,将要阻塞的信号加入其中，通过sigprocmask将其合并到进程的信号掩码中
+      sigset_t blockMask,preMask;
+      sigemptyset(&blockMask);
+      sigaddset(&blockMask,SIGXXX);
+      sigprocmask(SIG_BLOCK,&blockMask,preMask);
+
+    2.执行关键代码
+
+    3.恢复到之前的信号掩码 --> 解除阻塞
+      sigprocmask(SIG_BLOCK,&preMask,NULL);
+
+    4.暂停程序执行，等待信号到来 
+      pause()
+   
+   可能出错的点:
+    SIGXXX在34之间到来，调用handler，正常返回执行pause,又需要等待SIGXXX到来 --> handler与主程序代码争抢第一个SIGXXX
+    本意为:解除SIGXXX阻塞并等待其 第一次出现
+
+   解决:解除信号阻塞和进程挂起等待封装成一个原子操作 ---> sigsuspend
+   int sigsuspend(const sigset_t* mask);
+   用mask替换进程的signal mask,然后挂起进程，直到进程捕获到信号，从handler返回后，恢复进程的signal mask
+   若sigsuspend因为信号的传递而中断，返回-1,置errno=EINTR
+               若mask无效。errno=EFAULT
+
+13 以同步方式等待信号
+   int sigwaitinfo(const sigset_t* set, siginfo_t* info)
+   挂起进程，直到set中的某一信号抵达
+   若调用时，set中的某一信号已经在pending，则sigwaitinfo立刻返回
+   会将传递来的信号从 pending signal set中移除，将 信号编号 作为函数结果
+   相比使用sigsuspend等待信号的到来的优势
+    a.不用编写handler 来设置全局标志位，以示信号已经到达
+    b.快一点
+   
+   调用sigwaitinfo但没有阻塞set中的信号将导致不可预知的行为
+   
+   限时版:
+   int sigtimewait(const sigset_t* t, const struct timespec* timeout)
+   timeout表示等待的最大时长
+   struct timespec{
+     time_t tv_sec;    //seconds
+     long   tv_nsec;  //Nanoseconds
+   }
+   超时后，返回-1,errno=EAGAIN
+
+14 通过fd获取信号
+   int signalfd(int fd, const sigset_t* mask, int flags)
+   发送给 signalfd调用者 的信号，可从fd中用read()获取
+   类似sigwaitinfo(),也应该先用sigprocmask()阻塞mask中的所有信号 --> 确保在read这些信号之前，不会对他们进行默认处置
+
+   若fd为-1，则创建一个新的fd
+   
+   flags:
+    a.SFD_CLOEXEC:为新的fd设置close-on-exec
+    b.SFD_NONBLOCK :设置O_NONBLOCK,以确保不会阻塞未来的读操作。----> 省去通过fcntl()的F_SETFL来设置该标志
+
+   读取的每个信号结构为: signalfd_siginfo p391

@@ -1,0 +1,59 @@
+
+1.Three IPC objects 
+  1)Message queue 
+    It's somewhat like pipes,but differ in two important respects
+    a.Message boundaries are preserved
+      It enables the communication in unit of message,rather than the undelimited byte stream
+    b.Each message includes an integer type field
+      It enables the reader to select messages by type rather than the order in which they are written 
+  
+  2)Semaphore 
+    It's a kernel-maintained integer which is used to synchronize multiple processes's actions
+    It's visiable to all processes that have the necessary permissions
+  
+  3)Shared memory
+    It enables multiple processes to share the same region of the memory(The same frames are mapped into the virtual memory of multiple processes)
+    It's the quickest IPC method --> Once a process has updated the shared memory,then the change is made visiable to other processes that share the region
+
+2.Summary of System V IPC programing interfaces can be seen in pdf 922
+
+3.Each System V IPC mechanism has an associate xxget() sysCall(msgget(),semget(),shmget())
+  Given an integer key,the xxget() either
+  1)creates new IPC object with the given key and returns the unique id of the object
+  2)returns the id of the object with the given key.
+  The xxget() converts the key to the id 
+
+  An IPC id is analogous to fd. They can be used in subsequent calls to refer to some object(IPC object,file)
+  But they differ in the following objects
+   1)fd is process attribute while an IPC id is a property of the IPC obeject itself and is visiable system-wide
+     All processes access the same object using the same id ---> the id can be got by xxget() or other ways --> process writes the id into a file and process B reads it
+   2)Permissions
+     We specify the permissions on the newly created IPC object using the same bit-mask constants as are used for files --> S_IRUSR,S_IWUSR
+     But the process umask is not applied to permissions placed on newly created IPC object
+     IPC_CREAT is similar to O_CREAT
+
+4.Each System V IPC mechanism has an associated xxctl() sysCall(msgctl(),semctl(),shmctl())
+  They perform a range of control operations on the objects
+  A generic operation is IPC_RMID which is used to delete an object
+  For message queue and semaphore,the deletion of IPC obejct is immediate and any information contained in the object is destroyed,regardless of other process that is still using it
+  Even if we remove the last link to file,the file is actually removed when all open fds referring to the file have been closed
+  The shared memory segment is removed when all processes using it have detached it 
+
+5.System V IPC object has kernel persistence
+  Once created,an object continues to exist when it's explicitly deleted or the system is shutdown
+  The advantage of this property is that,it allows a process to create an object,modify its state,and exit,leaving the object to be accessed by other processes that are started later
+  The disadvantage:
+   a.There are system-imposed limits on the number of the objects
+     If we fail to delete the objects,then we may eventually encounter the app errors as a result of reaching the limits
+  b.When deleting a message queue or semaphore, a multiprocess app may not easily determine which is the last process requiring access to the object and thus when the object is safely deleted
+
+6.Each object is identified by an unique id
+  The xxget() calls convert the given key to the id
+  Internally,the kernel maintains structures mapping keys to ids for each IPC mechanism 
+  If we can give the unique key then we could get the unique id
+  Two ways to provide unique key 
+   a.Specify the IPC_CREATE as the key when using xxget() to create new IPC object which is guartaneed to have the unique key
+     In this case, IPC_CREAT and IPC_EXCL flags are not necessary
+   b.Use ftok()
+     key_t ftok(char* pathname,int proj);
+

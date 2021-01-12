@@ -1,0 +1,145 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 19, Exercise 23<BR>
+<BR>
+</H1>
+First let use try the divide-and-conquer method.
+We use the term <strong>block</strong> to denote
+a consecutive subset of the <code class=var>x<sub>i</sub></code>s.
+For example,
+<code class=var>x<sub>j</sub></code>,
+<code class=var>x<sub>j+1</sub></code>,
+<code class=var>...</code>,
+<code class=var>x<sub>k</sub></code>,
+denotes a block.
+<br><br>
+If <code class=var>n = 1</code>, there is only
+one block. This block is the block with maximum sum.
+If <code class=var>n &gt; 1</code>, divide the elements into two
+groups; one group has <code class=var>ceil(n/2)</code> elements
+and the other has the remaining elements. For each group, find the block
+with maximum sum recursively.
+The block with overall maximum sum is either one of these two blocks or
+is a block that spans the two groups.
+The maximum sum block that spans the two groups is comprised of two
+parts: a max subblock that ends at the right end of the left group
+and a max subblock that begins at the left of the right subgroup.
+Suppose that the left group ends at <code class=var>x<sub>q</sub></code>.
+The max subblock that ends at <code class=code>x<sub>q</sub></code>
+can be found in linear time by computing
+the sums <code class=var>s(i) = x<sub>i</sub> + x<sub>i+1</sub> + ... + x<sub>q</sub></code>
+for <code class=code>i = 0, 1, 2, ..., q</code>, and then taking
+the max of these
+sums.
+The max subblock that begins at <code class=code>x<sub>q+1</sub></code>
+can be found similarly. The two max sublocks are combined to get the
+max subblock that spans the two groups.
+<br><br>
+To make the analysis easy, assume that <code class=var>n</code> is a power of
+<code class=var>2</code>.
+Let <code class=var>t(n)</code> denote the time complexity.
+We see that <code class=var>t(n) =
+2t(n/2)+cn</code> when <code class=var>n &gt;= 2</code>.
+This is the same equation as for merge sort.
+Therefore,
+<code class=var>t(n) = O(n log n)</code>.
+<br><br>
+Next consider a dynamic programming formulation. Let <code class=var>s(i)</code>
+be the maximum sum of any block of
+<code class=var>x<sub>i</sub></code>,
+<code class=var>x<sub>i+1</sub></code>,
+<code class=var>...</code>,
+<code class=var>x<sub>n</sub></code>.
+We see that
+<code class=var>s(1) = max{sum(i,j)}</code>.
+<br><br>
+First we make the following observations
+<ol>
+<li>
+<code class=var>s(n) = x<sub>n</sub></code>.
+<li>
+For <code class=var>i &lt; n</code>, <code class=var>s(i)</code>
+is either the sum of a block that begins with <code class=var>x<sub>i</sub></code>
+(i.e., <code class=var>s(i) = sum(i,j)</code> for some <code class=var>j &gt;= i</code>),
+or
+it is the sum of a block that does not include <code class=var>x<sub>i</sub></code> (i.e., <code class=var>s(i) = s(i+1)</code>).
+</ol>
+<br><br>
+These observations lead to
+the following dynamic programming recurrence:
+<br>
+<code class=var>
+(1) s(n) = x<sub>n</sub> <br>
+(2) s(i) = max{maxSum(i), s(i+1)}
+</code>
+<br>
+where <code class=var>maxSum(i) = max{sum(i,j) | j &gt;= i}</code>.
+Equations (1) and (2) yield
+<br>
+(3) <code class=var>s(1) = max{maxSum(i)}</code>
+<br><br>
+For <code class=var>maxSum(i)</code> make the following observations:
+<ol>
+<li>
+<code class=var>maxSum(n) = x<sub>n</sub></code>
+<li>
+Let <code class=var>i &lt; n</code>. <code class=var>maxSum(i) =
+x<sub>i</sub></code> whenever <code class=var>maxSum(i+1) &lt;= 0</code>
+and
+<code class=var>maxSum(i) =
+x<sub>i</sub> + maxSum(i+1)</code> otherwise.
+</ol>
+These observations result in the following dynamic programming recurrence
+for <code class=var>maxSum</code>:
+<br><code class=var>
+(4) maxSum(n) = x<sub>n</sub><br>
+(5) maxSum(i) = max{x<sub>i</sub>, x<sub>i</sub> + maxSum(i+1)}, i &lt; n</code>
+<br><br>
+We may determine the block with maximum sum as follows:
+<dl>
+<dt><strong>Step 1</strong>
+<dd>
+Set <code class=var>maxSum(n) = x<sub>n</sub></code>.<br>
+This takes <code class=var>O(1)</code> time.
+<dt><strong>Step 2</strong>
+<dd>
+Compute <code class=var>maxSum(i)</code> for 
+<code class=var>i = n-1, n-2, ..., 1</code>, in that order,
+using Equation (5).<br>
+This takes <code class=var>O(n)</code> time.
+<br><br>
+<dt><strong>Step 3</strong>
+<dd>
+Use Equation (3) to compute <code class=var>s(1)</code>.<br>
+This takes <code class=var>O(n)</code> time.
+<br><br>
+<dt><strong>Step 4</strong>
+<dd>
+The block whose sum equals <code class=var>s(1)</code> is determined
+in the following way. Let <code class=var>k</code> be
+such that
+<code class=var>s(1) = maxSum(k)</code>. The block with
+maximum sum begins at <code class=var>x<sub>k</sub></code>.
+To find the block end, find the least <code class=var>j &gt;= i</code>
+such that
+<code class=var>sum(k,j)
+= maxSum(k)</code>.
+<br>
+The time required for this is
+<code class=var>O(n)</code>.
+</dl>
+<br><br>
+From the above description and analysis, we see that the overall complexity
+is <code class=var>O(n)</code>.
+
+
+</FONT>
+</BODY>
+</HTML>

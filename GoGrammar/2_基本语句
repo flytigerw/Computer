@@ -1,0 +1,54 @@
+
+1.Go中的switch语句
+  特殊点:
+  1)swtich有两种类型
+    a.表达式swtich
+      进行值匹配
+    b.类型switch
+      进行类型匹配  调用 .(type)函数
+      比如:
+      swithc i := x.(type){
+        case nil:
+        case int:
+        default:
+      }
+  2)命中一个case后，执行完相关语句后会 自动break
+    可以手动调用fallthrough将控制权交给下一个case
+  3)case中可以容纳多个值
+    case gade == "c",grade == "d"
+
+2.select语句
+  用于多个channel的并发读写操作
+  随机选择一个case,查看channel操作是否可行
+  a <- 1
+  b <- 2
+  select{
+    case <-a:
+      //a可以读
+    case <-b:
+      //b可以读
+  }
+ 
+3.Go语言只有for循环语句   没有while语句
+  1)普通版: 
+    for i:=1;i<10;i++{
+		do something
+	}
+  2)range遍历
+    for k,v := range x{
+	    do something
+	}
+	k,v键值对的类型取决于x
+	
+	x	    	k		v 
+	string	 index	 string[index]-->返回rune
+	slice	   index	 slice[index]
+	map		    key	  	map[key]
+	channel   element
+
+4.defer语句
+  延迟调用指定函数 ----> 在函数最后执行 ----> 主要用于资源回收，清理收尾工作
+  函数中的所有defer语句会形成函数栈，会在函数返回前前逆序调用
+
+5.break语句
+  特点:可以加标签，跳转到指定标签处

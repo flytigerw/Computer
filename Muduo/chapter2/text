@@ -1,0 +1,29 @@
+1.线程同步的四项原则
+  1)尽量使用shared resources,减少同步的场合
+    线程A中的对象能不暴露给线程B就不要暴露.
+    如果要暴露，优先考虑immutable对象
+    实在不行，才采用同步措施进行保护
+  2)使用高级的并发编程构件
+    TaskQueue,Producer-Consumenr Queue
+  3)若要使用底层的同步primitives,只使用非递归地mutex和条件变量
+    慎用读写锁，不用semaphore
+  
+2.使用mutex保护shared resources 
+  1)使用RAII封装mutex的创建，销毁，加锁，解锁操作
+    RAII:在构造函数申请资源，在析构函数中释放资源
+  2)只用non-recursive mutex
+  3)不手工调用lock()和unlock()
+    交给Guard对象的ctor和dctor
+    Guard对象的生命期应正好等于临界区
+
+{ //critical section
+  Guard  g;
+  //acess shared resources 
+  ....
+}
+   以此来保证在同一个函数里的同一个scope中对某mutex进行lock()和unlock()
+   4)在函数栈上构造Guard对象时，查看调用栈上已经持有的锁
+     防止因加锁顺序而导致死锁
+   
+3.Linux的Pthreads采用futex ----> 不必每次lock和unlock都进行系统调用 ---> 稍微的性能替身
+  

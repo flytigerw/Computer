@@ -1,0 +1,42 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 55, Exercise 1<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt> (a)
+<dd>
+When <code class=var>n &gt; 0</code>,<br>
+<code class=var>t(n) = (sum from j=0 to n-1) [t(j)] + n<br>
+= t(n-1) + (sum from j=0 to n-2) [t(j)] + n<br>
+= t(n-1) + t(n-1) - (n-1) + n<br>
+= 2t(n-1) + 1</code>
+
+<br><br>
+
+<dt> (b)
+<dd>
+Using the substitution method, we get<br>
+<code class=var>t(n) = 2t(n-1) + 1<br>
+= 2[2t(n-2) + 1] + 1<br>
+= 4t(n-2) + 2 + 1<br>
+= 4[2t(n-3) + 1] + 2 + 1<br>
+= 8t(n-3) + 4 + 2 + 1<br>
+.<br>
+.<br>
+.<br>
+= 2<sup>n</sup>t(0) + 2<sup>n-1</sup> + ... + 2<sup>2</sup> + 2<sup>1</sup> + 1<br>
+= 2<sup>n</sup>c + 2<sup>n</sup> - 1<br>
+= O(2<sup>n</sup>)</code>
+
+</FONT>
+</BODY>
+</HTML>

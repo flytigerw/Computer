@@ -1,0 +1,34 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 7<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+The code for the function <code class=code>mismatch</code>
+is given below and in the file <code class=code>mismatch.cpp</code>.
+<br>
+<hr class=coderule>
+<pre class=code>
+template &lt;class T&gt;
+int mismatch(T* a, T* b, int n)
+{// Return smallest i such that a[i] != b[i].
+ // Return n if no such i.
+   for (int i = 0; i &lt; n; i++)
+      if (a[i] != b[i])
+         return i;
+
+   // no mismatch
+   return n;
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

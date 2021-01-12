@@ -1,0 +1,169 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Applications of Graphs<br>
+With Negative Edge Costs<BR>
+<BR>
+</H1>
+
+<H3>
+Difference Equations
+</H3>
+An important application of graphs with negative cost edges
+and of the Bellman-Ford algorithm is in the
+solution of a system of difference equations.
+Such a system comprises <code class=var>m</code> equations
+of the form
+<center>
+<code class=var>x<sub>i</sub>-x<sub>j</sub> &lt;= c<sub>q</sub></code>
+</center>
+where
+<code class=var>x<sub>i</sub></code> and <code class=var>x<sub>j</sub></code> are
+variables and <code class=var>c<sub>q</sub></code> is a constant.
+<br><br>
+A <code class=var>4</code> variable system with <code class=var>6</code> equations is given below.
+<center>
+<code class=var>x<sub>1</sub> - x<sub>2</sub> &lt;= -2<br>
+x<sub>1</sub> - x<sub>3</sub> &lt;= -6<br>
+x<sub>3</sub> - x<sub>4</sub> &lt;= 5<br>
+x<sub>3</sub> - x<sub>2</sub> &lt;= 4<br>
+x<sub>2</sub> - x<sub>4</sub> &lt;= 1<br>
+x<sub>4</sub> - x<sub>1</sub> &lt;= 1<br></code>
+</center>
+One application of a system of difference equations is in event
+scheduling.  Suppose we are to schedule four related events such that
+event <code class=var>2</code> takes place at least two days after event <code class=var>1</code>;
+event <code class=var>3</code> takes place at least <code class=var>6</code> days after event <code class=var>1</code>;
+event <code class=var>4</code> takes place no more than <code class=var>5</code> days before event <code class=var>3</code>;
+event <code class=var>2</code> takes place no more than <code class=var>4</code> days before event <code class=var>3</code>;
+event <code class=var>4</code> takes place no more than <code class=var>1</code> day before event <code class=var>2</code>;
+and
+event <code class=var>1</code> takes place no more than <code class=var>1</code> day before event <code class=var>4</code>.
+If we let <code class=var>x<sub>i</sub></code> denote the time
+when event <code class=var>i</code> takes place, then the
+<code class=var>x<sub>i</sub></code>s must satisfy the
+<code class=var>4</code> variable system with <code class=var>6</code> equations given above.
+In fact, any assignement of nonnegative integers to
+the
+<code class=var>x<sub>i</sub></code>s that satisfies all
+<code class=var>6</code> equations defines a valid schedule for the <code class=var>4</code> events.
+<br><br>
+We can transform any system of difference equations into a weighted
+digraph as follows.
+<OL>
+<LI>
+The weighted digraph has one vertex for each variable
+plus an additional vertex.
+<LI>
+There is a directed edge from this additional
+vertex to each of the remaining vertices.
+The weight of each of these edges is zero.
+<LI>
+For each equation
+<code class=var>x<sub>i</sub> - x<sub>j</sub> &lt;= c<sub>q</sub></code>,
+there is a directed edge from the vertex that represents
+<code class=var>x<sub>j</sub></code>
+to the one that represents
+<code class=var>x<sub>i</sub></code>
+The weight of this edge is
+<code class=var>c<sub>q</sub></code>.
+</OL>
+We shall show shortly that the constructed digraph has a
+negative-length cycle iff the system of difference equations it
+is constructed from has no solution.  Further, the lengths of the shortest
+paths from the additional vertex to the remaining vertex define
+a feasible solution when the digraph has no cycle of negative length.
+<br><br>
+For our <code class=var>4</code> variable <code class=var>6</code> equation example, we let vertex <code class=var>i</code>
+represent variable
+<code class=var>x<sub>i</sub>, 1 &lt;= i &lt;= 4</code>
+and we let vertex <code class=var>5</code> be the additional vertex.  The directed edges and their
+costs are <code class=var>{(5,1,0), (5,2,0), (5,3,0), (5,4,0), (2,1,-2), (3,1,-6),
+(4,3,5), (2,3,4), (4,2,1), (1,4,1)}</code>, where the triple <code class=var>(u,v,c)</code>
+denotes the directed edge from vertex <code class=var>u</code> to
+vertex <code class=var>v</code> whose cost is <code class=var>c</code>.
+<br><br>
+Running the Bellman-Ford algorithm on the constructed digraph
+the lengths of the shortest paths from vertex <code class=var>5</code> to vertices <code class=var>1, 2, 3</code>, and <code class=var>4</code>
+are determined to be <code class=var>-6, -4, 0</code>, and <code class=var>-5</code>.
+The assignment <code class=var>x<sub>1</sub> = -6</code>,
+<code class=var>x<sub>2</sub> = -4</code>,
+<code class=var>x<sub>3</sub> = 0</code>, and
+<code class=var>x<sub>4</sub> = -5</code> satisfies the <code class=var>6</code> equations of our
+difference system.  From this assignment, we may obtain other assignments by
+adding any constant to all
+<code class=var>x<sub>i</sub></code>s.
+For example, by adding <code class=var>6</code>, we get the assignment
+<code class=var>x<sub>1</sub> = 0</code>,
+<code class=var>x<sub>2</sub> = 2</code>,
+<code class=var>x<sub>3</sub> = 6</code>, and
+<code class=var>x<sub>4</sub> = 3</code>.  Since all times are now nonnegative,
+we can use this assignment as a schedule for the <code class=var>4</code> events.
+<br><br>
+
+<strong class=var>Theorem</strong>
+<OL>
+<LI>
+The constructed digraph has a negative-length cycle iff the 
+system of difference equations it is constructed from has no solution.
+<LI>
+If the system has a solution, then the lengths of the shortest paths from
+the additional vertex to the remaining vertices defines a solution.
+</OL>
+<br>
+<strong class=var>Proof</strong>
+<OL>
+<LI>
+Suppose that the constructed digraph has a negative-length cycle
+<code class=var>C</code>.
+Without loss of generality, we may assume that this cycle is <code class=var>1, 2, 3, ...,</code>
+<code class=var>u</code>, <code class=var>1</code>
+where vertex <code class=var>i</code> represents
+variable <code class=var>x<sub>i</sub>, 1 &lt;= i
+&lt;= u</code>.  Note that the additional vertex is on no
+cycle because it has no incoming edge.
+The edge <code class=var>(i,i+1)</code> represents the equation
+<code class=var>x<sub>i+1</sub> - x<sub>i</sub> &lt;= cost(i,i+1)</code>,
+and the edge
+<code class=var>(u,1)</code> represents the equation
+<code class=var>x<sub>1</sub> - x<sub>u</sub> &lt;= cost(u,1)</code>.
+Adding up both sides of the equations represented by the
+edges on the negative-length cycle <code class=var>C</code>,
+we see that all variables cancel out on the left side to yield a left-side
+sum of zero.  The sum of the right sides is the sum of the edge costs
+on the cycle.  Since this sum is negative, adding the equations yields the
+equation
+<center>
+<code class=var>0 &lt;= sum of edge costs &lt; 0</code>
+</center>
+which is a false statement.  Therefore, no assignment to the
+<code class=var>x<sub>i</sub></code>s can satisfy the given equations.
+<br><br>
+The fact that if the system has no solution then the digraph has a
+negative-length cycle is established in a similar way.
+<LI>
+We may assume the digraph has no negative-length cycle.
+Consequently, there is a shortest path from the additional vertex
+to each of the remaining vertices.  Let <code class=var>d(i)</code>
+be the length of the shortest path from the additional vertex to the vertex
+<code class=var>i</code> that represents variable <code class=var>x<sub>i</sub></code>.
+Let
+<code class=var>x<sub>i</sub>-x<sub>j</sub> &lt;= c<sub>q</sub></code>
+be any equation in the given system.
+From the definition of <code class=var>d()</code> it follows that
+<code class=var>d(i) &lt;= d(j) + cost(j,i) = d(j) + c<sub>q</sub></code>.
+Therefore,
+<code class=var>d(i) - d(j) &lt;= c<sub>q</sub></code>.
+Hence setting <code class=var>x<sub>i</sub> = d(i)</code>
+for all <code class=var>i</code> results in an assignment that
+satisfies all equations.
+</OL>
+
+</FONT>
+</BODY>
+</HTML>

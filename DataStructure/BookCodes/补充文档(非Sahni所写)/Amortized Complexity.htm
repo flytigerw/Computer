@@ -1,0 +1,1280 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Amortized Complexity<br>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+
+<a href = "#what">What is Amortized Complexity?</a>
+<br>
+<a href = "#examples">Examples</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#contract">Maintenance Contract</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#widget">The McWidget Company</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#subset">Subset Generation</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#stacks">Array Stacks and Queues</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#union">Union-Find</a>
+<br>
+&nbsp &nbsp &nbsp <a href = "#cars">Rearranging Railroad Cars</a>
+<br>
+<a href = "#exercises">Exercises</a>
+<br>
+<a href = "#further">Further Reading</a>
+<br><br>
+<a name = "what"></a>
+<font color=blue><big><big>What is Amortized Complexity?</big></big></font><br>
+
+The complexity of a method or operation, as defined in
+Chapter 2 of the text, is the <strong>actual complexity</strong> of the
+method/operation. The actual complexity of an operation
+is determined by the step count
+for that operation, and the actual complexity of a sequence of operations
+is determined by the step count for that sequence. The actual
+complexity of a sequence of operations may be determined
+by adding together the step counts for the individual
+operations in the sequence.
+Typically, determining the step count for each operation in the sequence is
+quite difficult, and instead, we obtain an upper bound on
+the step count for the sequence
+by adding together the worst-case step count for each operation.
+
+<br><br>
+<hr class=code>
+<font color=blue>Example</font>
+Consider the method <code class=code>insert</code> of Program 2.10.
+This method inserts an element into a sorted array, and its step count ranges
+from a low of <code class=code>4</code> to a high of
+<code class=code>2n+4</code>, where <code class=code>n</code> is the
+number of elements already in the array.
+Suppose we perform <code class=code>5</code> insert operations
+beginning with <code class=code>n = 0</code>.
+Further, suppose, that the actual step counts for these insert operations
+are <code class=var>4, 4, 6, 10,</code> and <code class=var>8</code>,
+respectively. The actual step count for the sequence of insert operations
+is <code class=var>4 + 4 + 6 + 10 + 8 = 32</code>.
+If we did not know the actual step count for the individual operations,
+we could obtain an upper bound on the actual step count for the operation
+sequence using
+one of the following two approaches.
+<ol>
+<li>
+Since the worst-case step count for an insert operation is
+<code class=code>2n+4</code>, <code class=var>sum<sub>0 &lt;= i &lt;= 4</sub>(2i+4) = 
+4 + 6 + 8 + 10 + 12 = 40</code> is an upper bound on the step count for the
+sequence of <code class=var>5</code> inserts.
+<li>
+The maximum number of elements already in the array at the time an insert
+operation begins is <code class=var>4</code>. Therefore, the
+worst-case step count of an insert operation is <code class=var>2*4+4 = 12</code>.
+Therefore, <code class=var>5*12 = 60</code> is an upper bound on the step
+count for the sequence of <code class=var>5</code> inserts.
+</ol>
+<hr class=code>
+<br><br>
+In the preceding example,
+the upper bound obtained by the first approach is closer to the
+actual step count for the operation sequence.
+We say that the count obtained by the first approach is a
+<strong>tighter</strong>
+(i.e., closer to the real count) upper bound than that obtained
+by the second approach.
+<br><br>
+When determining the complexity of a sequence of operations, we can, at times,
+obtain tighter bounds using <strong>amortized complexity</strong>
+rather than worst-case complexity.
+Unlike the actual and worst-case complexities of an operation
+which are closely related to the step count for that operation, the
+amortized complexity of an operation is an accounting artifact that often
+bears no direct relationship to the actual complexity of that operation.
+The amortized complexity of an operation could be anything. <em>The
+only requirement
+is that the sum of the amortized complexities of all operations in the sequence
+be greater than or equal to the sum of the actual complexities.</em> That is
+<br>
+<code class=var>(1) &nbsp &nbsp; &nbsp; sum<sub>1 &lt;= i &lt;= n</sub>amortized(i) &gt;=
+sum<sub>1 &lt; = i &lt;= n</sub>actual(i)</code>   
+<br><br>
+where <code class=var>amortized(i)</code> and <code class=var>actual(i)</code>,
+respectively, denote the amortized and actual complexities of the
+<code class=var>i</code>th operation in a sequence of <code class=var>n</code>
+operations.
+Because of this requirement on the sum of the amortized complexities of the
+operations in any sequence of operations, we may use the sum of the amortized
+complexities as an upper bound on the complexity of any sequence of operations.
+<br><br>
+You may view the amortized cost of an operation as being the amount you charge
+the operation rather than the amount the operation costs. You can charge an
+operation any amount you wish so long as the amount charged to all operations
+in the sequence is at least equal to the actual cost of the operation sequence.
+
+<br><br>
+Relative to the actual and amortized costs of each operation in a sequence
+of <code class=var>n</code> operations, we define a <strong>potential
+function</strong> <code class=var>P(i)</code> as below
+<br>
+<code class=var>(2) &nbsp; &nbsp; &nbsp; P(i) = amortized(i) - actual(i) + P(i-1)</code>
+<br><br>
+That is, the <code class=var>i</code>th operation causes
+the potential function to change by the difference between the amortized
+and actual costs of that operation.
+If we sum Equation (2) for <code class=var>1 &lt;= i &lt;= n</code>, we get
+<br>
+<code class=var>sum <sub>1 &lt;= i &lt;= n</sub>P(i) = sum <sub>1 &lt;= i &lt;= n</sub>(amortized(i) - actual(i) + P(i-1))</code>
+<br>
+or
+<br>
+<code class=var>sum <sub>1 &lt;= i &lt;= n</sub>(P(i) - P(i-1)) = sum <sub>1 &lt;= i &lt;= n</sub>(amortized(i) - actual(i))</code>
+<br>
+or
+<br>
+<code class=var>P(n) - P(0) = sum <sub>1 &lt;= i &lt;= n</sub>(amortized(i) - actual(i))</code>
+<br><br>
+From Equation (1), it follows that
+<br>
+<code class=var>(3) &nbsp; &nbsp; &nbsp; P(n) - P(0) &gt;= 0</code>
+<br><br>
+Under the assumption that <code class=var>P(0) = 0</code>, the potential
+<code class=var>P(i)</code> is the amount by which the first
+<code class=var>i</code> operations have been overcharged (i.e., they have
+been charged more than their actual cost).
+<br><br>
+Generally, when we analyze the complexity of a sequence of <code class=var>n</code> operations, <code class=var>n</code> can be any nonnegative integer.
+Therefore, Equation (3) must hold for all nonegative integers.
+<br><br>
+The preceding discussion leads us to the following three methods to arrive at
+amortized costs for operations:
+<ol>
+<li>
+<font color=blue>Aggregate Method</font><br>
+In the aggregate method, we determine an upper bound <code class=var>UpperBoundOnSumOfActualCosts(n)</code>
+for the sum
+of the actual costs of the
+<code class=var>n</code> operations.
+The amortized cost of each operation is set equal to
+<code class=var>UpperBoundOnSumOfActualCosts(n)/n</code>.
+You may verify that this assignment of amortized costs
+satisfies Equation (1) and is, therefore, valid.
+<br><br>
+<li>
+<font color=blue>Accounting Method</code><br>
+In this method, we assign amortized costs to the operations
+(probably by guessing what assignment will work), compute
+the <code class=var>P(i)</code>s using Equation (2), and show
+that <code class=code>P(n)-P(0) &gt;= 0</code>.
+<br><br>
+<li>
+<font color=blue>Potential Method</code><br>
+Here, we start with a potential
+function (probably obtained using good guess work)
+that satisfies Equation (3),
+and compute the amortized complexities
+using Equation (2).
+</ol>
+
+<br><br>
+Although, at this time, you may feel most comfortable with the aggregate method.
+this method is often the hardest to use because it is often quite difficult
+to obtain a bound on the aggregate actual cost that is smaller than the bound
+obtained by using the worst-case cost of each operation in the sequence.
+The accounting method is intuitive (we simply verify that the sum
+of the amortized costs is at least equal to the sum of the actual costs)
+and often results in tight bounds on the complexity of a sequence of operations.
+The potential method is often the hardest to use (because of the
+difficulty of determining the proper potential function to use),
+but for some applications
+remains the only way to obtain tight complexity bounds.
+
+<a name = "examples"></a>
+<br><br><font color=blue><big><big>Examples</big></big></font><br>
+<br><br>
+<a name = "contract"></a>
+<font color=blue><big>1. Maintenance Contract</big></font><br>
+<font color=blue>Problem Definition</font><br>
+In January,
+you buy a new car
+from a dealer who offers you the following maintenance
+contract: <code class=var>$50</code> each month other than March, June,
+September and
+December (this covers an oil change and general inspection),
+<code class=var>$100</code> every March, June, and September
+(this covers an oil change, a
+minor tune-up, and a general inspection), and
+<code class=var>$200</code> every
+December (this covers an oil change, a
+major tune-up, and a general inspection).
+We are to obtain an upper bound on the cost of this maintenance
+contract as a function of the number of months.
+<br><br>
+<font color=blue>Worst-Case Method</font><br>
+Using the ideas developed in Chapter 2, we can bound the contract cost
+for the first <code class=var>n</code> months by taking the product
+of <code class=var>n</code> and the maximum cost incurred in any month
+(i.e., <code class=var>$200</code>). This would be analagous to
+the traditional way
+to estimate the complexity--take the product of the number of operations and the
+worst-case complexity of an operation.
+Using this approach, we get <code class=var>$200n</code> as an upper
+bound on the
+contract cost. The upper bound is correct because the actual cost
+for <code class=var>n</code> months does not exceed <code class=var>$200n</code>.
+<br><br>
+<font color=blue>Aggregate Method</font><br>
+To use the aggregate method for amortized complexity, we first
+determine an upper bound on the sum of the costs for the first
+<code class=var>n</code> months. As tight a bound as is possible is desired.
+The sum of the actual monthly costs of the contract for
+the first <code class=var>n</code> months is<br>
+<code class=var>
+200*floor(n/12) + 100*(floor(n/3) - floor(n/12)) + 50*(n - floor(n/3))<br>
+= 100*floor(n/12) + 50*floor(n/3) + 50*n<br>
+&lt;= 100*n/12 + 50*n/3 + 50*n<br>
+= 50n(1/6 + 1/3 + 1)<br>
+= 50n(3/2)<br>
+= 75n</code>
+<br><br>
+The amortized cost for each month is set to <code class=var>$75</code>.
+The table below shows the actual costs, the amortized costs,
+and the potential function value (assuming <code class=var>P(0) = 0</code>)
+for the first <code class=var>16</code> months of the contract.
+<br><br>
+<pre class=figure>
+month          |  1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16
+actual cost    | 50  50 100  50  50 100  50  50 100  50  50 200  50  50 100  50
+amortized cost | 75  75  75  75  75  75  75  75  75  75  75  75  75  75  75  75
+P()            | 25  50  25  50  75  50  75 100  75 100 125   0  25  50  25  50
+</pre><br><br>
+Notice that some months are charged more than their actual costs and others are
+charged less than their actual cost. The cumulative difference between what
+the operations are charged and their actual costs is given by the
+potential function. The potential function satisfies Equation (3) for all
+values of <code class=var>n</code>.
+When we use the amortized cost of <code class=var>$75</code> per month,
+we get <code class=var>$75n</code> as an upper bound on the
+contract cost for <code class=var>n</code> months. This bound
+is tighter than the bound of
+<code class=var>$200n</code> obtained using the worst-case monthly cost.
+<br><br>
+<font color=blue>Accounting Method</font><br>
+When we use the accounting method, we must first assign an amortized cost
+for each month and then show that this assignment satisifes Equation (3).
+We have the option to assign a different amortized cost to each month.
+In our maintenance contract example, we know the actual cost by month and could use this
+actual cost as the amortized cost.  It is, however, easier to work with
+an equal cost assignment for each month. Later, we shall see examples
+of operation sequences that consist of two or more types of operations
+(for example, when dealing with lists of elements, the operation sequence
+may be made up of search, insert, and remove operations). When dealing
+with such sequences we often assign a deifferent amortized cost to operations
+of different types (however,
+operations of the same type have the same amortized cost).
+<br><br>
+To get the best upper bound on the sum of the
+actual costs, we must set the amortized monthly cost to be the smallest number
+for which Equation (3) is satisifed for all <code class=var>n</code>.
+From the above table, we see that using any cost less than
+<code class=var>$75</code> will result in <code class=var>P(n) - P(0) &lt; 0</code>
+for some values of <code class=var>n</code>. Therefore, the smallest
+assignable amortized cost consistent with Equation (3) is
+<code class=var>$75</code>.
+<br><br>
+Generally, when the accounting method is used, we have not computed the
+aggregate cost. Therefore, we would not know that <code class=var>$75</code>
+is the least assignable amortized cost.
+So we start by assigning an amortized cost (obtained by making
+an educated guess) to each of the
+different operation types and then proceed to show that this assignment of
+amortized costs satisfies Equation (3). Once we have shown this, we can
+obtain an upper bound on the cost of any operation sequence by computing
+<br><center><code class=var>
+sum<sub>1 &lt;= i &lt;= k</sub> f(i) * amortized(i)</code></center><br>
+where <code class=var>k</code> is the number of different operation types
+and <code class=var>f(i)</code> is the frequency of operation type
+<code class=var>i</code> (i.e., the number of times operations of this type
+occur in the operation sequence).
+<br><br>
+For our maintenance contract example, we might try an amortized
+cost of <code class=var>$70</code>. When we use
+this amortized cost, we discover that Equation (3) is not satisifed
+for <code class=var>n = 12</code> (for example) and so
+<code class=var>$70</code> is an invalid
+amortized cost assignment.  We might next try <code class=var>$80</code>.
+By constructing a table such as the one above, we will observe that
+Equation (3) is satisfied for all months in the first <code class=var>12</code>
+month cycle, and then conclude that the equation is satisifed for all
+<code class=var>n</code>. Now, we can use <code class=var>$80n</code>
+as an upper bound on the contract cost for
+<code class=var>n</code> months.
+<br><br><font color=blue>Potential Method</font><br>
+We first define a potential function for the analysis.
+The only guideline you have in defining this function is that the
+potential function
+represents the cumulative difference between the amortized and actual costs.
+So, if you have an amortized cost in mind, you may be able to use this
+knowledge to develop a potential function that satsifies Equation (3),
+and then use the potential function and the actual operation costs (or
+an upper bound on these actual costs) to verify the amortized costs.
+<br><br>
+If we are extremely experienced, we might start with the potential
+function
+<br><code class=var>
+P(0) = 0
+<br>
+P(n) = 0 for n mod 12 = 0
+<br>
+P(n) = 25 for n mod 12 = 1 or 3
+<br>
+P(n) = 50 for n mod 12 = 2, 4 or 6
+<br>
+P(n) = 75 for n mod 12 = 5, 7 or 9
+<br>
+P(n) = 100 for n mod 12 = 8, or 10
+<br>
+P(n) = 125 for n mod 12 = 11
+</code>
+<br><br>
+Without the aid of the table constructed for the aggregate method, it
+would take quite some ingenuity to come up with this potential function.
+Having formulated a potential function and verified that this
+potential function satisfies Equation (3) for all <code class=var>n</code>,
+we proceed to use Equation (2) to determine the amortized costs.
+<br><br>
+From Equation (2), we obtain<br>
+<code class=var>amortized(i) = actual(i) + P(i) - P(i-1)</code>
+<br><br>
+Therefore,
+<code class=var>amortized(1) = actual(1) + P(1) - P(0) = 50 + 25 - 0 = 75</code>,
+<code class=var>amortized(2) = actual(2) + P(2) - P(1) = 50 + 50 - 25 = 75</code>,
+<code class=var>amortized(3) = actual(3) + P(3) - P(2) = 100 + 25 - 50 = 75</code>,
+and so on. Therefore, the amortized cost for each month is
+<code class=var>$75</code>. So, the actual cost for
+<code class=var>n</code> months is at most
+<code class=var>$75n</code>.
+<br><br>
+<a name = "widget"></a>
+<font color=blue><big>2. The McWidget Company</big></font><br>
+<font color=blue>Problem Definition</font><br>
+The famous McWidget company manufactures widgets. At its headquarters, the
+company has a large display that shows how many widgets have been manufactured
+so far. Each time a widget is manufactured, a maintenance person updates
+this display. The cost for this update is <code class=var>$c + dm</code>,
+where <code class=var>c</code> is a fixed trip charge,
+<code class=var>d</code> is a charge per display digit that is to be
+changed, and <code class=var>m</code> is the number of digits that are
+to be changed.  For example, when the display is changed from
+<code class=var>1399</code> to
+<code class=var>1400</code>, the cost to the company is
+<code class=var>$c + 3d</code> because
+<code class=var>3</code> digits must be changed.
+The McWidget company wishes to amortize the cost of maintaining the display
+over the widgets that are manufactured, charging the same amount to each widget.
+More precisely, we are looking for an amount
+<code class=var>$e = amortized(i)</code> that should leavied against
+each widget so that the sum of these charges equals or exceeds the
+actual cost of maintaining/updating the display
+(<code class=var>$e*n &gt;= actual total cost incurred for first n widgets</code>
+for all <code class=var>n &gt;= 1</code>).
+To keep the overall selling price of a widget low, we wish to find as small
+an <code class=var>e</code> as possible.
+Clearly,
+<code class=var>e &gt; c + d</code> because each time a widget is made, at least
+one digit (the least significant one) has to be changed.
+<br><br>
+<font color=blue>Worst-Case Method</font><br>
+This method does not work well in this application
+because there is no finite worst-case cost
+for a single display update.  As more and more widgets are manufactured,
+the number of digits that need to be changed increases.
+For example, when the <code class=var>1000</code>th widget is made,
+<code class=var>4</code> digits are to be changed incurring a cost
+of <code class=var>c + 4d</code>, and when the
+<code class=var>1,000,000</code>th widget is made,
+<code class=var>7</code> digits are to be changed incurring a cost
+of <code class=var>c + 7d</code>.
+If we use the worst-case method, the amortized cost to each widget
+becomes infinity.
+
+<br><br>
+<font color=blue>Aggregate Method</font><br>
+
+Let <code class=var>n</code> be the number of widgets made so far.
+As noted earlier, the least significant digit of the display has
+been changed <code class=var>n</code> times.
+The digit in the tens place changes once for every ten widgets
+made, that in the hundreds place changes once for evey hundred widgets made,
+that in the thousands place changes once for evey thousand widgets made,
+and so on.
+Thefore, the aggregate number of digits that have changed is
+bounded by
+<code class=var>n(1 + 1/10 + 1/100 + 1/1000 + ...) = (1.11111...)n</code>.
+So, the amortized cost of updating the display is
+<code class=var>c + d(1.11111...)n/n &lt; c + 1.12d</code>.
+If the McWidget company adds <code class=var>$c + 1.12d</code>
+to the selling price of each widget, it will collect enough money to
+pay for the cost of maintaining the display.
+Each widget is charged the cost of changing <code class=var>1.12</code> digits
+regardless of the number of digits that are actually changed.
+The table given below shows the actual cost,
+as measured by the number of digits that
+change, of maintaining the display, the amortized cost
+(i.e., <code class=var>1.12</code> digits per widget), and the potential
+function. The potential
+function gives the difference between the sum of the amortized costs and
+the sum of the actual costs. Notice how the potential function builds up so that
+when it comes time to pay for changing two digits, the previous
+potential function value
+plus the current amortized cost exceeds <code class=var>2</code>. From
+our derivation of the amortized cost, it follows that the potential function
+is always nonnegative.
+
+<br><br>
+<pre class=figure>
+widget        |    1    2    3    4    5    6    7    8    9   10   11   12   13   14 
+actual cost   |    1    1    1    1    1    1    1    1    1    2    1    1    1    1
+amortized cost| 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12
+P()           | 0.12 0.24 0.36 0.48 0.60 0.72 0.84 0.96 1.08 0.20 0.32 0.44 0.56 0.68
+=============================================================================================
+widget        |   15   16   17   18   19   20   21   22   23   24   25   26   27   28 
+actual cost   |    1    1    1    1    1    2    1    1    1    1    1    1    1    1
+amortized cost| 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12 1.12
+P()           | 0.80 0.92 1.04 1.16 1.28 0.40 0.52 0.64 0.76 0.88 1.00 1.12 1.24 1.36
+</pre><br><br>
+
+
+<br><br>
+<font color=blue>Accounting Method</font><br>
+We begin by assigning an amortized cost to the individual operations,
+and then we show that these assigned costs satsify Equation (3).
+Having already done an amortized analysis using the aggregate method, we
+see that Equation (3) is satisfied when we assign an amortized cost of
+<code class=var>$c + 1.12d</code> to each display change.
+Typically, however, the use of the accounting method is not preceded
+by an application of the aggregate method and we start by guessing
+an amortized cost and then showing that this guess satisfies
+Equation (3).
+<br><br>
+Suppose we assign a guessed amortized cost of 
+<code class=var>$c + 2d</code> for each display change.
+
+<br>
+<code class=var>P(n) - P(0) = sum <sub>1 &lt;= i &lt;= n</sub>(amortized(i) - actual(i))<br>
+= (c + 2d)n - sum<sub>1 &lt;= i &lt;= n</sub>actual(i)<br>
+= (c + 2d)n - (c + (1 + 1/10 + 1/100 + ...)d)n<br>
+&gt;= (c + 2d)n - (c + 1.12d)n<br>
+&gt;= 0
+</code>
+<br><br>
+This analysis also shows us that we can reduce the amortized cost of a widget
+to
+<code class=var>$c + 1.12d</code>.
+<br><br>
+An alternative proof method that is useful in some analyses involves
+distributing the excess charge
+<code class=var>P(i) - P(0)</code> over various accounting entities,
+and using these stored excess charges (called <strong>credits</strong>)
+to establish
+<code class=var>P(i+1) - P(0) &gt;= 0</code>.
+For our McWidget example, we use the display digits as the accounting entities.
+Initially, each digit is <code class=var>0</code> and each digit has
+a credit of <code class=var>0</code> dollars.
+Suppose we have guessed an amortized cost of
+<code class=var>$c + (1.111...)d</code>.
+When the first widget is manufactured,
+<code class=var>$c + d</code> of the amortized cost is used to pay
+for the update of the display and the remaining
+<code class=var>$(0.111...)d</code> of
+the amortized cost is retained as a credit
+by the least significant digit of the display.
+Similarly, when the second through ninth widgets are manufactured,
+<code class=var>$c + d</code> of the amortized cost is used to pay
+for the update of the display and the remaining
+<code class=var>$(0.111...)d</code> of the
+amortized cost is retained as a credit
+by the least significant digit of the display.
+Following the manufacture of the ninth widget, the least
+significant digit of the display has a credit of
+<code class=var>$(0.999...)d</code> and the remaining digits have no credit.
+When the tenth widget is manufactured,
+<code class=var>$c + d</code> of the amortized cost are used to pay
+for the trip charge and the cost of changing the least significant digit.
+The least significant digit now has a credit of
+<code class=var>$(1.111...)d</code>.  Of this credit,
+<code class=var>$d</code> are used to pay for the change of
+the next least significant digit (i.e., the digit in the tens place),
+and the remaining
+<code class=var>$(0.111...)d</code> are transferred to the ten's digit
+as a credit.
+Continuing in this way, we see that when the display shows
+<code class=var>99</code>, the credit on the ten's digit is
+<code class=var>$(0.999...)d</code> and that on the one's digit
+(i.e., the least significant digit) is also
+<code class=var>$(0.999...)d</code>. When the <code class=var>100</code>th
+widget is manufactured, 
+<code class=var>$c + d</code> of the amortized cost are used to pay
+for the trip charge and the cost of changing the least significant digit,
+and the credit on the least significant digit becomes
+<code class=var>$(1.111...)d</code>.  Of this credit,
+<code class=var>$d</code> are used to pay for the change of
+the tens digit from <code class=var>9</code> to <code class=var>0</code>,
+the remaining
+<code class=var>$(0.111...)d</code> credit on the one's digit is transferred
+to the ten's digit. The credit on the ten's digit now becomes
+<code class=var>$(1.111...)d</code>.  Of this credit,
+<code class=var>$d</code> are used to pay for the change of
+the hundred's digit from <code class=var>0</code> to <code class=var>1</code>,
+the remaining
+<code class=var>$(0.111...)d</code> credit on the ten's digit is transferred
+to the hundred's digit.
+<br><br>
+The above accounting scheme ensures that the credit on each digit of the display
+always equals
+<code class=var>$(0.111...)dv</code>, 
+where
+<code class=var>v</code> is the value of the digit (e.g., when the display is
+<code class=var>206</code> the credit on the one's digit is
+<code class=var>$(0.666...)d</code>, 
+the credit on the tens's digit is
+<code class=var>$0</code>, and that on the hundred's digit is
+<code class=var>$(0.222...)d</code>. 
+<br><br>
+From the preceding
+discussion, it follows that
+<code class=var>P(n) - P(0)</code>
+equals the sum of the digit credits and
+this sum is always nonnegative.
+Therefore, Equation (3) holds for all <code class=var>n</code>.
+
+
+<br><br><font color=blue>Potential Method</font><br>
+We first postulate a potential function that satisfies Equation (3),
+and then use this function to
+obtain the amortized costs.
+From the alternative proof used above for the accounting method,
+we can see that we should use the potential function<br>
+<code class=var>P(n) = (0.111...)d sum<sub>i</sub>v<sub>i</sub></code>
+<br><br>
+where <code class=var>v<sub>i</sub></code> is the value of
+the <code class=var>i</code>th digit of the display.
+For example, when the display shows <code class=var>206</code>
+(at this time <code class=var>n = 206</code>), the
+potential function value is <code class=var>(0.888...)d</code>.
+This potential function satisifies Equation (3).
+<br><br>
+Let <code class=var>q</code> be the number of <code class=var>9</code>s
+at the right end of <code class=var>j</code> (i.e., when <code class=var>j
+= 12903999</code>, <code class=var>q = 3</code>). When the display changes from
+<code class=var>j</code> to <code class=var>j+1</code>, the potential change
+is <code class=var>(0.111...)d(1-9q)</code> and the actual cost of
+updating the display is <code class=var>$c + (q+1)d</code>.
+From Equation (2), it follows that the amortized cost for the display change
+is<br>
+<code class=var>actual cost + potential change<br>
+= c + (q+1)d + (0.111...)d(1-9q)<br>
+= c + (1.111...)d</code><br><br>
+<br><br>
+
+
+
+<a name = "subset"></a>
+<font color=blue><big>3. Subset Generation</big></font><br>
+<font color=blue>Problem Definition</font><br>
+The subsets of a set of <code class=var>n</code> elements are defined
+by the <code class=var>2<sup>n</sup></code> vectors
+<code class=var>x[1:n]</code>, where each
+<code class=var>x[i]</code> is either <code class=var>0</code> or
+<code class=var>1</code>.
+<code class=var>x[i] = 1</code> iff the
+<code class=var>i</code>th element of the set is a member of the
+subset.  The subsets of a set of three elements are given by the
+eight vectors <code class=var>000, 001, 010, 011, 100, 101, 110, 111</code>,
+for example.
+A recursive method to generate all subsets was developed as the solution
+to Exercise 1.25. We shall now develop an enumerator for the subsets.
+For convenience, we shall actually enumerate only the nonempty subsets
+(i.e., all subsets other than <code class=var>000...000</code>).
+The function
+<code class=code>nextSubset</code> returns <code class=code>0</code>
+when there is no next subset and returns 1 otherwise.
+It uses the global variables <code class=code>n</code> (the set size)
+and <code class=code>x</code> (a one-dimensional array that defines a subset).
+<code class=code>x[i] = 1</code> iff the <code class=code>i</code>'th set element
+is in the subset.
+The code is given below.
+<br><br>
+<hr class=code>
+<pre class=coderule>
+int nextSubset()
+{// Set x[1:n] to next subset.
+ // Return 0 iff there is no next subset.
+   // generate next subset
+   int i = n;
+   while (i &gt; 0 &amp;&amp; x[i] == 1)
+   {
+      x[i] = 0;
+      i--;
+   }
+
+   if (i == 0)
+      return 0;
+   else
+   {
+      x[i] = 1;
+      return 1;
+   }
+}
+</pre>
+<hr class=coderule>
+<br><br>
+We wish to determine how much time it takes to generate the first
+<code class=var>m, 1 &lt;= m &lt; 2<sup>n</sup></code> subsets.
+
+<br><br>
+<font color=blue>Worst-Case Method</font><br>
+The complexity of <code class=code>nextSubset</code> is
+<code class=var>Theta(c)</code>, where <code class=code>c</code>
+is the number of <code class=var>x</code>s that change.
+Since all <code class=var>n</code> of the <code class=code>x</code>s
+could change in a single invocation of <code class=code>nextSubset</code>,
+the worst-case complexity of <code class=code>nextSubset</code> is
+<code class=var>Theta(n)</code>. Using the worst-case method, the
+time required to generate the first <code class=var>m</code> subsets
+is <code class=var>O(mn)</code>.
+
+<br><br>
+<font color=blue>Aggregate Method</font><br>
+The complexity of <code class=code>nextSubset</code> equals the number of
+<code class=code>x[i]</code>s that change.
+When <code class=code>nextSubset</code> is invoked
+<code class=code>m</code> times,
+<code class=code>x[n]</code> changes <code class=code>m</code> times;
+<code class=code>x[n - 1]</code> changes <code class=code>floor(m/2)</code>
+times;
+<code class=code>x[n - 2]</code> changes <code class=code>floor(m/4)</code> times;
+<code class=code>x[n - 3]</code> changes <code class=code>floor(m/8)</code> times;
+and so on. Therefore the sum of the actual costs of the first
+<code class=var>m</code> invocations is
+<br><code class=var>
+sum<sub>0 &lt;= i &lt;= floor(log<sub>2</sub>m)</sub>floor(m/2<sup>i</sup>)
+&lt; 2m</code>
+<br><br>
+Therefore, the complexity of generating the first <code class=var>m</code>
+subsets is actually <code class=var>O(m)</code>, a tighter bound than
+obtained using the worst-case method.
+<br><br>
+The amortized complexity of <code class=code>nextSubset</code>
+is <code class=var>(sum of actual costs)/m &lt; 2m/m = O(1)</code>.
+
+<br><br>
+<font color=blue>Accounting Method</font><br>
+We first guess the amortized complexity of <code class=var>nextSubset</code>,
+and then show that this amortized complexity satisfies Equation (3).
+Suppose we guess that the amortized complexity is <code class=var>2</code>.
+To verify this guess, we must show that
+<br>
+<code class=var>P(m) - P(0) &gt;= 0</code>
+<br><br>
+for all <code class=var>m</code>.
+<br><br>
+We shall use the alternative proof method used in the McWidget example.
+In this method, we
+distribute the excess charge
+<code class=var>P(i) - P(0)</code> over various accounting entities,
+and use these stored excess charges
+to establish
+<code class=var>P(i+1) - P(0) &gt;= 0</code>.
+We use the <code class=code>x[j]</code>s as the accounting entities.
+Initially, each <code class=code>x[j]</code> is <code class=var>0</code> and
+has
+a credit of <code class=var>0</code>.
+When the first subset is generated,
+<code class=var>1</code> unit of the amortized cost is used to pay
+for the single <code class=var>x[j]</code> that changes and the remaining
+<code class=var>1</code> unit of
+the amortized cost is retained as a credit
+by <code class=var>x[n]</code>, which is the <code class=var>x[j]</code>
+that has changed to <code class=var>1</code>.
+When the second subset is generated, the credit on
+<code class=var>x[n]</code> is used to pay for changing
+<code class=var>x[n]</code> to <code class=var>0</code> in the
+<code class=code>while</code> loop,
+<code class=var>1</code> unit of the amortized cost is used to pay
+for changing <code class=code>x[n-1]</code> to
+<code class=var>1</code>, and the remaining
+<code class=var>1</code> unit of
+the amortized cost is retained as a credit
+by <code class=var>x[n-1]</code>, which is the <code class=var>x[j]</code>
+that has changed to <code class=var>1</code>.
+When the third subset is generated,
+<code class=var>1</code> unit of the amortized cost is used to pay
+for changing <code class=code>x[n]</code> to
+<code class=var>1</code>, and the remaining
+<code class=var>1</code> unit of
+the amortized cost is retained as a credit
+by <code class=var>x[n]</code>, which is the <code class=var>x[j]</code>
+that has changed to <code class=var>1</code>.
+When the fourth subset is generated,
+the credit on
+<code class=var>x[n]</code> is used to pay for changing
+<code class=var>x[n]</code> to <code class=var>0</code> in the
+<code class=code>while</code> loop,
+the credit on
+<code class=var>x[n-1]</code> is used to pay for changing
+<code class=var>x[n-1]</code> to <code class=var>0</code> in the
+<code class=code>while</code> loop,
+<code class=var>1</code> unit of the amortized cost is used to pay
+for changing <code class=code>x[n-2]</code> to
+<code class=var>1</code>, and the remaining
+<code class=var>1</code> unit of
+the amortized cost is retained as a credit
+by <code class=var>x[n-2]</code>, which is the <code class=var>x[j]</code>
+that has changed to <code class=var>1</code>.
+Continuing in this way, we see that each
+<code class=var>x[j]</code> that is <code class=var>1</code> has a credit
+of <code class=var>1</code> unit on it. This credit is used to pay
+the actual cost of changing this <code class=var>x[j]</code>
+from <code class=var>1</code> to
+<code class=var>0</code> in the <code class=code>while</code>
+loop. One unit of the amortized cost of <code class=var>nextSubset</code>
+is used to pay for the actual cost of changing an
+<code class=var>x[j]</code> to <code class=var>1</code> in the
+<code class=code>else</code> clause, and the remaining
+one unit of the amortized cost is retained as a credit by this
+<code class=var>x[j]</code>.
+<br><br>
+The above accounting scheme ensures that the credit on each
+<code class=code>x[j]</code> that is 
+<code class=var>1</code> is exactly
+<code class=var>1</code>, and the credit on each
+<code class=var>x[j]</code> 
+that is
+<code class=var>0</code> is
+<code class=var>0</code>. 
+<br><br>
+From the preceding
+discussion, it follows that
+<code class=var>P(m) - P(0)</code>
+equals the number of
+<code class=var>x[j]</code>s that are
+<code class=var>1</code>. Since this number
+is always nonnegative,
+Equation (3) holds for all <code class=var>m</code>.
+<br><br>
+Having established that the amortized complexity of <code class=var>nextSubset</code>
+is <code class=var>2 = O(1)</code>, we conclude that the complexity
+of generating the first <code class=var>m</code> subsets
+equals <code class=var>m * amortized complexity = O(m)</code>.
+
+<br><br><font color=blue>Potential Method</font><br>
+We first postulate a potential function that satisfies Equation (3),
+and then use this function to
+obtain the amortized costs. Let <code class=var>P(j)</code>
+be the potential just after the <code class=var>j</code>th
+subset is generated.
+From the proof used above for the accounting method,
+we can see that we should define<br>
+<code class=var>P(j) =</code> number of <code class=code>x[i]</code>s
+in the <code class=var>j</code>th subset that are equal to
+<code class=var>1</code>.
+<br><br>
+By definition, the
+<code class=var>0</code>th subset has all <code class=var>x[i]</code>
+equal to <code class=var>0</code>. Since <code class=var>P(0) = 0</code> and
+<code class=var>P(j) &gt;= 0</code> for all <code class=var>j</code>,
+this potential function <code class=var>P</code> satisfies Equation (3).<br><br>
+
+Consider any subset <code class=var>x[1:n]</code>.
+Let <code class=var>q</code> be the number of <code class=var>1</code>s
+at the right end of <code class=var>x[]</code> (i.e., <code class=var>x[n],
+x[n-1], ..., x[n-q+1]</code>, are all <code class=var>1</code>s).
+Assume that there is a next subset.
+When the next subset is generated,
+the potential change
+is <code class=var>1-q</code> because <code class=var>q 1</code>s are
+replaced by <code class=var>0</code> in the <code class=code>while</code>
+loop and a <code class=var>0</code> is replaced by a <code class=var>1</code>
+in the <code class=code>else</code> clause.
+The actual cost of generating the next subset is <code class=var>q+1</code>.
+From Equation (2), it follows that, when there is a next subset,
+the amortized cost for <code class=var>nextSubset</code>
+is<br>
+<code class=var>actual cost + potential change<br>
+= q + 1 + 1 - q<br>
+= 2</code><br><br>
+
+When there is no next subset,
+the potential change
+is <code class=var>-q</code>
+and the actual cost of <code class=var>nextSubset</code> is <code class=var>q</code>.
+From Equation (2), it follows that, when there is no next subset,
+the amortized cost for <code class=var>nextSubset</code>
+is<br>
+<code class=var>actual cost + potential change<br>
+= q - q<br>
+= 0</code><br><br>
+Therefore, we can use <code class=var>2</code> as the amortized complexity
+of <code class=code>nextSubset</code>. Consequently, the actual cost of
+generating the first <code class=var>m</code> subsets is
+<code class=var>O(m)</code>.
+
+<br><br>
+<a name = "stacks"></a>
+<font color=blue><big>5. Array Stacks and Queues</big></font><br>
+The classes <code class=code>arrayStack</code> and
+<code class=code>arrayQueue</code> were developed in Chapters 8 and 9,
+respectively.
+For both classes, because it may be
+necessary to double the array size, the actual complexity
+of the insert operation (<code class=code>push</code>
+is <code class=var>O(s)</code>,
+where <code class=var>s</code> is the current size of the stack or queue.
+The actual complexity of the remove operation
+(<code class=code>pop</code>)
+is <code class=var>O(1)</code>.
+Therefore, using the worst-case method,
+the complexity of a sequence of <code class=var>i</code>
+insert and <code class=var>r</code> remove operations is
+<code class=var>O(i<sup>2</sup>+r)</code>.
+Using developments identical to those used for the case of simulated
+pointers, we can show that the amortized complexity of the insert
+operation is <code class=var>O(1)</code>. This enables us to obtain
+the tighter bound of <code class=var>O(i + r)</code> on the
+complexity of any sequence of
+<code class=var>i</code>
+insert and <code class=var>r</code> remove operations performed
+on an initially empty stack or queue.
+Using these amortized complexities, we can establish the
+time complexities of the stack and queue applications considered
+in Chapters 8 and 9 without appealing to Theorem 5.1.
+
+<br><br>
+<a name = "union"></a>
+<font color=blue><big>6. Union-Find</big></font><br>
+<font color=blue>Problem Definition</font><br>
+Consider the second union-find solution developed
+in Section 6.5.4 of the text. Suppose that
+<code class=var>u &lt; n</code> union operations and <code class=var>f</code>
+find operations are performed. The complexity of an individual union is
+<code class=var>O(u)</code> and that of an individual find is
+<code class=var>O(1)</code>. In the text, we showed that
+the aggregate complexity of <code class=var>u</code> union
+operations is <code class=var>O(u log u)</code>, and then
+concluded that the actual complexity of a sequence of
+<code class=var>u &lt; n</code> union operations and <code class=var>f</code>
+find operations is <code class=var>O(u log u + f)</code>.
+Had we used the worst-case method, we would have arrived at the
+complexity
+<code class=var>O(u<sup>2</sup>+f)</code>.
+Since the aggregate complexity of <code class=var>u</code> union
+operations is <code class=var>O(u log u)</code>, the amortized
+complexity of the method <code class=code>union</code> is
+<code class=var>O(log u)</code>.
+The amortized
+complexity of the method <code class=code>find</code> is
+the same as its actual complexity, that is
+<code class=var>O(1)</code>.
+Let us see how we can arrive at the amortized complexity of
+<code class=code>union</code> using the
+accounting and potential function methods.
+
+
+<br><br>
+<font color=blue>Accounting Method</font><br>
+To the method <code class=code>find</code>, we assign an
+amortized complexity that equals its
+worst-case complexity, that is <code class=var>O(1)</code>.
+To the method <code class=code>union</code>,
+we first assign an amortized complexity of
+<code class=var>L = ceil(log<sub>2</sub> (u+1))</code>,
+which is less than its worst-case complexity.
+To verify the correctness of this assignment, we must show that
+<br>
+<code class=var>P(u) - P(0) &gt;= 0</code>
+<br><br>
+for all <code class=var>u</code>, where <code class=var>P(i)</code>
+denotes the potential following the <code class=var>i</code>th
+union operation. Since the actual and amortized complexities of
+the method <code class=code>find</code> are the same, the
+find operations do not affect the potential.
+
+<br><br>
+It is easy to verify that, at all times, each set contains exactly
+one element that has never moved (see the text for the definition of
+<strong>moved</strong>).
+Our credit assignment scheme will have the following properties (except,
+possibly, following the last union operation):
+<ol>
+<li>
+The element in each set that has never been moved has <code class=var>0</code>
+credits.
+<li>
+The credits on an element that has moved at least once is at least
+<code class=var>L - (number of times this element has moved)</code>.
+</ol>
+<br><br>
+For example, when the number <code class=var>u</code> of union operations
+is <code class=var>6</code>, <code class=var>L = 3</code>.
+Suppose that the initial sets are <code class=var>{1}, {2}, ..., {10}</code>.
+Initially, no element has moved, each set has exactly one element that has
+never moved, and each element has <code class=var>0</code> credits.
+If the first union unites the sets <code class=var>{1}</code> and
+<code class=var>{2}</code> by regarding the first set as the smaller set,
+then following the union we have the set
+<code class=var>{1,2}</code>. The credits on the element
+<code class=var>1</code> will be at least <code class=var>L-1 = 2</code>
+(note that the element <code class=var>1</code> has been moved once) and the
+credits on the element <code class=var>2</code>, which is the
+single element in the set <code class=var>{1,2}</code> that
+has never moved, will be zero.
+<br><br>
+Suppose that a union operation unites the sets <code class=var>A</code> and
+<code class=var>B</code>, where <code class=var>A</code> is the
+smaller set. Let the resulting set be <code class=var>C</code>.
+The set <code class=var>C</code> contains exactly one element that
+has never moved. This is the single element of <code class=var>B</code>
+that has never moved. This element has <code class=var>0</code> credits.
+<code class=var>1</code> unit
+of the amortized cost of <code class=var>L</code> units associated
+with this union operation is used to pay for moving the
+never moved element <code class=var>a</code>
+of <code class=var>A</code>. The remaining
+<code class=var>L-1</code> units of the amortized cost are
+assigned as credits to the element <code class=var>a</code>.
+These credits are adequate to pay for the at most <code class=var>L-1</code>
+future moves that element <code class=var>a</code> may make.
+The remaining portion of the actual cost of uniting sets
+<code class=var>A</code> and <code class=var>B</code> is paid for by
+reducing the number of credits on each of the elements
+<code class=var>A-{a}</code> by <code class=var>1</code>.
+Note that each of these elements must have a credit that exceeds
+<code class=var>0</code>, because the first time an element is moved
+it is assigned <code class=var>L-1</code> credits which are
+enough to pay for all future moves of the element.
+
+<br><br>
+It follows that, after the <code class=var>u</code> union operations,
+no element has a negative credit. Therefore,
+<code class=var>P(u) - P(0) &gt;= 0</code>, and <code class=var>L =
+floor(log<sub>2</sub>(u+1)) = O(log u)</code> is the amortized complexity
+of a union operation. Hence, the complexity of any sequence of
+<code class=var>u &lt; n</code> union operations and <code class=var>f</code>
+find operations is <code class=var>O(u log u + f)</code>.
+
+
+<br><br><font color=blue>Potential Method</font><br>
+Let <code class=var>P(i)</code> be the potential following the
+<code class=var>i</code>th union operation.
+Let
+<code class=var>L = floor(log<sub>2</sub> (u+1))</code>. For each element
+<code class=var>i</code>, let <code class=var>p(j)</code> be
+<code class=var>0</code> if element <code class=var>j</code> has never moved;
+otherwise, let
+<code class=var>p(j)</code> equal <code class=var>L - (number of times
+element j has moved)</code>.
+We define <code class=var>P(i)</code> to be the sum of the
+<code class=var>p(j)</code>s.
+Since no element can move more than <code class=var>L</code> times,
+no <code class=var>p(j)</code> is ever negative. We see that
+<code class=var>P(0) = 0</code> and
+<code class=var>P(i) &gt;= 0</code>. Therefore,
+the potential function satisfies Equation (3).
+<br><br>
+When two sets are united, the change in the potential function is
+<code class=var>L - (number of elements that moved)</code>, and
+the actual cost of the operation equals the number of
+elements that moved. Therefore, the amortized complexity of the
+<code class=var>union</code> method is
+<br>
+<code class=var>actual cost + potential change<br>
+= (number of elements that moved) + (L - number of elements that moved)<br>
+= L<br>
+= O(log u)</code>
+<br><br>
+Consequently,
+the complexity of any sequence of
+<code class=var>u &lt; n</code> union operations and <code class=var>f</code>
+find operations is <code class=var>O(u log u + f)</code>.
+
+
+<br><br>
+<a name = "cars"></a>
+<font color=blue><big>7. Rearranging Railroad Cars</big></font><br>
+<font color=blue>Problem Definition</font><br>
+Section 8.5.3 of the text developed a solution to the railroad cars
+rearranging problem in which the holding tracks operate as stacks.
+We shall analyze the complexity of the method
+<code class=code>railroad</code> (Program 8.10).
+For convenience, a simplified version of this method is given below.
+<br>
+<hr class=coderule>
+<pre class=code>
+bool railroad(int inputOrder[],
+              int theNumberOfCars, int theNumberOfTracks)
+{// Rearrange railroad cars beginning with the initial order.
+ // Return true if successful, false if impossible.
+
+   // code of complexity O(1) comes here
+
+   // rearrange cars
+   for (int i = 1; i &lt;= numberOfCars; i++)
+      if (inputOrder[i] == nextCarToOutput)
+      {// send car inputOrder[i] straight out
+          cout &lt;&lt; "Move car " &lt;&lt; inputOrder[i]
+               &lt;&lt; " from input track to output track" &lt;&lt; endl;
+          nextCarToOutput++;
+ 
+          // output from holding tracks
+          while (smallestCar == nextCarToOutput)
+          {
+             outputFromHoldingTrack();
+             nextCarToOutput++;
+          }
+      }
+      else
+      // put car inputOrder[i] in a holding track
+         if (!putInHoldingTrack(inputOrder[i]))
+            return false;
+
+   return true;
+}
+</pre>
+<hr class=coderule><br><br>
+The method <code class=code>outputFromHoldingTrack</code> removes and outputs
+a railroad car from a holding track, and the method
+<code class=code>putInHoldingTrack</code> puts a car into a holding track
+using the rule given in Section 8.5.3. This latter method returns the
+value <code class=code>false</code> iff there is no holding track
+that satisfies the stated rule. For purposes of our analysis, we
+assume that the actual
+complexity of both <code class=code>outputFromHoldingTrack</code>
+and <code class=code>putInHoldingTrack</code> is <code class=var>O(numberOfTracks)</code>.
+In reality,
+this assumption is valid only for the method
+<code class=var>outputFromHoldingTrack</code>. The actual complexity
+of <code class=var>putInHoldingTrack</code> is
+<code class=var>O(numberOfCars+numberOfTracks)</code>
+because of the cost of array doubling when adding an element to a stack.
+The amortized complexity of <code class=code>putInHoldingTrack</code> is,
+however, <code class=var>O(numberOfTracks)</code>.
+<br><br>
+The complexity of the code outside of the <code class=code>for</code>
+loop is <code class=var>O(1)</code>, and our analysis here will
+focus on the complexity of the <code class=code>for</code> loop.
+
+<br><br>
+<font color=blue>Worst-Case Method</font><br>
+In examining the <code class=code>if</code> statement, we see that
+the worst-case complexity of the <code class=var>else</code> clause
+is <code class=var>Theta(numberOfTracks)</code>.
+The <code class=code>then</code>
+clause consists of the statements
+executed when the <code class=var>if</code> conditional
+<code class=var>(inputOrder[i] == nextCarToOutput)</code> is true.
+The worst-case complexity of the
+<code class=code>then</code> clause is
+<code class=var>Theta(numberOfCars * numberOfTracks)</code> because
+the holding tracks may have <code class=var>Theta(numberOfCars)</code>
+on them and we may have have to output all of these.
+Therefore, the worst-case
+complexity of the <code class=code>if</code> statement is
+<code class=code>Theta(numberOfCars * numberOfTracks)</code>.
+<br><br>
+Using the worst-case method, we arrive at
+<code class=var>O(numberOfCars<sup>2</sup> * numberOfTracks)</code> as
+the complexity of the
+<code class=code>for</code> loop (and of the
+method <code class=code>railroad</code>).
+Although this analysis is correct, we have not obtained a tight bound
+on the complexity. A tighter bound is obtained using amortized complexity
+methods.
+
+<br><br>
+<font color=blue>Aggregate Method</font><br>
+Since <code class=code>p &lt; numberOfCars</code> cars are put into the
+holding tracks in the <code class=code>else</code> clause, exactly
+<code class=code>p</code> cars are removed from the holding tracks
+in the <code class=code>then</code> clause. Therefore, the aggregate number of
+iterations of the <code class=code>while</code> loop is
+<code class=var>p</code>, and the aggregate complexity of the
+<code class=code>while</code> loop
+is <code class=var>O(p * numberOfTracks)</code>.
+Therefore, the aggregate complexity of the <code class=code>for</code>
+loop (and also of the method
+<code class=code>railroad</code>) is
+<code class=var>O(numberOfCars * numberOfTracks)</code>.
+Using the aggregate method, we have arrived at a tighter bound on the complexity
+than obtained using the worst-case method.
+<br>
+Since the aggregate complexity of the <code class=code>for</code> loop
+is <code class=var>O(numberOfCars * numberOfTracks)</code>,
+and the number of times
+the <code class=code>for</code> loop is entered is
+<code class=var>numberOfCars</code>, the amortized complexity of each
+iteration of the <code class=code>for</code> loop is
+<code class=var>O(numberOfCars * numberOfTracks / numberOfCars) =
+O(numberOfTracks)</code>.
+
+<br><br>
+<font color=blue>Accounting Method</font><br>
+To simplify the analysis, we use <code class=code>numbeOfTracks</code>
+(rather than <code class=var>O(numberOfTracks)</code>) as the complexity
+of the methods <code class=code>putInHoldingTrack</code> and
+<code class=code>outputFromHoldingTrack</code>.
+We assign the <code class=code>then</code> clause an amortized complexity
+of <code class=var>1</code>, and the <code class=code>else</code> clause
+is assigned an amortized complexity
+equal to <code class=var>2 * numberOfTracks + 2</code>.
+To verify the correctness of this complexity assignment, we must show that
+the sum of the amortized complexities is greater than or equal to the sum of the
+actual complexities (the sum is taken over all executions of the
+<code class=code>then</code> and <code class=code>else</code> clauses).
+This is equivalent to showing that Equation (3) holds.
+<br><br>
+When the <code class=code>else</code> clause is entered,
+<code class=code>numberOfTracks</code> units of its amortized complexity
+are used to pay for the execution of the method
+<code class=code>putInHoldingTrack</code>, <code class=var>1</code> unit
+is used to pay for testing the value returned by
+<code clas=code>putInHoldingTrack</code> and exceuting the
+<code class=code>return false</code> statement (if executed).
+The remaining <code class=var>numberOfTracks + 1</code> units of the
+amortized complexity are held as a credit by the railroad car
+that is put into a holding track.
+<br><br>
+When the <code class=code>then</code> clause is entered, the single
+unit of amortized cost assigned to the <code class=code>then</code> clause
+is used
+to pay for the statements that print a line and increment
+<code class=code>nextCarToOutput</code>, and for one test of the
+<code class=code>while</code> loop conditional. If the while loop is entered,
+then the <code class=var>numberOfTracks + 1</code> credits on each
+car output from a holding track are used in the following way:
+<code class=var>numberOfTracks</code> units are used to pay for the
+execution of the method <code class=code>outputFromHoldingTrack</code>,
+and the remaining <code class=var>1</code> unit is used to pay for
+the statement that increments <code class=code>nextCarToOutput</code>
+as well as for one test of the <code class=code>while</code> loop
+conditional.  Therefore, the amortized costs are adequate to pay for all
+of the actual costs.
+<br><br>
+Since the amortized cost of the <code class=code>then</code> clause
+is <code class=var>1</code> and that of the <code class=code>else</code>
+clause is <code class=code>2 * numberOfTracks + 2</code>, and since the
+number of times each clause is executed is <code class=var>O(numberOfCars)</code>,
+the actual complexity of the <code class=code>for</code> loop (and hence
+of the entire method) is <code class=var>O(numberOfCars * (2 * numberOfTracks + 2 + 1))
+= O(numberOfCars * numberOfTracks)</code>.
+
+
+<br><br><font color=blue>Potential Method</font><br>
+Let <code class=var>P(j)</code> denote the potential following the
+iteration <code class=code>i = j</code> of the <code class=code>for</code>
+loop. We define, <code class=var>P(j) = (numberOfTracks + 1)n</code>, where
+<code class=var>n</code> is the number of railroad cars in the holding tracks
+after the <code class=code>for</code> loop iteration
+with <code class=code>i = j</code> completes.
+Also, <code class=var>P(0) = 0</code>
+is the initial potential (note that <code class=var>n = 0</code> initially
+because the holding tracks are empty when we
+start the method <code class=code>railroad</code>).
+Since this potential function is nonnegative for all
+<code class=var>j</code>, Equation (3) is satisfied.
+<br><br>
+Suppose that when <code class=code>i = j + 1</code>,
+the <code class=code>else</code>
+clause is entered. Since a car is added to the holding tracks,
+<code class=var>P(j+1) - P(j) = numberOfTracks + 1</code>.
+Therefore, the amortized complexity of the <code class=code>else</code>
+clause is
+<br>
+<code class=var>actual cost + potential change<br>
+= (numberOfTracks + 1) + (numberOfTracks + 1)<br>
+= 2 * (numberOfTracks + 1)</code>
+<br><br>
+Next, suppose that when <code class=code>i = j + 1</code>,
+the <code class=code>then</code>
+clause is entered. If the <code class=code>while</code> loop
+iteraties <code class=var>p</code> times, <code class=var>p</code> cars are
+removed from the holding tracks. Therefore,
+<code class=var>P(j+1) - P(j) = -p * (numberOfTracks + 1)</code>.
+The actual complexity of the <code class=code>then</code> clause
+is <code class=var>1 + p * (numberOfTracks + 1)</code>.
+So, the amortized complexity of the <code class=code>then</code>
+clause is
+<br>
+<code class=var>actual cost + potential change<br>
+= 1 + p * (numberOfTracks + 1) - p * (numberOfTracks + 1)<br>
+= 1</code>
+<br><br>
+Having established that the amortized complexities of the
+<code class=code>then</code> and <code class=code>if</code> clauses
+are <code class=var>1</code> and
+<code class=var>2 * (numberOfTracks + 1)</code>,
+resepctively, we conclude that the actual complexity
+of the <code class=code>for</code> loop (and hence of the entire method)
+is <code class=var>O(numberOfCars * numberOfTracks)</code>.
+
+<br><br>
+<a name = "exercises"></a>
+<font color=blue><big><big>Exercises</big></big></font><br>
+<ol>
+<li>
+What is the relationship between a correct assignment of
+amortized complexities to operations and the actual complexities of these
+operations?
+<li>
+How are potential function, amortized complexity, and actual complexity
+related? 
+<li>
+The McWidget company has been bought out by a computer manufacturer
+who insists that all displays be in binary. Rework the
+McWidget example using a binary display.
+<li>
+Suppose that a sequence of tasks is performed. The actual complexity of
+the <code class=var>i</code>th task is <code class=var>1</code> when
+<code class=var>i</code> is not a power of <code class=var>2</code>.
+When <code class=var>i</code> is a power of <code class=var>2</code>,
+the complexity of the <code class=var>i</code>th task is
+<code class=var>i</code>. Use each of the methods
+(a) aggregate, (b) accounting, and (c) potential function to show
+that the amortized complexity of a task is <code class=var>O(1)</code>.
+<li>
+Imagine that a data structure is represented as an array
+whose initial length
+is <code class=var>1</code>. The data structure operations are
+<code class=var>insert</code> and <code class=var>remove</code>.
+An <code class=var>insert</code> takes <code class=var>1</code> time unit
+except when the number of elements in the data structure prior to
+the insert equals the array length <code class=var>n</code>;
+at this time, the insert takes <code class=var>n</code> time units because we
+double the array length.
+A <code class=var>remove</code> takes <code class=var>1</code> time
+unit except when the number of elements left in the array is less than
+<code class=var>(array length)/4</code>.
+When the number of elements left in the array is less than
+<code class=var>(array length)/4</code>, the array length is halved and
+the <code class=var>remove</code> takes <code class=var>(array length)/2</code>
+time units.
+Use each of the methods
+(a) aggregate, (b) accounting, and (c) potential function to show
+that the amortized complexity of each data structure operation is
+<code class=var>O(1)</code>.
+</ol>
+
+<br><br>
+<a name = "further"></a>
+<font color=blue><big><big>Further Reading</big></big></font><br>
+A survey of amortized complexity appears in the paper
+``Amortized computational complexity,'' by Robert Tarjan,
+<em>SIAM Journal on Algebraic and Discrete Methods</em>,
+6, 2, 306-318, 1985.
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,42 @@
+1 若函数可以被多个线程安全调用  --> 线程安全函数
+  线程不安全的典型原因:使用了全局或者静态变量  --> 可通过划分critical section+使用mutex解决
+
+2 可重入函数:避免使用全局或者静态变量 --> 线程安全
+  需要返回给调用者的信息 或需要在对函数历次调用期间需要维护的信息 --> 存储在调用者分配的缓冲区中
+
+  并非所有函数都可实现为可重入
+  a.有些函数必须使用全局数据结构 --> malloc --> 通过mutex实现线程安全
+  b.历史原因，一些函数接口通过静态分配的存储空间返回信息
+
+3 一次性设置
+  不管调用函数几次，某个关键数据只会被设置一次
+  int pthread_once(pthread_once_t* once_control, void (* oneTimeSet)(void))
+  once_control必须指向初始为PTHREAD_ONCE_INIT的静态变量
+  static pthread_once_t once_var = PTHREAD_ONCE_INIT 
+
+4 使用thread-specifc data让函数线程安全
+  a.每个线程维护数组keyToValue
+    key与一个func相对应
+    value则是线程调用该func时需要使用的数据
+    多个线程调用func,所需要的数据从自身的keyToValue表中获得，且相互独立 ---> 避免了race conditon
+    就好似func为每个线程调用者缓存了各自的数据,通过key获取
+    线程终止时，应该销毁所有需要使用的数据(value)
+  
+  b.维护全局数组pthread_keys
+    数组下标即为key
+    每一项包含两个字段:key是否使用+destructor
+    
+  c.func调用相关API,武装自身,使自身线程安全
+    1)调用 int pthread_key_create(pthead_key_t* Idx, void(*destructor)(void*);
+      为func注册一个key,并通过Idx返回
+      install destructor for key --> 线程终止时，就会针对keyToValue的key与value，调用每一个key的destructor,将key关联的value传入，销毁value
+      不管同一线程调用func几次，该func对应的key都是相同的 --> 采用一次性设置pthread_once()
+  
+  d.线程调用func,func调用pthread_getsepcific(pthread_ket_t key)来获取线程所需数据
+    线程第一次调用func,肯定是没有key对应的value的
+    所以func需要调用pthread_setspecific(pthread_ket_t key, const void* value)为key设置value
+    func调用malloc为value分配内存，再用上述函数将key与这块内存关联起来
+
+5 线程局部存储变量
+  static __thread var;
+  关键字:__thread --> 若线程A使用了var，则拥有var的一份拷贝，直到线程终止时才销毁 --> 在线程局部存储的变量 --> 不会发生race conditon  

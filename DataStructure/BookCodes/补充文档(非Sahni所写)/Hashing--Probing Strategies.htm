@@ -1,0 +1,207 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Hashing--Probing Strategies<BR>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<a href = "#RandomProbing">Random Probing</a>
+<br>
+<a href = "#QuadraticProbing">Quadratic Probing</a>
+<br>
+<a href = "#DoubleHashing">Double Hashing</a>
+<br>
+<a href = "#Performance">Performance</a>
+<br>
+<a href = "#Exercises">Exercises</a>
+<br><br>
+
+Some alternatives to the linear open addressing method developed in the
+text
+are described below.
+<br><br>
+
+<a name = "RandomProbing"></a>
+<font color=blue><big><big>Random Probing</big></big></font><br>
+
+Suppose that the hash table has <code class=var>b</code> buckets.
+In linear open addressing the buckets are examined in the order
+<code class=var>(f(k)+i) % b,
+0 &lt= i
+&lt; b</code>, where
+<code class=var>k</code> is the key of the element being searched for.
+In random probing a pseudo-random number generator
+is used to obtain a random sequence <code class=var>R(i),
+1 &lt= i
+&lt; b</code>
+where <code class=var>R(1)</code>,
+<code class=var>R(2), ...
+R(b-1)</code> is a permutation of <code class=var>[1, 2, ...,
+b-1]</code>.  The buckets are examined in the order
+<code class=var>f(k)</code>,
+<code class=var>(f(k)+R(i)) % b</code>,
+<code class=var>1 &lt= i
+&lt; b</code>.
+
+<br><br>
+<a name = "QuadraticProbing"></a>
+<font color=blue><big><big>Quadratic Probing</big></big></font><br>
+The bucket examination order for quadratic probing is
+<code class=var>f(k)</code>,
+<code class=var>(f(k)+i<sup>2</sup>) % b</code>,
+<code class=var>(f(k)-i<sup>2</sup>) % b</code>,
+<code class=var>1 &lt= i
+&lt; (b-1)/2</code>, where <code class=var>b</code> is the
+number of buckets in the table.
+This examination sequence covers the space of buckets whenever
+<code class=var>b</code> is a prime number of the form
+<code class=var>4j+3</code>, where
+<code class=var>j</code> is an integer (see ``The use of quadratic residue research,''
+by C. Radke, <code>Communications of the ACM</code>, 1970, 103-105).
+Some suitable values for <code class=var>b</code> are <code class=var>251</code>
+(<code class=var>j = 62</code>), <code class=var>503</code>
+(<code class=var>j = 125</code>), and
+<code class=var>1019</code> (<code class=var>j = 254</code>).
+<br><br>
+When, <code class=var>b</code> is a prime number that is not of the form
+<code class=var>4j+3</code>, we may examine the buckets in the order
+<code class=var>(f(k)+i<sup>2</sup>) % b</code>,
+<code class=var>1 &lt= i
+&lt; b</code>. It can be shown that the first <code class=var>b/2</code>
+buckets examined are different. Therefore, provided the table is at most
+half full, an insert operation will succeed.
+In other words, we can guarantee an insertion provided the loading factor,
+<code class=var>alpha</code> is at most <code class=var>0.5</code>.
+
+
+<br><br>
+<a name = "DoubleHashing"></a>
+<font color=blue><big><big>Double Hashing</big></big></font><br>
+
+In double hashing we employ a primary hash function
+<code class=var>f<sub>1</sub></code> and a secondary hash function
+<code class=var>f<sub>2</sub></code>.
+The primary hash function is used to determine the
+home bucket <code class=var>h = f<sub>1</sub>(k)</code>
+for the search key <code class=var>k</code>.
+The remaining buckets are examined using a stride <code class=var>s =
+f<sub>2</sub>(k)</code>.
+That is, the buckets are examined in the sequence
+<code class=var>h, h + s, h + 2s, h + 3s, ..., h + (b-1)s</code>
+(all computations are done modulo the number of buckets
+<code class=var>b</code>).
+<br><br>
+Notice that linear open addressing examines the buckets using the
+stride <code class=var>s = 1</code>.
+<br><br>
+Using <code class=var>s = 0</code> doesn't do you any good because
+with a stride of zero, only the home bucket is examined.
+For double hashing to work properly, it is necessary that the stride be such
+that the sequence
+<code class=var>h, h + s, h + 2s, h + 3s, ..., h + (b-1)s</code>
+covers all bucket indexes (i.e., we want all buckets to be examined).
+The examination of all buckets is assured by choosing a stride
+<code class=var>s</code> that is relatively prime to the number
+<code class=var>b</code> of buckets.
+<br><br>
+When <code class=var>b = 11</code>, we may use any of
+<code class=var>1, 2, 3, ..., 10</code> as the stride.
+For example, if we use <code class=var>s = 4</code>, the buckets are
+examined in the sequence <code class=var>h, h + 4, h + 8, ..., h + 40</code>
+(modulo <code class=var>11</code> of course).
+When <code class=var>h = 3</code>, the sequence is
+<code class=var>3, 7, 0, 4, 8, 1, 5, 9, 2, 6, 10</code>.
+<br><br>
+A common choice for the secondary hash function
+is <code class=var>f<sub>2</sub>(k) =  p - (k % p)</code>,
+where <code class=var>p</code> is a prime number less than the
+number <code  class=var>b</code> of buckets in the table.
+Notice that
+<code class=var>0 &lt; f<sub>2</sub>(k) &lt;= p</code>.
+
+<br><br>
+<a name = "Performance"></a>
+<font color=blue><big><big>Performance</big></big></font><br>
+
+The <code class=var>U<sub>n</sub></code> and
+<code class=var>S<sub>n</sub></code> formulas for random probing were
+derived in the text.
+
+Although, accurate formulas for quadratic probing and
+double hashing have not been developed, their
+expected performance seems to governed by the formulas
+for random probing.
+That is, the expected performance for quadratic probing
+and double hashing is given by the equations:
+<br><br>
+<center>
+<code class=var>U<sub>n</sub> = 1/(1-alpha)
+<br>
+S<sub n></sub> = -(log<sub>e</sub>(1-alpha))/alpha</code>
+</center>
+where <code class=var>alpha</code> is the loading factor.
+
+<br><br>
+Even though the alternatives described above are expected to examine
+a fewer number of buckets than is examined by the linear open addressing
+scheme discussed in the text, these schemes take more time per
+bucket examined (because these schemes require more work to determine
+which bucket to look at next).
+Therefore, at smaller values of the loading factor, these schemes are
+not expected to outperform linear open addressing.
+For example, when the loading factor is <code class=var>0.5</code>,
+an unsuccesful search of a linear open addressed table is expected
+to examine <code class=var>2.5</code> buckets.  When one of the alternatives
+considered here is used, this expected number drops to
+<code class=var>2.0</code>. If the additional overhead incurred
+by the alternative schemes is more than half the time linear
+open addressing takes to examine a
+bucket, these alternative schemes will be slower.
+
+<br><br>
+<a name = "Exercises"></a>
+<font color=blue><big><big>Exercises</big></big></font><br>
+<ol>
+<li>
+Write a computer program to verify that quadratic probing examines all
+buckets in a hash table with <code class=var>b = 251, 503, 1019</code>
+buckets.
+<li>
+Assume that double hashing is used with <code class=var>11</code> buckets.
+Write the sequence of bucket examinations when the home
+bucket is <code class=var>5</code> and the
+stride is <code class=var>6</code>.
+<li>
+Show that whenever the stride <code class=var>s</code> is relatively prime
+to the number <code class=var>b</code> of buckets, the
+sequence
+<code class=var>h, h + s, h + 2s, h + 3s, ..., h + (b-1)s</code>
+(all computations are done modulo <code class=var>b</code>)
+examines every bucket in the table. <code class=var>h</code> is any
+integer in the range <code class=var>0</code> through <code class=var>b - 1</code>. 
+<li>
+Show that the choice
+<code class=var>f<sub>2</sub>(k) =  p - (k % p)</code>,
+where <code class=var>p</code> is a prime number less than the
+number <code  class=var>b</code> of buckets in the table ensures that
+the sequence
+<code class=var>h, h + s, h + 2s, h + 3s, ..., h + (b-1)s</code>
+(all computations are done modulo <code class=var>b</code>)
+examines every bucket in the table.
+<code class=var>h</code> is any
+integer in the range <code class=var>0</code> through <code class=var>b - 1</code>. 
+<li>
+Implement a hash table that uses double hashing.
+Compare the performance of your table with that of the linear open
+addressed table developed in the text.
+</ol>
+
+</FONT>
+</BODY>
+</HTML>

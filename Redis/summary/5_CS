@@ -1,0 +1,421 @@
+-----------------------------------------------
+1.Redis采用CS结构
+  Server管理数据库，并向多个Client提供服务
+  多个Client可与同一个Server建立网络连接.
+  然后Client向Server发送命令请求，Server执行命令，并回复Client
+
+  Server与Client的交互是长时间的
+  所以会在Server端保存Client的状态:redisClient ---> 记录在Server所需要的Client的基本信息
+  
+  Redis中的Server通过链表来管理多个Client : list* clients;
+-----------------------------------------------
+
+2.redisClient中的重点字段
+  1)socket fd
+    Client和Server的网络通信fd --> Server accept()
+    fd的值也标识客户端的类型
+    a.=-1
+-----------------------------------------------
+      伪客户端
+      Redis中的一个接口设计:Server只能通过先读取redisClient中记录的用户命令，然后再执行相关操作
+      正常的Client会先与Server建立连接，Server调用accept()创建该socket fd ---> 值肯定>0
+      并将该socket fd纳入Reactor的监听当中
+      随后Client的命令请求会发送到该socket fd中 ---> Reactor监听成功，回调 命令请求处理器 --> 命令请求写入到redisClient中.
+      当轮到服务该Client时，Server就会从redisClient中读取读取命令请求，执行相关操作
+
+      而AOF,lua脚本也会让Server执行命令，但他们并没有实际的网络客户端 ---> socket fd并不存在
+      为了保持接口的简洁，Redis为AOF，lua脚本也创建redisClient，并设置socket fd为-1 ---> accept()不可能返回的值
+      以此来区分其他网络客户端
+      当然也可以为AOF,lua设计额外的接口 ---> 但整体来看，接口就显得冗杂
+-----------------------------------------------
+
+   b.>0 
+     网络客户端
+
+   在server中，网络客户端和伪客户端是分开管理的
+   比如:lua伪客户端         --> redisClient* lua_client
+        其不同于网络客户端  --> list* clients;
+   lua伪客户端在执行lua脚本时创建，会一直存在，知道服务器关闭
+
+-----------------------------------------------
+  2)flags
+    记录客户端的角色以及客户端的状态
+    Client可对应多种角色
+    比如:在主从复制时，Master服务器和Slave服务器互为对方的客户端 --> 如何区分Master和Slave呢
+         REDIS_MASTER:标识客户端为Master
+         REDIS_SALVE :标识客户端为Slave
+    状态相关:
+    REDIS_MULTI : 客户端正在执行事务
+    REDIS_DIRTY_CAS : 事务使用WATCH命令监视的数据库键已经被修改 ---> 事务的安全性被破坏
+    REDIS_FORCE_AOF : 强制服务器将当前执行的命令写入到AOF文件中
+-----------------------------------------------
+    REDIS_FORCE_EPEL: 强制Master服务器将当前执行的命令复制到所有Slave服务器
+    正常情况下，Redis只会将 数据库写入命令  写入到AOF文件中，并复制到Slave服务器 ---> 恢复数据库的状态是没有问题的，但不足以恢复Redis服务器的状态
+    考虑命令:PUBSUB 
+             其用于向频道订阅发布消息
+             虽然其并没有改变数据库，但其该变了客户端的状态 ---> 所有接受到此消息的客户端的状态都会发生改变 --> 引起这种改变的命令也应该记录下来 ---> 载入AOF文件时，再次执行该命令，恢复客户端的状态
+             
+             SCRIPT LOAD
+             其会载入指定的脚本
+             虽然没有修改数据库，但会修改服务器状态
+             
+             所以需要使用REDIS_FORCE_AOF标志，指示服务器强制将以上两个命令写入到AOF文件中
+  
+  3)输入buffer
+    sds querybuf;  ----> read() socket fd时需要的buffer
+
+  4)命令与命令参数
+    robj** argv,int argc
+    Server会解析输入buffer中的内容 ---> Client的命令以及命令的参数
+    然后存放在argv和argc中
+    比如SET name hello
+  
+  5)命令记录 
+    struct redisCommand *cur_cmd, *last_cmd;
+    该结构保存了命令的实现函数，命令的标志，以及命令的总执行次数，总消耗时长的等统计信息
+    
+-----------------------------------------------
+  6)输出缓冲区 --> write() socket fd需要的buffer
+    a.固定大小缓冲区
+      char buf[REDIS_REPLY_CHUNK_BYTES];
+      int bufpos;  ---> 记录已经使用的字节数  ---> 当buffer中的内容过多时,用于实现多次写
+
+    b.可变缓冲区
+      list* reply
+      理论上可以无限大的
+      但为了避免客户端的恢复过大，占用较多的服务器资源
+      服务器会时刻检查缓冲区的大小
+      当大小超过一定限制时，执行相应的限制操作
+      限制有两种
+      1)硬性限制
+        若超过此限制，服务器会立即关闭客户端
+      2)软性限制
+        若buffer大小超出此限制，但没有超出硬性限制
+        那么服务端就开始计时客户端buffer超出软性限制的时间
+        若buffer持续超出软性限制，且超过了设置的时长了，那么服务器将关闭客户端
+        若在规定的时间内，buffer降到软性限制以下，服务端将清0计时器
+        
+        软性限制可以检测到 客户端在短时间内是否请求了大量的内容 ---> 通常为网络攻击
+      软性限制也使得资源限制功能更加具有弹性
+      硬性限制 有点 生硬
+
+      限制值需要用户自己配置:
+      比如client-output-buffr-limit:<class> <hard limit> <soft limit> <soft second>
+-----------------------------------------------
+
+  7)身份验证
+    int authenticated
+    为0表示客户端的身份没有通过验证
+    服务器会拒绝除了 AUTH(请求身份验证) 之外的命令
+    
+-----------------------------------------------
+  8)时间属性
+    ctime:记录创建客户端的时间点 ---> 用于计算客户端与服务器连接了多久
+    lastinteraction:记录客户端和服务器最后一次进行互动的时间  --> 可以计算客户端的空转时间，已决定该连接还是否有效
+-----------------------------------------------
+
+    
+
+-----------------------------------------------
+3.关闭客户端的原因
+ 1)客户端进程退出
+   网络连接被关闭
+ 
+ 2)客户端发送了不符合协议格式的命令请求
+ 
+ 3)客户端的空转时间超出限制
+   服务端认为此连接已经失效，遂关闭网络连接
+ 
+ 4)输出buffer超出缓冲区限制
+-----------------------------------------------
+
+
+-----------------------------------------------
+4.一次命令的执行过程
+ 1)用户向客户端输入命令 比如 SET A a
+   客户端将命令转为指定的协议格式  --> Client和Server相互约定好的格式
+   然后将命令请求通过socket fd发送到服务端
+ 
+ 2)服务端使用Reactor监听socket fd
+   当Reactor监听到有内容到达时，会回调与该fd绑定的 命令请求处理函数
+   该函数职责:
+   a.调用read()读取fd中的内容到输入buffer中
+   b.解析输入buffer中的内容 : 命令，命令参数及个数  
+     解析后，存放在redisClient的argv,argc中
+   c.调用命令执行函数，执行相关命令
+ 
+ 3)命令执行函数职责
+   a.在命令表中查找该命令对应的实现函数，并记录到redisClient的redisCommand* cur_cmd
+     命令表为字典结构 <name,redisCommand>--> 178页
+     在命令表中记录命令的全部信息:实现函数，命令的性质(写入，读取，是否会占用大量内存等指示性信息) ...
+
+   b.执行预备检查操作，确保命令可以正确，顺利的执行
+
+   ////////////////////////////////////////////
+     1.检查cur_cmd是否为null
+     2.检查用户输入的命令参数是否满足该命令要求的最少参数
+       在redisCommand中含有arity属性 ---> 该命令需要的最少参数个数
+     3.检查客户端是否通过了身份验证
+     4.如果服务器打开了maxmemory功能，则会在执行命令前先检查内存占用情况，必要时进行内存回收
+     5.如果客户端正在执行事务，那么服务器只会执行客户端发送的EXEC,DISCARD,MULTI,WATCH命令
+       其他命令会被放进事务队列中
+     6.如果服务器开启了监视功能，那么会将该命令的相关信息发送到监视器中
+     其他见 182页
+   ////////////////////////////////////////////
+   
+   c.调用命令实现函数，执行命令
+     cur_client->cur_cmd->proc(cur_client);
+                 命令实现函数  保存着命令参数以及输出缓冲区 
+   
+   d.后续工作 
+
+   ////////////////////////////////////////////
+     1.在慢查询日志中添加一条记录
+     2.统计该命令的执行时长，并记录到redisCommand中的milliseconds中
+     3.写入到AOF缓冲区中
+     4.将命令传播给slaves
+   ////////////////////////////////////////////
+
+ 4)命令回复
+   在命令执行时，会将回复内容写入到输出buffer中
+   执行完毕后会用Reactor监听socket fd何时可写
+   监听成功后，回调 回复处理函数 ---> 将输出buffer中的内容写入到socket fd中
+ 
+ 5)客户端接收并向用户显示回复内容
+-----------------------------------------------
+   
+
+
+5.由于Server会一直运行
+  所以需要进行定期检查服务器状态，并进行维护操作，以保证服务器的良好运转  --> serverCron()函数的功能
+
+  serverCron()默认每100ms执行一次
+  具体的职责
+-----------------------------------------------
+  1)更新Server时间缓存
+    Server中许多功能需要系统时间
+    但获取系统时间为系统调用  
+    为减少系统调用次数，Server维护了时间缓存 -----> 并不精确 ---> 适用于时间精确度要求不高的场景:比如打印日志，更新服务器的LRU等
+    高精度时间要求场景:设置键过期时间，添加慢查询日志 ---> 使用系统调用
+-----------------------------------------------
+
+  2)用时间缓存更新服务器的LRU
+    用于计算键的空转时长 ---> 空转较长的键会被清理掉，以缓解内存压力
+    服务器的LRU - redisObejt.lru ---> 键的空转时长  ---> 并不要求高精度，以秒计
+
+-----------------------------------------------
+  3)统计命令的执行次数 ---> 被用于持久化的判断
+-----------------------------------------------
+
+  4)更新内存使用的峰值 ---> 用于日志打印
+
+-----------------------------------------------
+  5)检查shutdown_asap
+    服务器在启动时会为SIGTERM install handler ---> 会设置shutdown_asap标志 ---> 指示服务器应该停止
+    serverCron()检查该标志是否置位
+    若设置，则启动服务器的关闭流程 ---> 其中的一个操作就为RDB持久化
+    若服务器一收到SIGTERM就停止，那么将无法进行持久化操作
+-----------------------------------------------
+
+  6)调用clientCron()，检查客户端的状态 
+    
+-----------------------------------------------
+  7)调用databasesCron()，维护数据库 ---> 检查数据库，删除过期键
+-----------------------------------------------
+
+
+-----------------------------------------------
+  8)执行被延迟的BGREWRITEAOF
+    在服务器执行BGSAVE期间，若客户端发送BGREWRITEAOF命令，那么服务端会将该命令推迟到BGSAVE命令之后
+    为什么要推迟? ---> 不能同时进行这两个命令 ---> 否则会发生data race
+    如何推迟? 
+    a.设置aof_rewrite_scheduled标志
+      以表明有被推迟的BGREWRITEAOF命令
+    b.serverCron()为周期性函数
+      在每个周期，检查该标志是否置位
+      若置位，则检查系统是否正在执行BGSAVE  ---> 如何检查呢?
+      若没有，则执行BGREWRITEAOF
+-----------------------------------------------
+
+
+-----------------------------------------------
+  9)检查持久化操作的状态
+    持久化操作是在子进程中进行的，完成以后，子进程需要向父进程发送信号
+    父进程周期性地调用非阻塞式的waitxx()，来检查是否有子进程的信号到达
+    如果有信号到达，则表明持久化操作已完成，然后执行后续操作 ---> 比如用新的RDB文件替换旧的，用重写AOF文件替换旧的
+    在server中含有标志:rdb_child_pid和aof_child_pid
+                       若被置位，则表明当前有子进程在执行持久化操作 
+                       若没置位，则:
+                       a.检查是否有被延迟的BGREWRITEAOF命令 ---> 检查aof_rewrite_scheduled标志 
+                         若有，则启动BGREWRITEAOF操作
+                       b.检查当前服务器的状态是否满足持久化的条件
+                         若满足，则开启持久化操作
+                       b.检查当前服务器的状态是否满足重写AOF的条件
+                         若有，则启动BGREWRITEAOF操作
+-----------------------------------------------
+
+  10)将AOF缓冲区的中内容写入到AOF文件中
+
+  11)关闭缓冲区超出大小限制的客户端
+
+
+6.服务器的初始化
+  initServerConfig():负责初始配置
+  1)创建全局的struct redisServer的实例
+    将各个属性值设为默认值 
+  2)载入配置选项
+    比如，port，dbnum
+  
+  initSerer():根据配置初始化数据结构
+  1)初始化服务器要用到的数据结构:分配内存，设置初始值
+    a.list* clients
+      在服务端保存的客户端状态链表
+    b.redisDb *db;
+      服务端需要管理的数据库
+    c.dict *pubsub_channels;  
+      频道字典
+      list *pubsub_patterns;  
+      频道模式链表
+    d.lua_State *lua; 
+      执行lua脚本的环境
+    e.list *slowlog;                  
+      慢查询日志链表
+  2)其他操作
+    install signal handler
+    创建共享对象:1~10000的字符串对象
+    进行socket的创建，绑定，监听
+    将该socket纳入Reactor的监听范围中
+    创建周期性事件:serverCron() ---> 加入到时间任务链表中
+    ....
+  
+  载入RDB文件或者AOF文件，还原数据库状态
+  若开启了AOF功能，则用AOF文件进行还原，因为AOF的更新频率更高，更能反应最近的数据库的状态
+
+    
+
+
+
+
+typedef struct redisClient {
+
+    // 套接字描述符
+    int fd;
+
+    // 当前正在使用的数据库
+    redisDb *db;
+
+    // 当前正在使用的数据库的 id （号码）
+    int dictid;
+
+    // 客户端的名字
+    robj *name;             /* As set by CLIENT SETNAME */
+
+    // 查询缓冲区
+    sds querybuf;
+
+    // 查询缓冲区长度峰值
+    size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size */
+
+    // 参数数量
+    int argc;
+
+    // 参数对象数组
+    robj **argv;
+
+    // 记录被客户端执行的命令
+    struct redisCommand *cmd, *lastcmd;
+
+    // 请求的类型：内联命令还是多条命令
+    int reqtype;
+
+    // 剩余未读取的命令内容数量
+    int multibulklen;       /* number of multi bulk arguments left to read */
+
+    // 命令内容的长度
+    long bulklen;           /* length of bulk argument in multi bulk request */
+
+    // 回复链表
+    list *reply;
+
+    // 回复链表中对象的总大小
+    unsigned long reply_bytes; /* Tot bytes of objects in reply list */
+
+    // 已发送字节，处理 short write 用
+    int sentlen;            /* Amount of bytes already sent in the current
+                               buffer or object being sent. */
+
+    // 创建客户端的时间
+    time_t ctime;           /* Client creation time */
+
+    // 客户端最后一次和服务器互动的时间
+    time_t lastinteraction; /* time of the last interaction, used for timeout */
+
+    // 客户端的输出缓冲区超过软性限制的时间
+    time_t obuf_soft_limit_reached_time;
+
+    // 客户端状态标志
+    int flags;              /* REDIS_SLAVE | REDIS_MONITOR | REDIS_MULTI ... */
+
+    // 当 server.requirepass 不为 NULL 时
+    // 代表认证的状态
+    // 0 代表未认证， 1 代表已认证
+    int authenticated;      /* when requirepass is non-NULL */
+
+    // 复制状态
+    int replstate;          /* replication state if this is a slave */
+    // 用于保存主服务器传来的 RDB 文件的文件描述符
+    int repldbfd;           /* replication DB file descriptor */
+
+    // 读取主服务器传来的 RDB 文件的偏移量
+    off_t repldboff;        /* replication DB file offset */
+    // 主服务器传来的 RDB 文件的大小
+    off_t repldbsize;       /* replication DB file size */
+    
+    sds replpreamble;       /* replication DB preamble. */
+
+    // 主服务器的复制偏移量
+    long long reploff;      /* replication offset if this is our master */
+    // 从服务器最后一次发送 REPLCONF ACK 时的偏移量
+    long long repl_ack_off; /* replication ack offset, if this is a slave */
+    // 从服务器最后一次发送 REPLCONF ACK 的时间
+    long long repl_ack_time;/* replication ack time, if this is a slave */
+    // 主服务器的 master run ID
+    // 保存在客户端，用于执行部分重同步
+    char replrunid[REDIS_RUN_ID_SIZE+1]; /* master run id if this is a master */
+    // 从服务器的监听端口号
+    int slave_listening_port; /* As configured with: SLAVECONF listening-port */
+
+    // 事务状态
+    multiState mstate;      /* MULTI/EXEC state */
+
+    // 阻塞类型
+    int btype;              /* Type of blocking op if REDIS_BLOCKED. */
+    // 阻塞状态
+    blockingState bpop;     /* blocking state */
+
+    // 最后被写入的全局复制偏移量
+    long long woff;         /* Last write global replication offset. */
+
+    // 被监视的键
+    list *watched_keys;     /* Keys WATCHED for MULTI/EXEC CAS */
+
+    // 这个字典记录了客户端所有订阅的频道
+    // 键为频道名字，值为 NULL
+    // 也即是，一个频道的集合
+    dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
+
+    // 链表，包含多个 pubsubPattern 结构
+    // 记录了所有订阅频道的客户端的信息
+    // 新 pubsubPattern 结构总是被添加到表尾
+    list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
+    sds peerid;             /* Cached peer ID. */
+
+    /* Response buffer */
+    // 回复偏移量
+    int bufpos;
+    // 回复缓冲区
+    char buf[REDIS_REPLY_CHUNK_BYTES];
+
+}
+
+

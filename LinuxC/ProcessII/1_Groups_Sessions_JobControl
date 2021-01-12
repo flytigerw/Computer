@@ -1,0 +1,275 @@
+1.Process group:a set of one or more processes sharing the same process group identifier(PGID)
+  A group has a leader,which is the process that creates the group and whose PID becomes the GID of the group
+  A new process inherits it's parent's PGID
+  A group has a lifetime,which is a period of time begining when the leader creates the group and ending when the last process member leaves the group 
+  A process may leave a group by terminating or join another group
+
+2.A session is a connection of process groups
+  A process's session membership is determined by its session identifier(SID)
+  A session leader is the process who creates the session and whose PID becomes the the SID of the session
+  A new process inherits its parent's SID
+  
+  All of the processes in a session share a single controlling terminal
+  The controlling terminal is established when the session leader first opens a terminal device unless the O_NOTTY is specified when calling open()
+  As the consequence of establishing a connection to the controlling terminal,the session leader becomes the controlling process for the terminal
+  The principal significance of being the controlling process is that the kernel will sent it a SIGHUP signal when the terminal disconnect occurs
+
+  A terminal may be the controlling terminal of at most one session
+
+  At any point in time,one of these process groups in a session is foreground process group for the terminal while the others are background process groups
+   Only process in foreground group can read input from the controlling terminal
+   If a user types one of the signal-generating terminal characters,then a corresponding signal will be sent to all the processes in the foreground group
+   Such as:C-c --> SIGINT
+           C-\ --> SIGQUIT
+           C-z --> SIGSTP
+   
+3.The main use of groups and sessions is for shell job control
+   Ex:
+   For an interactive login,the controlling terminal is the one in which the user logs 
+   The login shell becomes the session leader and the controlling process for the terminal and is also made the sole member of its own process group
+   Each CMD or pipline of CMDs started from the login shell result in the creation of one or more processes and the shell place all of these processes in a new process group
+   A CMD or pipeline is created as a background process group if it's terminated by &.Otherwise it will become foreground group
+   
+   In a windowing environment,the controlling terminal is a pseudoterminal,and there is a separate session for each window terminal,with the window startup shell being the session leader and controlling process for the windown terminal 
+
+4.A process can obtain it's PGID by getpgrp()
+  pid_t getpgrp(void);
+  If the returned value matches the caller's PID,then the caller is the leader of this group
+
+5.A process can change it's process group by setpgrp()
+  int setpgid(pid_t pid, pid_t pgid)
+  1)If pid is specified as 0,then the calling process's PGID is changed
+  2)If pgid is specified as 0,then the PGID of the process specified by pid is made the same as its PID --> become the leader
+  3)If pgid and pid specify the same process,then a new  process group will be created and the specified process will become the group leader
+  4)If they specify different values,then setpgid() is used to moce process between process groups
+
+6.Several restrictions when calling setpgid()
+  1)The pid may only specify the calling process or its children.
+    Violation of this rule results in ESRCH error
+  
+  2)When moving process between process group,the calling process,the process specified by pid and the target process group must all be part of the same session
+    Violation of this rule results in EPERM error
+
+  3)The pid may not specify the process that is the session leader.
+     EPERM error
+  
+  4)The process may not change the PGID of one of its children after that child has performered exec()
+    EACCES error
+    It affects the programming of the job-control shells,which have the following requirements
+     1)All of the processes in the job must be placed in a single process group
+       This step permits the shell to simultaneously send job-control signals to all members in the group
+       Naturally this step must be carried out before any job-control signals are sent
+     2)Each of the child processes must be tranferred to the group before it execs any program,since the program itself is ignorant of maniplulations of PGID
+    For each process in the job,either the parent and child can use setpgid() to change the PGID of the child
+    Since the scheduling of parent and child is inderminate after a fork(),we can't rely on the parent changing the child's PGID before the child does an exec()
+    Nor can we rely on the child changing the PGID before its parent send any signals to it
+    Therefore the job-control shells are programmed so that both parent and child call setpgid() to change the child's PGID to the same value immediately after a fork() and the parent ignores any occurance of the EACCES error on segpgid()
+    Ex Codes:
+    pid_t childPid;
+    pid_t pipelinePgid; //PGID to which processes in a pipeline are assigned
+    //xxxx
+    switch((childPid = fork())){
+      case -1:
+      //handle error
+      case 0:
+       if(segpgid(0,pipelinePgid) == -1)
+       //handle error
+      default :
+       if(setpgid(childPid,pipelinePgid) == -1 && errno != EACCES)
+        //handle error
+
+    }
+
+7.Get SID of a process
+  pid_t getsid(pid_t pid)
+  If pid is specified as 0,getsid() get SID of the calling process
+
+  pid_t setsid()
+  1)Create a session leader if the calling process is not a session leader
+  2)The calling process PGID and SID are set to the same value as PID
+  3)The calling process has no terminal,any previously existing connection to terminal is broken
+  4)If the calling process is a group leader,it fails with error EPERM
+    The simplest way of ensuring that this doesn't happen is to perform fork() and have parent exit while the child carries on to call setsid().Since the child inherits the PGID of parent and could't be the group leader
+    It's necessary because without it the group leader may place itself in another session while other group members remain in the original session --> It's against the rule that all group members must be the part of the same session
+
+8.The controlling terminal is inherited by parent of a fork() and perserved across exec()
+  
+  If a process has controlling terminal,opening /dev/tty can obtain the fd for that terminal.If doesn't have,it fails with error ENXIO
+  It's useful when stdout and stdin are redirected and a program wants to ensure it's communicating with a controlling terminal
+
+
+9.The ioctl(fd,TIOCNOTTY) can be used to remove a process's association with controlling terminal specified by fd
+  Following steps occur:
+  1)All processes lose their association with the controlling terminal
+  2)The kernel sends a SIGHUP signal to all members of the foreground process group to inform them of the loss of the controlling terminal
+
+10.Establishing a controlling terminal on BSD
+   in pdf 707
+
+11.char* ctermid(char* ttyname)
+   1)It's used to obtain a pathname referring to the controlling terminal
+   2)It returns pathname can via both return result and the buffer pointed to by ttyname
+     If ttyname is not NULL,then it should point to a buffer at least L_ctmerid bytes.If it is NULL,ctermid() return a pointer points to a statically allocated buffer containing the pathname
+  3)On most Linux implementations,ctermid() typically returns /dev/tty
+    The main purpose of this function is maintain the portability
+  
+12.pid_t tcgetpgrp(int fd)
+   1)Get the PGID of the foreground process group referred to by fd,which must be the contronlling terminal of the calling process
+   2)If there is no foreground process group,tcgetpgrp() returns a value greater than 1 that doesn's match the ID of any existing processes group
+   
+   int tcsetpgrp(inf fd,pid_t pgid)
+   1)Change the foreground process group of a terminal
+   
+   On Linux,both functions are implemented using two unstandardized ioctl() operation:TIOCGPGRP and TIOCSPGRP
+
+12.When a contronlling process loses its terminal connection,the kernel sends it a SIGHUP signal to inform it of this fact
+   A SIGCONT is also sent to ensure that this process is restarted in case it had been previously stopped by a signal
+   Typically it will occur in two circumstances
+   1)When a disconnect is detected by terminal driver,indicating a loss of signal or terminal line
+   2)When a terminal window is closed on a workstation
+     This occurs because the last open fd for the master side of pseudoterminal associated with window terminal is closed
+   
+   The default action of SIGHUP is to terminate a process
+   If the contronlling process instead handles or ignores SIGHUP,then furthur attempts to read from the terminal return end-of-file
+
+   The delivery of SIGHUP to contronlling process can set off a sort of chain reaction,resulting in the delivery of SIGHUP to many processes
+   It may occur in two ways
+   1)The contronlling process is typically a shell
+     The shell establishes a handler for SIGHUP,so that,before terminating it,it can send a SIGHUP to each of the jobs that it has created
+     This signal termiantes these jobs by default.
+
+     If they catch the signal ,they're informed of the shell's demise
+    
+    2)Upon the termination of the contronlling process for a terminal,the kernel disassociates all the processes in the session from the terminal,disassociates the contronlling terminal from the session so that it can be acquired as the contronlling terminal by another session leader and informs the members of the foreground group of the loss of their contronlling terminal by sending them a SIGHUP signal
+
+13.Job control permits shell user to simultaneously execute multiple jobs,one in the foreground and the others are in the background
+   The job can be stopped,resumed,and moved between the foreground and background 
+   Using job control to manage multiple simultaneous jobs can be faster and simpler than switching back and forth between multiple windows
+
+14.Using job control within the shell
+   1)When we enter a CMD terminated by &,it is run as a background job
+     Each job placed in the background is assigned a job number by shell
+     Job can be referred to using notation %num
+    
+    2)The current job is the last job that was stopped in the foreground or started in the background
+      %+ refers to the current job
+      %- refers to the previsou current job
+
+    3)The CMD jobs is built-in CMD and lists all of the background jobs
+
+    4)The CMD fd %num moves background job to the foreground
+    
+    5)We can suspend a foreground job by using terminal suspend character(C-z) which sends SIGSTP signal to the foreground process group
+      If desired,we can resume it in foreground by fg %num or in background by bg% num
+      
+      We can stop a background job by sending it a signal
+      kill -stop %num 
+
+    6)When a background job eventually completes,the shell prints a message prior to displaying the next shell prompt
+    
+    7)Only processes in the foreground group can read from input from the controlling terminal
+      This restriction prevents multiple jobs from competing for terminal input
+      If a background job tries to read from the terminal,it's sent SIGTTN sigal whose default aciton is to stop the process
+      At this point,we must bring the job into foreground and provide required input
+      If desired,we can continue the execution of the job in the background by first suspending it and then resuming it in the BG(bg %num)
+
+      By default,BG jobs are allowed to perform output to the controlling terminal
+      But if the TOSTOP flag is set for this terminal,then attempts by BG jobs to perform output to terminal result in the generation of a SIGTTOU signal 
+      Using stty to set the TOSTOP flag: stty tostop
+
+15.The requirements of the implementation of job control
+   1)It must provide certain job-control signals:SIGSTP,SIGSTOP,SIGCONT,SIGTTOU,SIGTTN
+     The SIGCHLD is also necessary since it allows the shell to know when one of its children terminates or stops
+   
+   2)The terminal driver must support the generation of job-control signals so that an appropriate signal can be sent to revelent PGRP when events such as the type of characters,ternimal IO or other terminal operations from the BG jobs take on
+     The terminal driver must also record the SID and FPGRP's PGID in order to carrt out above actions
+
+   3)The shell must support the job-control
+     The support is in the form of CMDs to move a job between BG and FG and monitor the state of jobs
+     Certain of CMDs send signals to a job
+     When performing operations that moves a job between running in the FG and any of other states,the shell uses tcsetpgrp() to adjust the terminal driver's record of the FPGRP's PGID
+
+16.The kernel allows a process to send SIGCONT to any process in the same session regardless of the credentials
+    It's required so that if a user starts a set-userID program can change its credentials,it's still possible to be resumed with SIGCONT when it's stopped
+
+17.Special cases that apply with respect to the generation of SIGTTIN and SIGTTOU signals for BG jobs
+   1)SIGTTN is not sent if the process is currently blocking or ignoring the signal 
+     Instead,a read() from the controlling terminal fails with EIO error
+   2)Even if the terminal TOSTOP flag is set,SIGTTOU is not sent if teh process is currently blocking or ignoring the signal
+     Instead,a write() to the controlling terminal is permitted
+   3)Regardless of the setting of the TOSTOP flag,certain functions that change terminal driver data structures result in the generation of SIGTTOU for BG process if it tries to apply them to controlling terminal
+   Such as tcsetpgrp(),tcsetattr(),tcflash(),tcflow(),tcdrain()...
+   If SIGTTOU is blocked of ignored ,these calls succeed
+ 
+18.Because the opereation of job-control is transparent to most apps,they don't need to take special action to deal with job-control signals
+   One exception is the apps that perform screen handling,such as vi and less
+   Such programs control the precise layout of text on a terminal and change various terminal settings,including settings that allow the terminal input to be read a character rather than a line at a time
+   
+   Screen-handling programs need to handle the terminal stop signal(SIGTSTP)
+   The signal handler should reset the terminal into the canonical input mode(line-at a time) and place the cursor at the bottom-left of the terminal
+   When resumed,the program sets the terminal back to the model required by the programand checks the window size and redraws the screen with desired contents
+
+   Some subtleties when handling SIGTSTP
+   If SIGTSTP is caught,then it does't perform its default action of terminating a process
+   We can raise SIGSTOP in the handler to terminate the process,since SIGSTOP can't be caught,blocked,or ignored and it's guaranteed to immediately stop the process
+   But the parent process can use the wait status value returned by waitxx() to determine which signal caused one of children to stop
+   If we raise SIGSTOP in the handler for SIGTSTP,then it will appear to parent that child was stopped by SIGTSTP
+   The proper approach in this situation:Have the SIGTSTP handler raise a furthur SIGTSTP signal to stop the process
+   1)The handler resets the dispostion of SIGTSTP to its default(SIG_DFL)
+   2)The handler raises SIGTSTP
+   3)Since the SIGTSTP was blocked on the entry to the handler unless the SA_NODEFER flags was specified,the handler unblocks the signal
+     Then the pending SIGTSTP raised in 2) perform its default action:Suspend the process immediately
+    4)Later the process will be resumed upon the receipt of SIGCONT,the execution of the handler continues
+    5)Before returning,the handler reblocks the SIGTSTP and reestablishes itslef to handle the occurance of next SIGTSTP
+    The reblocking of SIGTSTP is needed to prevent the handler from being recursively called if another SIGTSTP is delivered after the handler reestablishes itself but before the handler returned
+    And the recursive invocations of signal handler would cause the stack overflow if a rapid stream of signals is delivered
+
+19.App should handle job-control and terminal-generated signals only if these signals are not previously ignored
+   In the case of job-control signals(SIGTSP,SIGTTIN,SIGTTOU),this prevents an app from attempt to handle these signals if it is stated from non-job-control shell which sets the dispositions of these signals to SIG_DFL
+
+   In the case of SIGQUIT and SIGINT,the reason is that when a CMD is executed in the BG under a non-job-control shell,the resulting process is not placed in a separate PGRP
+   Instead it stays the same group as the shell and the shell sets the dispostions of SIGQUIT and SIGINT to be ignored before execing the CMD
+   This ensures the process is not killed if the user types terminal interrupt and quit characters which should only affect the jobs in the FPGRP
+   
+   The SIGHUP is ignored if the CMD is executed via nohup(1)
+   This prevents CMD from being killed as a consequence of terminal hangup
+   Thus an app shouldn't attempt to change the disposion if it's ignored
+
+20.An orphaned process is the process adopted by init() after its parent terminated
+   Ex:create an orphand child
+   if(fork() != 0)
+     eixt(EXIT_SUCCESS);
+   
+   An orphaned PGRP:The parent of every member in the group is either itself a member of the group or is not a member of the group's session
+   A PGRP is not orphaned if at least one of its members has a parent in the same session but in a different PGRP
+
+   The OPGRP is important.
+   Considering the follwoing scenario
+   if(fork() != 0)
+     eixt(EXIT_SUCCESS);
+   1)Before parent process exit,the child was stopped
+   2)When the parent exits,the shell remove its PGRP from the job list.
+     Then the child is adopted by init() and becomes the BG process for the terminal
+     The PGRP containing the child is an OPGRP
+    3)At this point,there is no process that monitors the state of the child via wait()
+    
+    Since the shell didn't create the child,it isn't aware of the existence of the child or that it is the part of the same PGRP as the deceased child
+    
+    The init() checks only for a terminated child and then reaps the resulting zombie process
+
+    Consequently there is no other process knows to send it a SIGCONT signal to cause it resume execution
+
+    Even if the stopped process in the OPGRP has a still-living parent in different session,the parent is not guaranteed to sent SIGCONT to the stopped child
+
+    A process may send SIGCONT to another process in the same session
+
+    To prevent scenario such as above one,it specifies that if a PGRP becomes an OPGRP and has any stopped members,then all members of this group are sent SIGHUP to inform them that they have disconnected from their session,followed by a SIGCONT signal,to ensure they resume execution
+    If no stopped members,no signals are sent
+
+    A PGRP may become OPGRP either because the last parent in different group in the same session terminated or because of the termination of the last process within the group that has a parent in a different group 
+
+21.SIGTTIN is sent to BG process if it tries to read() from contronlling terminal and SIGTTOU is sent to a BG process that tries to write() to controlling terminal if the terminal's TOSTOP flag is set
+   However,it makes no sense to send these signals to OPGRP,since once stopped,it will never have chance to be resumed
+   So instead of sending SIGTTIN and SIGTTOU,the kernel causes read() and write() fail with error EIO
+   If the delivery of SIGTTIN,SIGTTOU,SIGTSTP would stop a member of an OPGRP,then the signal is silently discarded 
+   This behaviour occurs no matter how the signal is sent.Generated by terminal driver or sent by kill()

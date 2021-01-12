@@ -1,0 +1,109 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 29<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+<dl compact>
+<dt> (a)
+<dd>
+The function with count incrementing statements included is
+given below.
+<HR class = coderule>
+<PRE class = code>
+int count;
+
+void d(int x[], int n)
+{
+   for (int i = 0; i &lt; n; i += 2)
+   {
+      count++;      // for the for statement
+      x[i] += 2;
+      count++;      // for the assignment statement
+   }
+   count++;         // last time of for
+
+   int i = 1;
+   count++;         // assignment statement
+   while (i &lt;= n/2)
+   {
+      count++;      // while conditional
+      x[i] += x[i+1];
+      count++;      // assignment statement
+      i++;
+      count++;      // increment i statement
+   }
+   count++;         // last time of while
+}
+</pre>
+<HR class=coderule><BR>
+<br><br>
+<dt> (b)
+<dd>
+The simplified version is given below.
+<HR class = coderule>
+<PRE class = code>
+int count;
+
+void d(int x[], int n)
+{
+   for (int i = 0; i &lt; n; i += 2)
+      count +=2;
+
+   count += 2;
+
+   int i = 1;
+   while (i &lt;= n/2)
+   {
+      count += 3;
+      i++;
+   }
+
+   count++;         // last time of while
+}
+</pre>
+<HR class=coderule><BR>
+<br><br>
+<dt> (c)
+<dd>
+In the <code class=code>for</code> loop, <code class=code>count</code>
+is increased by
+<em class=math>2ceil(<code class=code>n/2</code>)</em> and in
+the <code class=code>while</code> loop it is increased by
+<em class=math>3floor(<code class=code>n/2</code>)</em>.
+So, on termination, <code class=code>count</code>
+equals <em class=math>3 + 2ceil(<code class=code>n/2</code>) +
+3floor(<code class=code>n/2</code>)</em>.
+<br><br>
+<dt> (d)
+<dd>
+The step-count table is given below.
+<pre class=table>
+______________________________________________________________________________
+Statement                                s/e       Frequency      Total Steps
+______________________________________________________________________________
+void d(int x[], int n)                    0                0                0
+{                                         0                0                0
+   for (int i = 0; i < n; i += 2)         1    ceil(n/2) + 1    ceil(n/2) + 1
+      x[i] += 2;                          1        ceil(n/2)        ceil(n/2)
+   int i = 1;                             1                1                1
+   while (i <= n/2)                       1   floor(n/2) + 1   floor(n/2) + 1
+   {                                      0                0                0
+      x[i] += x[i+1];                     1       floor(n/2)       floor(n/2)
+      i++;                                1       floor(n/2)       floor(n/2)
+   }                                      0                0                0
+}                                         0                0                0
+______________________________________________________________________________
+Total                                            2ceil(n/2) + 3floor(n/2) + 3
+______________________________________________________________________________
+</pre>
+</FONT>
+</BODY>
+</HTML>

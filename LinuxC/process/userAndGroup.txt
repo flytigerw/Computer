@@ -1,0 +1,38 @@
+1 UID和GID作用: 
+ 1)确保系统资源的所有权
+ 2)对赋予进程访问系统资源的权限加以控制
+ 比如:文件属于特定user和group
+      进程也有自己的UID和GID
+      进行权限比对,严格控制
+
+2 /etc/passwd:记录系统中的账户信息
+格式: username : x : UID : GID : 注释 : HOME : login shell
+login shell: 一旦用户登录,便交由该程序控制
+             若为空,则默认为/bin/bash
+             用该字段值设置环境变量: SHELL
+
+3 /etc/shadow:记录用户的加密密码
+  仅供特权程序读取
+
+4 /etc/gropu:记录用户组的账户信息
+格式: groupname : x : GID : user1,user2,....
+
+5 在程序中获取以上文件的信息
+  1)获取/etc/shadow中的信息
+  struct passwd* getpwnam(const char* name)
+  给出username，获取在/etc/shadow中的一条记录
+  struct passwd{
+    char* pw_name;
+    char* pw_passwd;
+    uid_t uid;
+    gid_t gid;
+    char* pw_gecos;   //注释
+    char* pw_dir;
+    char* pw_shell;
+  }
+  仅当未启用shadow密码时,pw_passwd才有有效信息
+
+  struct passwd* gtpwuid(uid_t uid)
+
+  二者返回的指针都指向静态分配的内存----->函数是不可重入的
+  可重入版本: getpwnam_r()

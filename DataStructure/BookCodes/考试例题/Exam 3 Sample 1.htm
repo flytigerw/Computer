@@ -1,0 +1,129 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>Data Structures & Algorithms</H1>
+
+<H2>Exam 3, Sample 1</H2>
+<H2>70 Minutes</H2>
+<BR>
+</H1>
+
+<OL>
+<LI>
+[14]
+Let <em class=var>cost[i][j]</em> be the cost of buying item
+<em class=var>i</em> from store
+<em class=var>j</em>.
+Let <em class=var>n</em> be the number of different items and
+let <em class=var>m</em> be the number of stores.
+Assume that <em class=var>n &lt;= m</em>.  We are to purchase exactly one quantity of each item.
+Each item is to be bought from a different store.  We wish to complete the purchase at a small cost.
+The solution to our purchasing problem is a one dimensional array <em class=var>x[1:n]</em> such that <em class=var>x[i]</em> is the
+store from which item <em class=var>i</em> is to be purchased.
+All <em class=var>x[i]</em> values are different.
+<dl compact>
+<dt> (a)
+<dd>
+[10]
+Write a procedure
+to determine <em class=var>x</em> using the greedy method.
+Pseudocode (a precise statement of the procedure
+using a combination of English and C++)
+will suffice.
+<dt> (b)
+<dd>
+[4]
+Does your procedure
+guarantee a minimum cost solution for all instances?
+Prove your answer.
+</dl>
+<br>
+<LI>
+[10]
+<dl compact>
+<dt> (a)
+<dd>
+[6]
+Provide a divide-and-conquer algorithm to find the maximum of
+<em class=var>n</em> elements.  
+Pseudocode will suffice.
+<dt> (b)
+<dd>
+[3+1]
+What is the number of element comparisons your algorithm makes?
+Do you expect the divide-and-conquer algorithm to outperform
+the simple algorithm that finds the maximum making
+exactly <em class=var>n-1</em> comparisons?
+</dl>
+<br>
+<LI>
+[18]
+Let <em class=var>G</em> be a directed acyclic
+graph (i.e., there are no cycles in <em class=var>G</em>) with
+<em class=var>n</em> vertices and
+<em class=var>e</em> edges.
+Assume that the vertices are numbered 1 through <em class=var>n</em> such that
+for every directed edge <em class=var>(i,j)</em>
+in <em class=var>G</em>,
+<em class=var>i</em> <
+<em class=var>j</em>.
+Assume further that <em class=var>S(i)</em> is the set of vertices adjacent from
+vertex <em class=var>i</em> (i.e., the set of
+<em class=var>j</em> such that
+<em class=var>(i,j)</em> is an edge of
+<em class=var>G</em>).
+Let <em class=var>length[i][j]</em>
+be the length of the edge <em class=var>(i,j)</em>.  Assume that all lengths are > 0.
+<dl compact>
+<dt> (a)
+<dd>
+[15]
+Obtain an O(<em class=var>n+e</em>) time algorithm to determine the length of the longest
+path in <em class=var>G</em>.
+Pseudocode will suffice.
+(Hint: Define <em class=var>L[i]</em> to be the length of the
+longest path that originates at vertex <em class=var>i</em>.)
+<dt> (b)
+<dd>
+[3]
+Show that the complexity of your algorithm is, in fact, O(<em class=var>n+e</em>).
+</dl>
+<br>
+<LI>
+[8]
+Let <em class=var>G</em> be an undirected graph.  We are interested in deleting
+the smallest number of vertices from <em class=var>G</em> so that the resulting
+graph has no cycles.
+(When a vertex is deleted, all edges incident to it are also deleted.)
+<dl compact>
+<dt> (a)
+<dd>
+[2]
+Obtain a formulation for the solution space for this problem.
+Your formulation must correspond either to the subset (fixed or
+variable tuple size) or permutation space model.  State which
+one you are using.
+<dt> (b)
+<dd>
+[2]
+List all members of your solution space for a graph with 3 vertices.
+<dt> (c)
+<dd>
+[2]
+Draw a tree organization for your space.  Label all nodes and/or
+branches.
+<dt> (d)
+<dd>
+[2]
+Number the nodes in your tree organization in the order
+in which they are first reached during a backtracking procedure
+in which the bounding functions fail to curb any node expansions.
+</dl>
+
+<center>
+<A href="http:s97.htm">Solutions</A>
+
+</html>

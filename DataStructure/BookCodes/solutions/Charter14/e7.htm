@@ -1,0 +1,178 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 14, Exercise 7<BR>
+<BR>
+</H1>
+<dl compact>
+<dt>(a)
+<dd>
+The tree following each insert is:
+<br><pre class=figure>
+10          10              10                 10
+           /               /  \               /  \
+           5              5    20            5    20
+                                                 /
+                                                14
+
+
+
+      10
+     /  \
+    5    20
+        /  \
+       14  30
+
+
+
+      10
+     /  \
+    5    20
+     \  /  \
+     8 14  30
+
+
+      10
+     /  \
+    5    20
+     \  /  \
+     8 14  30
+    /
+   6
+
+      10
+     /  \
+    5    20
+     \  /  \
+     8 14  30
+    / \
+   6   9
+
+      10
+     /  \
+    5    20
+     \  /  \
+     8 14  30
+    / \      \
+   6   9     35
+
+
+      10
+     /  \
+    5    20
+     \  /  \
+     8 14  30
+    / \   /  \
+   6   9 25  35
+
+
+      10
+     /  \
+    5    20
+  /  \  /  \
+ 3   8 14  30
+    / \   /  \
+   6   9 25  35
+
+
+             10
+           /   \
+         /      \
+       /         \
+      /           \
+     5            20
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      30
+       / \   /       /  \
+      6   9 12      25  35
+
+
+             10
+           /   \
+         /      \
+       /         \
+      /           \
+     5            20
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      30
+       / \   /  \    /  \
+      6   9 12  17  25  35
+
+
+</pre>
+<dt>(b)
+<dd>
+After <code class=var>35</code> is removed, the tree is:
+<pre class=figure>
+             10
+           /   \
+         /      \
+       /         \
+      /           \
+     5            20
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      30
+       / \   /  \    / 
+      6   9 12  17  25  
+</pre>
+Following the removal of <code class=var>30</code>, the tree is:
+<pre class=figure>
+             10
+           /   \
+         /      \
+       /         \
+      /           \
+     5            20
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      25
+       / \   /  \
+      6   9 12  17
+</pre>
+Removing <code class=var>20</code> gives us the tree:
+<pre class=figure>
+             10
+           /   \
+         /      \
+       /         \
+      /           \
+     5            17
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      25
+       / \   /
+      6   9 12
+</pre>
+Removing <code class=var>10</code> gives us the tree:
+<pre class=figure>
+             9
+           /   \
+         /      \
+       /         \
+      /           \
+     5            17
+   /  \          /  \
+  /    \        /    \
+ /      \      /      \
+ 3      8     14      25
+       /     /
+      6     12
+</pre>
+
+</FONT>
+</BODY>
+</HTML>

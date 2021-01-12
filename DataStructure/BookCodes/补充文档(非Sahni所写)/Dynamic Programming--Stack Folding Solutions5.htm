@@ -1,0 +1,112 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 54, Exercise 5<BR>
+<BR>
+</H1>
+
+The <code class=var>H<sub>i,s</sub></code>
+values are computed for <code class=var>i = n-1, n-2, ..., 1</code>,
+in that order.  For each <code class=var>i</code>, we
+first use Equation 54.7 to obtain
+<code class=var>H<sub>i,i</sub></code>.
+Then, Equation 54.6 is used to obtain
+<code class=var>H<sub>i,s</sub></code> in the order
+<code class=var>s = i+1, i+2, ..., n</code>.
+<br><br>
+For each <code class=var>i</code>, we also compute
+<code class=var>kay[i]</code> to be the index <code class=var>k</code>
+for which <code class=var>H<sub>i,k</sub> = min<sub>i &lt;= s &lt;= n</sub> {H<sub>i,s</sub>}</code>.
+<br><br>
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+int standardCellFolding(int *w, int *l, int h, int n,
+                        int rWidth, int **theH, int *kay)
+{// Fold standard cells with widths w[1..n] into a
+ // rectangle of width rWidth.
+ // h is the height of each component.
+ // l is array of routing space to be left between cell rows.
+ // theH[i][s] is H_{i,s}.
+ // Values of theH[1..n+1][1..n+1] and
+ // kay[1..n] are computed by this method.
+ // Return height of minimum height folding.
+ // Return 0 iff the folding is not possible.
+   if (w[n] &gt; rWidth)
+      // infeasible
+      return 0;
+
+   theH[n][n] = h;
+   // compute remaining theH values and kay values
+   for (int i = n - 1; i &gt; 0; i--)
+   {// compute theH[i][]
+      if (w[i] &gt; rWidth)
+         // infeasible
+         return 0;
+
+      // compute theH[i][i] = H_{i,i} using Eqn. 54.7
+      int minH = theH[i + 1][i + 1];
+      for (int k = i + 2; k &lt;= n; k++)
+         if (theH[i + 1][k] &lt; minH)
+            minH = theH[i + 1][k];
+      
+      theH[i][i] = minH + l[i + 1] + h;
+      kay[i] = i;
+
+      // compute theH[i][s] = H_{i,s}, s &gt; i, using Eqn. 54.6
+     int wsum = w[i];   // wsum(i,s)
+     for (int s = i + 1; s &lt;= n; s++)
+     {
+        wsum += w[s];
+        if (wsum &lt;= rWidth)
+        {// folding at s + 1 is feasible
+           theH[i][s] = theH[i + 1][s];
+           if (theH[i][s] &lt; theH[i][kay[i]])
+              // s + 1 is a better fold point for C_i ... C_n
+              kay[i] = s;
+        }
+        else
+           // folding at i + 1 is not feasible
+           theH[i][s] = MAX_INT;
+     }
+   }
+
+   return theH[1][kay[1]];
+}
+
+void traceback(int *kay, int n)
+{// output fold points.
+
+   if (kay[1] &gt;= n)
+      cout << "There are no fold points" << endl;
+   else
+   {// there is at least one fold point
+      cout << "The fold points are ";
+      int i = 1;
+      while (i &lt; n)
+      {
+         i = kay[i] + 1;
+         cout << i + " ";
+      }
+      cout << endl;
+   }
+}
+</pre>
+<hr class=coderule>
+<br><br>
+To obtain an <code class=var>O(n)</code> time implementation,
+we first observe that because of Equation 54.6, only
+<code class=var>n</code> of the
+<code class=var>H<sub>i,s</sub></code>s are different.
+Therefore, only these different values need to be computed.
+The details of how this can be done can be found in the paper
+by Thanvantri and Sahni that is cited in Section 54.2.
+
+</FONT>
+</BODY>
+</HTML>

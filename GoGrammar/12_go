@@ -1,0 +1,49 @@
+
+
+1.排序
+  func Sort(data Interface)
+  对于自定义类型的数据集合，只要实现sort.Interface的三个方法，就可以调用sort对数据集进行排序
+  type Interface interface{
+	  Len() int       //元素个数
+	  Less(i,j) bool  //排序依据    ---> 可自定义升序或者降序的方法
+	  Swap(i,j int)   //元素位置交换的方法
+  }
+  例子:
+  type Score struct {
+	  name string 
+	  score int 
+  }
+  type Scores []Score
+  func(s Scores) Len()int{
+	  return len(s) 
+  }
+  func(s Scores) Less(i,j int )bool{
+	  return s[i].score < s[j].score
+  }
+  func(s Scores)Swap(i,j int) {
+	  s[i],s[j] = s[j],s[i]
+  }
+  sort.Sort(myScores)
+
+  逆序排序 ---> 相对于Less()而言
+  func Reverse(data Interface) Interface{
+  	return &reverse{data}
+  }
+  type reverse struct{
+    Interface                    //继承  ----> 修改部分继承的函数的行为
+  }
+  //将Less行为做反向变化
+  func(r reverse) Less(i,j int) bool{
+	  return r.Interface.Less(j,i)  
+  }
+   使用:
+   sort.Sort(sort.Reverse(datas))
+   
+   sort包原生支持[]int64,[]float64,[]string三种切片类型的排序 ---> 不需要自己实现Len(),Less(),Swap()
+   
+2.二分查找
+   func Search(n int,f func(int) bool) int   ---> 算法搜索 切片[0:n]
+   找到第一个使得f(i)为true的元素
+   s := []int{1,3,4,5,6}
+   x := 3
+   pos := sort.Search(len(s),func (i int) bool {return s[i] ==x } ) 

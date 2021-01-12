@@ -1,0 +1,163 @@
+1.LoggerManager
+  1)性质和功能
+    全局唯一 ----> 采用单例模式
+    管理一堆Loggers ----> 为什么要有多个Loggers? ----> 区分不同类型的日志 ----> 比如系统类型的日志，用户级别的日志 ----> 多个Logger如何区分？----> 为每个Logger命名
+    面向用户 ----> 用户从其中获取某个Logger
+  2)数据成员
+    a.mutex ----> 用于数据保护
+    b.map<Logger_name,Logger_ptr> ----> 采用map索引结构来管理一堆Logger
+    c.root_logger ----> 在全局范围内，始终存在一个root_logger ----> 设计原因:若用户没有自定义Logger,则可复用root_logger进行日志打印 
+      和LoggerManager一起创建，含有全套的默认配置
+
+2.LogAppender
+  负责最底层的日志输出
+  日志输出地会有多个，比如文件和控制台
+  向文件和控制台的输出方式是不同的
+  故:LogAppender为接口基类，为上层提供日志输出功能
+  实现类:FileLogAppender
+         StdoutLogAppender
+
+  配套组件:LogFormatter
+  1)LogFormatter
+    对要输出的内容进行格式化
+    设计要领:
+     a.对内容进行格式化，就需要为格式化提供pattern
+       比如:默认pattern为:
+       %d{%Y-%m-%d %H:%M:%S}%T%t%T%N%T%F%T[%p]%T[%c]%T%f:%l%T%m%n
+       各个元素的意义:
+       %m - 消息体
+       %p - level
+       %c - 日志名称
+       %r - 启动后的时间
+       %t - 线程ID 
+       %n - 回车换行
+       %f - 文件名
+       %T - 制表符
+       %F - 协程ID
+       %l - 行号
+    b.Formatter的首要职责就是对pattern解析   ----> 解析可能出错
+      提取出其中的各个元素
+      那么各个元素如何保存呢?
+    c.定义内部基类:FormatItem
+      每个元素各有一个对应的实现类
+      LogFormatter则用vector保存着各个FormatItem
+    d.FomatItem的设计
+      日志打印的调用链:
+       Logger::log:向下传递要打印的内容:使用LogEvent进行封装 
+              |
+         LogAppender::log:将LogEvent中的内容按照pattern标识的顺序进行输出 
+                          各个FormatItems已经按照pattern标识的顺序保存在Formatter的vector中
+                          所以只需要将LogEvent传给各个FormatIems 
+                          让他们取出各自在LogEvevt中对应的内容. ------> 取出后的内容放到哪呢?
+                          因为FormatItems都隶属于Formatter,取出的内容要组合在一起交个Formatter,再由Formatter交给LogAppender::log 
+                          所以在Formatter中定义stringstream,各个Formatter将取出的内容放入到stringstream即可
+    e.如何完成各个元素与各种FormatItem的映射
+      首先不能使用简单的map容器存储<string,item>
+      原因在于各种item的类型不一致
+      解决:函数屏蔽差异
+           map存储<string,function>
+           调用function，返回string对应FormatItem
+         
+3.Logger
+  位于LogManager和LogAppender的中间层
+  用户通过LogManager创建出Logger
+  用户持有Logger以后，可以设置日志级别，日志pattern
+  Logger也为用户提供输出不同日志级别的接口:debug(),warn(),info(),fatal(),error() 
+                                                        |
+                                             调用log    |   传递LogLevel
+                                                        |
+                                                       log()
+                                                        |   传递LogEvent
+                                                  LogAppender::log()
+  组件:
+  1)LogAppenders
+  2)LogFormatter ----> 用户通过Logger设置这两个组件.Logger将其传递给LogAppender
+  3)LogLevel ----> 传递给LogEvent ----> 由LogAppender进行输出
+
+4.LogEvent
+  封装了要打印的日志内容
+  包括:m_file,m_line,m_elapse,m_threadId,m_fiberId,m_time,m_thread_time(前面部分都与程序本身有关，可使用全局的工具函数或者宏来获取),m_content(用户自定义的内容)
+  实现技巧:因为m_content不止包括常量字符串，可能还包括变量内容，故采用stringstream.用户将内容全部放入流中
+
+
+5.打印日志的标准流程
+  1)创建Logger,设置appender,formatter
+  2)创建LogEvent,填充内容
+  3)调用Logger::log(LogLevel,LogEvent)打印日志
+
+6.其他细节
+  1)一个Logger需要的配置:LogLevel,LogAppender,LogFormatter 
+    创建Logger时，我们可以为其默认配置这三个组件
+    也可以:用户创建的默认Logger复用root_logger的组件
+  2)标准流程太过于繁琐
+    繁琐之处:填充LogEvent内容 ----> 其中大部分与系统相关
+             多次使用 ----> 代码冗余
+    简化方法:使用宏完成代码复用
+#define SYLAR_LOG_LOG(logger,level)\
+    if(m_logger->getLevel() >= level)\
+      LogEveneWrap::(LogEvent::ptr (new LogEvent(_,_,_,_,_,_,)),logger) \   _,_.....系统相关的内容 ---> 使用宏
+       setContent();                                                 调用LogEvent::setContent() ----> 得到stringstream ----> 用户输入cotent ----> 设置LogEvent的content
+    LogEventWrap为if{}中的临时对象，析构时调用Logger::log()进行日志打印
+    
+
+7.编程技巧
+  类与类的组合关系全部通过shared_ptr来实现 ----> 内存安全
+  每个类含有typedef std::shared_ptr<self> ptr ----> 便于其他类获得指向该类的智能指针
+  使用宏完成相似的重复工作:比如用于switch case中，用于容器的初始化中
+
+8.CmakeLists.txt基本
+  1)面向工程 ---> 要有工程名:project(name)
+  2)编译命令
+  3)文件所在地
+    a.头文件:include_directories()
+    b.源文件:使用set进行归纳
+      set(SRCS
+          xx.cc
+          yy.cc)
+  4)依赖的库
+    set(LIBS
+        xx
+        yy)
+  5)链接生成可执行文件
+   a.main()函数文件，可执行文件名称
+     add_executable(test_uri tests/test_uri.cc)
+   b.库文件
+     target_link_libraries(test_uri ${LIB_LIB})
+   c.其他:比如重定义宏
+     force_redefine_file_macro_for_sources(test_uri) 
+  5)生成静态库文件还是动态库文件
+    add_library(name SHARED ${SRCS})
+  5)生成的exe文件，库文件存放地
+    set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
+    set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
+    
+9.编写步骤
+  先编写独立地模块:LogLevel,LogFormatter,LogEvent
+  再自下而上的编写
+
+10.工具使用
+  1)BackTrace:获得当前的函数栈
+    调用函数:
+    a.backtrace(void** array,int size);
+      将至多size层的函数栈放到array中
+      返回实际的层数
+    b.char** backtrace_symbols(void *const* array,int size)
+     将各层符号化 ----> 增加可读性 
+     返回堆内存
+     编译时需要-rdynamic
+  2)格式化输出时间:
+    strftime(char* output,size_t max_size,const char* format,const struct tm* timeptr)
+    a.通过time(0)获得系统时间 ---> 自原点以来的秒数
+      返回类型为time_t
+    b.通过localtime_r将time_t转为tm结构
+      localtime_r(&time_t,&tm)
+    c.调用strftime()获得格式化的时间
+      Ex:%Y-%m-%d %H:%M:%S
+         2012-03-01 15:30:20
+--3)将string转为const char* 
+    string.c_str()
+  4)获取string的子串
+    string.str(pos,length)
+  5)assert(expr)封装
+    assert时使用日志输出更多信息:函数栈,自己给的字符串
+   

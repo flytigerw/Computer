@@ -1,0 +1,472 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data StructureAlgorithm& Applications in C++<BR>
+Chapter 15 Exercise 41<BR>
+<BR>
+</H1>
+
+
+The initial configuration is:
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /  \            /    \
+         /    \          /      \
+        /      \        /        \
+       2       6       10        14
+     /  \    /   \    /  \      /  \
+    1   3    5   7   9   11   13   15
+</pre>
+Following the search for <code class=var>15</code>, <code class=var>15</code>
+becomes the splay node
+<code class=var>q</code>, and
+<code class=var>p = 14</code> and <code class=var>gp = 12</code>. An RR
+rotation is done to get the following tree:
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               15
+          /  \            / 
+         /    \          / 
+        /      \        / 
+       2       6       14
+     /  \    /   \    /
+    1   3    5   7   12
+                    /  \
+                   10  13
+                  /  \
+                 9  11
+</pre>
+The splay node is now at level <code class=var>2</code>, and a type R
+rotation is done to bring the splay node to level <code class=var>1</code>.
+The result is
+<br><pre class=figure>
+                     15
+                     /
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               14
+          /  \            / 
+         /    \          / 
+        /      \        / 
+       2       6       12
+     /  \    /   \    /  \
+    1   3    5   7   10  13
+                    /  \
+                   9   11
+</pre>
+Following the search for <code class=var>14</code> the splay node is
+<code class=var>14</code>. An LR rotation is done to make the splay node
+the root. The new tree is
+<br><pre class=figure>
+                      14
+                     /  \
+                    8    15
+                  /   \
+                 /     \
+                /       \
+               /         \
+              /           \
+             /             \
+            4              12
+          /  \            /  \
+         /    \          /    \
+        /      \        /      \
+       2       6       10      13
+     /  \    /   \    /  \
+    1   3    5   7   9   11
+</pre>
+Following the search for <code class=var>13</code> the splay node is
+<code class=var>13</code>. An RR rotation is first done to get the following tree.
+<br><pre class=figure>
+                         14
+                        /  \
+                      13    15
+                      /
+                    12
+                    /  
+                   8
+                /      \
+               /        \
+              /          \  
+             /            \
+            4             10
+          /  \           /   \
+         /    \         /     \
+        /      \       /       \
+       2       6       9       11
+     /  \    /   \  
+    1   3    5   7 
+</pre>
+Next a type R rotation is done to make the splay node the root.
+The resulting tree is
+<br><pre class=figure>
+                       13
+                      /  \
+                    12    14
+                    /      \
+                   8       15
+                /      \
+               /        \
+              /          \  
+             /            \
+            4             10
+          /  \           /   \
+         /    \         /     \
+        /      \       /       \
+       2       6       9       11
+     /  \    /   \  
+    1   3    5   7 
+</pre>
+Following the search for <code class=var>12</code> a type L rotation
+is done to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                       12 
+                      /  \
+                     /    \
+                    /      \
+                   8       13
+                /      \     \
+               /        \     \
+              /          \     \
+             /            \     \
+            4             10    14
+          /  \           /   \    \
+         /    \         /     \    \
+        /      \       /       \    \
+       2       6       9       11   15
+     /  \    /   \  
+    1   3    5   7 
+</pre>
+After the search for <code class=var>11</code> an RR rotation
+is first done to get the tree
+<br><pre class=figure>
+                       12 
+                      /  \
+                     11  13
+                    /      \
+                   10      14
+                   /         \
+                  8          15
+                /  \           
+               4   9          
+             /  \
+            /    \
+           /      \
+          /        \
+          2         6
+        /  \       /  \
+       1   3       5   7
+</pre>
+Next a type L rotation is done and the splay node becomes the root.
+The new tree is
+<br><pre class=figure>
+                       11 
+                      /  \
+                     10  12
+                    /      \
+                   8       13
+                 /  \        \
+                4   9        14
+              /  \             \
+             /    \             \
+            /      \             \
+           /        \             \
+          2         6             15
+        /  \       /  \
+       1   3       5   7
+</pre>
+After the search for <code class=var>10</code> a type L rotation
+is done to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                     10 
+                    /  \
+                   8   11
+                 /  \    \
+                4   9    12
+              /  \         \
+             /    \         \
+            /      \         \
+           /        \         \
+          2         6         13
+        /  \       /  \         \
+       1   3       5   7        14
+                                  \
+                                  15
+</pre>
+After the search for <code class=var>9</code> a type LR rotation
+is done to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                      9 
+                    /  \
+                   8   10
+                 /       \
+                4        11
+              /  \         \
+             /    \         \
+            /      \         \
+           /        \         \
+          2         6         12
+        /  \       /  \         \
+       1   3       5   7        13
+                                  \
+                                  14
+                                    \
+                                    15
+</pre>
+The search for <code class=var>8</code> is followed by a type L rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+                   8
+                 /   \
+                4     9
+              /  \     \
+             /    \     \
+            /      \     \
+           /        \     \
+          2         6     10
+        /  \       /  \     \
+       1   3       5   7    11
+                              \
+                              12
+                                \
+                                13
+                                  \
+                                  14
+                                    \
+                                    15
+</pre>
+After the search for <code class=var>7</code> an RR rotation
+is first done to get the tree
+<br><pre class=figure>
+                   8
+                 /   \
+                7     9
+               /       \
+              6        10
+            /            \
+           4             11
+          / \              \
+         2   5             12
+        / \                  \
+       1   3                 13
+                               \
+                               14
+                                 \
+                                 15
+</pre>
+Next a type L rotation is done and the splay node becomes the root.
+The new tree is
+<br><pre class=figure>
+                7
+               / \
+              6   8
+            /      \
+           4        9
+          / \        \
+         2   5       10
+        / \            \
+       1   3           11
+                         \
+                         12
+                           \
+                           13
+                             \
+                             14
+                               \
+                               15
+</pre>
+The search for <code class=var>6</code> is followed by a type L rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+              6
+            /   \
+           4     7
+          / \     \
+         2   5     8
+        / \         \
+       1   3         9
+                      \
+                      10
+                        \
+                        11
+                          \
+                          12
+                            \
+                            13
+                              \
+                              14
+                                \
+                                15
+</pre>
+After the search for <code class=var>5</code> an LR rotation
+is done to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+              5
+            /   \
+           4     6
+          /       \
+         2         7
+        / \         \
+       1   3         8
+                      \
+                       9
+                        \
+                        10
+                          \
+                          11
+                            \
+                            12
+                              \
+                              13
+                                \
+                                14
+                                  \
+                                  15
+</pre>
+The search for <code class=var>4</code> is followed by a type L rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+            4
+          /   \
+         2     5
+        / \     \
+       1   3     6
+                  \
+                   7
+                    \
+                     8
+                      \
+                       9
+                        \
+                        10
+                          \
+                          11
+                            \
+                            12
+                              \
+                              13
+                                \
+                                14
+                                  \
+                                  15
+</pre>
+The search for <code class=var>3</code> is followed by a type LR rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+            3
+          /   \
+         2     4
+        /       \
+       1         5
+                  \
+                   6
+                    \
+                     7
+                      \
+                       8
+                        \
+                         9
+                          \
+                          10
+                            \
+                            11
+                              \
+                              12
+                                \
+                                13
+                                  \
+                                  14
+                                    \
+                                    15
+</pre>
+The search for <code class=var>2</code> is followed by a type L rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+          2
+        /   \
+       1     3
+              \
+               4
+                \
+                 5
+                  \
+                   6
+                    \
+                     7
+                      \
+                       8
+                        \
+                         9
+                          \
+                          10
+                            \
+                            11
+                              \
+                              12
+                                \
+                                13
+                                  \
+                                  14
+                                    \
+                                    15
+</pre>
+The search for <code class=var>1</code> is followed by a type L rotation
+to make the splay node the root. The resulting tree is
+<br><pre class=figure>
+         1
+          \
+           2
+            \
+             3
+              \
+               4
+                \
+                 5
+                  \
+                   6
+                    \
+                     7
+                      \
+                       8
+                        \
+                         9
+                          \
+                          10
+                            \
+                            11
+                              \
+                              12
+                                \
+                                13
+                                  \
+                                  14
+                                    \
+                                    15
+</pre>
+
+
+</FONT>
+</BODY>
+</HTML>

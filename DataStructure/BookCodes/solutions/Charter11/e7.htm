@@ -1,0 +1,64 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 11, Exercise 7<BR>
+<BR>
+</H1>
+Property 11.4 can be proved by induction on <code class=var>i</code>.
+For the induction base, use <code class=var>i = 1</code>.
+Since <code class=var>i = 1</code> is the root; it has no left child
+if <code class=var>2i &gt; n</code>,
+otherwise its left child is
+at <code class=var>2i = 2</code>; it has no right child
+if <code class=var>2i+1 &gt; n</code>,
+otherwise its right child is
+at <code class=var>2i+1 = 3</code>.
+<br><br>
+For the induction hypothesis assume Property 11.4 is true for
+<code class=var>i &lt; m</code> where
+<code class=var>m</code> is an arbitrary integer <code class=var>&gt; 1</code>.
+<br><br>
+In the induction hypothesis we must show that Property 11.4 is true for
+the next value of <code class=var>i</code>, that is
+<code class=var>i</code> = <code class=var>m &lt;= n</code>.
+If
+<code class=var>m</code> is even, then from the induction base
+and Property 11.4.2, it follows that the left child of node
+<code class=var>m/2</code> is at
+<code class=var>m</code>.  So the parent of
+<code class=var>m</code> is at
+<code class=var>m/2</code>.  A similar argument applies when
+<code class=var>m</code> is odd.  So Property 11.4.1 is true when
+<code class=var>i =
+m</code>.
+<br><br>
+From Property 11.4.2 and the induction hypothesis it follows that the
+left child of node
+<code class=var>m-1</code> is at
+<code class=var>2(m-1)</code> unless
+<code class=var>2(m-1) &gt; n</code>.
+If <code class=var>m-1</code> has no right child, then node
+<code class=var>m</code> has no left child, and since
+<code class=var>2(m-1)+1</code> &gt; <code class=var>n</code>,
+<code class=var>2m</code> &gt; <code class=var>n</code>.  If
+<code class=var>m-1</code> has a right child, it is at
+<code class=var>2(m-1)+1 =
+2m-1</code>.  After the right child of
+<code class=var>m-1</code> is numbered, the left child of
+<code class=var>m</code>, if it exists, gets numbered.  So its
+number is
+<code class=var>2m</code>.
+So Property 11.4.2 is true when
+<code class=var>i =
+m</code>.
+<br><br>
+The proof for Property 11.4.3 is similar.
+
+
+</FONT>
+</BODY>
+</HTML>

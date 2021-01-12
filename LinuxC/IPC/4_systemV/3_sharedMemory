@@ -1,0 +1,114 @@
+
+1.Shared memory allow two or more processes share the same region of physical memory 
+  Since shared memory is not mediated by kernel,some synchronization is required so that processes don't simultaneously access the shared memory 
+  Semaphore is a natural method for such synchronization 
+
+2.In order to use a shared memory,following steps are typically performered
+  1)Call shmget() to create a new shared memory or obtain the id of an existing shared memory 
+  2)Use shmat() to attach shared memory segment ---> Make the segment part of the virtual memory of the calling process
+    It returns a pointer to the start of shared memory segment in the process's virtual space
+  3)Use shmdt() to detach shared memory ---> The process no longer refers to the shared memory 
+    It's optional since it happens automatically on the process termination
+  4)Call shmctl() to delete shared memory segment
+    The sgement will be destroyed only after all processes have detached it
+    Only one process needs to perform this step
+
+3.Create or open a shared memory 
+  int shmget(key_t key,size_t size,int shmflg)
+  1)size
+    It indicates the desired size of the segment,in bytes
+    The kernel allocates shared memory in multiples of page size
+    So the size is effectively rounded up to next multiple of page size
+    If we're obtaining the id of an existing shared memory,then this argument has no effect on this segment,but it must be <= the size of the segment
+
+  2)shmflg
+    IPC_CREAT and IPC_CREAT
+    Linux permits the following nonstandard flags
+     a.SHM_HUGETLB
+       A priviledged process can use this flag to create a shared memory that uses huge pages
+       Using huge pages reduces the number of entries in the TLB
+       The entries in TLB are scarce resource
+     b.SHM_NORESERVE
+       It serves the same purposes for shmget() as the MAP_NORESERVE flag serves for mmap()
+
+4.Use shared memory
+  1)void* shmat(int shmid,const void* shmaddr,int shmflg)
+    It attaches the shared memory segment to the calling process's virtual address space
+    a.shmaddr and SHM_RND bit in the shmflg
+      1)If shmaddr is NULL,it's attached at a suitable address selected by kernel.It's preferrable
+      2)If shmaddr is not NULL
+        a.SHM_RND is not set
+          It's attached at the address specified by shamddr,which must be a multiple of page size
+        b.SHM_RND is set
+          It's attached at the address provided in shamddr,rounded down to the nearest mutilple of constant SHMLBA(shared memory low boundary address)
+          This constant is equal to some multiple of page size
+          It's necessary on some architectures in order to improve the CPU performance and to prevent the possibility that different attaches of the same segment have inconsistent views within the CPU cache
+      
+     c.Specifying a non-NULL value for shmaddr is not recommended
+       1)It reduces the portability of an app
+         An address on one system may be invaild on another
+       2)An attempt to attach a shared segment at a particular address may fail if that address was already in use
+     
+     d.shmflg
+       SHM_RDONLY:To attach a shared segment for read-only access
+       SHM_REMAP :Replace any mapping at shmaddr
+       SHM_RND   :Round shmaddr down to multiple of SHMLBA bytes
+  
+  2)int shmdt(const void* shamddr)
+    It detaches a shared memory from the process's virtual address space
+    A child created by fork() inherits its parent's attached shared memory segment
+    So it provides an easy IPC between parent and child
+    During exec(),all attached shared memory segments are detached
+    Shared memory segments are also automatically detached on the process's termination
+
+5.Location of shared memory in virtual memory
+  The shared memory segment is attached at the unlocated space between upwardly growing heap and downwardly growing stack
+  It starts at the virutal address TASK_UNMAPPED_BASE
+  The memory diagram can seen in pdf 1007
+  Using Linux-specific /proc/PID/maps file,we can the location of the shared memory and shared library mapped by a program
+  Following columns are shown in each line of /proc/PID/maps  
+   1)Virtual address range at which the memory segment is mapped
+   2)Protection and flags for this memory segment
+     p-->private   s--->shared
+   3)The hexadecimal offset of the segment within the mapped file
+   4)The device number of device on which the corresponding mapped file located
+   5)The inode number of the mapped file
+   6)The filename or other identifying tag associated with this memory segment
+     SYSV ---> System V shared memory
+
+6.Storing pointers in shared memory
+  When storing a referrence inside a shared memory that points to other address within that segment,we should use offsets rather than absolute pointers
+  Ex:
+  Suppose we have a shared memory whose starting address is pointed to by baseaddr
+  At the location pointed to by p,we want to store a pointer to the same location pointed to by target
+  So: *p = target
+  The location pointed to by target may point to different virtual address when the shared memory segment is attached in another process which means that the value stored in *p is meaningless in that process
+  Solution:
+    *p = (target - baseaddr)
+  Using the target
+    target = *p + baseaddr
+
+7.Shared memory control operations
+  int shmctl(int shmid,int cmd,struct shmid_ds* buf)
+  1)buf
+    It's used in conjunction with IPC_STAT and IPC_SET operations
+    In the remaining operations,it should be set to NULL
+  
+  2)cmd
+    IPC_RMID 
+    Mark the shared memory and associated data structrue for deletion
+    The shared memory segment is deleted after all processes have detached it
+    IPC_SET and IPC_STAT
+
+    A shared memory segment can be locked into RAM so that it's never be swapped out
+    It provides performance benefit,since once each page of the segment is memory-resident,the process is guaranteed never to be delayed by a page default 
+    SHM_LOCK and SHM_UNLOCK
+    Unpriviledged process can lock and unlock the shared memory segment if its EUID matches either the owner or the creator ID of the segment and the process has a sufficiently high RLIMIT_MEMLOCJ resource limit
+
+8.Shared memory associated data structrue 
+struct shmid_ds{
+  see in pdf 1012
+}
+
+9.Shared memory limits
+  see in pdf 1014

@@ -1,0 +1,86 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 14, Exercise 23<BR>
+<BR>
+</H1>
+
+Suppose we have the <code class=math>12</code> elements <code class=math>[6, 7, 2, 5, 6, 2, 5, 7, 6, 2, 5, 5]</code>.
+The distinct elements and their frequencies can be determined
+by first sorting the elements to get the array
+<code class=math>[2, 2, 2, 5, 5, 5, 5, 6, 6, 6, 7, 7]</code>.  The number of <code class=math>2</code>s can be determined
+by scanning the sorted elements from left to right looking for the
+first element that is not <code class=math>2</code>.  This element, <code class=math>5</code>, is in position <code class=math>3</code>.  So there
+are three <code class=math>2</code>s.  To determine the number of <code class=math>5</code>s, we scan rightwards from
+the location <code class=var>c = 3</code> of the first <code class=math>5</code> to the
+location <code class=var>j = 7</code> of the first element that is not a <code class=math>5</code>.
+The number of <code class=math>5</code>s is <code class=var>j - c = 4</code>.
+<br><br>
+<!--
+The code below uses this strategy to determine the distinct elements
+and their frequencies.  Since we use a heap sort to sort the elements and
+since heap sort sorts elements in array positions <code class=math>[1:n]</code>,
+we input the elements into positions <code class=math>[1:n]</code>
+of an array rather than into positions <code class=math>[0:n-1]</code>.
+The code is given below.  The test data and output
+appear
+in the files <code class=code>HistogrammingBySorting.*</code>.
+
+<HR class = coderule>
+<pre class = code>
+public class HistogrammingBySorting
+{
+   public static void main(String [] args)
+   {
+      // define input stream
+      MyInputStream keyboard = new MyInputStream();
+
+      System.out.println("Enter number of elements");
+      int n = keyboard.readInteger();
+   
+      // create array to hold the keys
+      MyInteger [] key = new MyInteger [n + 1]; 
+
+      // input the keys into the array key[1:n]
+      for (int i = 1; i &lt;= n; i++)
+      {
+         System.out.println("Enter element " + i);
+         key[i] = MyInteger.input(keyboard);
+      }
+   
+      // sort the keys
+      HeapSort.heapSort(key);  
+   
+      // output distinct keys and their counts
+      System.out.println("Distinct elements and frequencies are");
+      int c = 1;                // cursor into keys
+      while (c &lt;= n)
+      {// new key at key[c]
+         // scan over keys equal to key[c]
+         int j = c + 1;
+         while (j &lt;= n &amp;&amp; key[j].equals(key[c]))
+            j++;
+   
+         // number of elements equal to key[c] is j - c
+         System.out.print(key[c] + " " + (j - c) + "    ");
+   
+         // set c to next new key
+         c = j;
+      }
+      System.out.println();
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+--!>
+
+
+</FONT>
+</BODY>
+</HTML>

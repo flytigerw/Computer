@@ -1,0 +1,74 @@
+
+1.数组
+  1)var array 5[int]
+    数组声明 ---> 所有元素都是零值
+  2)array := [5]int{1,2,3,4,5}
+    字面值初始化
+  3)array := [...]int{1,2,3}
+    编译器根据元素个数确定数组长度
+  4)array := [5]int{1:100,2:200}
+    初始化指定元素
+  5)数组类型有两方面决定:元素类型和元素个数数组赋值 
+    赋值时:要求元素类型和元素个数一致
+  6)数组作为参数传递:会拷贝所有的元素.形成数组副本
+ 
+2.slice
+  动态数组
+  1)make创建
+	  slice := make([]type,size,capcacity)
+	  底层为数组，长度为capacity
+	  size个元素可访问,size-capcacity为预留空间
+  2)切片字面量
+    size := []int{1,2,3}
+  	比较数组:
+  	array := [3]int{1,2,3}
+  3)值为nil的切片 ----> 用于描述目前暂时不存在的切片
+    var slice []int 
+  4)切片之所以为切片，是因为创建一个新的切片时会把底层数组切出来一部分
+	  新旧切片共享底层数组，但各自会看到数组的不同部分
+	  slice := []int{1,2,3,4,5}
+	  new_slice := slice[1:3]    ---> 看到数组的下标为1,2([)原则)两个元素 ---> 不能访问数组其他部分
+	  new_slice的容量:1-len(slice)--> 剩余容量4
+	  也可以指定new_slice的容量 new_slice := slice[1:3:4] --> 容量为3
+  5)slice = append(slice,element)
+    类似vector的push_back
+	  slice的长度+1
+	  若size已经达到了capacity,则会创建新的底层数组，并将元素拷贝到新数组中 
+	
+	s1 = append(s1,s2...)  ---> 将s2中的元素全部追加到s1中
+	
+  6)range进行切片遍历
+    for idx,val := range m_slice{      //拷贝语义:每次从m_slice取出一组值，拷贝给temp
+	
+	  }
+  
+  8)切片的struct
+    type slice struct{
+		  first *T
+		  len int 
+		  cap int 
+	  }
+	  作为参数传递时的大小: 指针+2int
+
+3.map
+  hashmap ---> 底层也为bucket+list
+  1)map创建
+    dict := make(map[string]int)
+    dict := map[string]int{"port":100}  
+    dict := map[string][]int{}    //空map,val为切片
+                                  //nil map  二者区别?
+   要求key能够进行 == 运算
+  2)赋值
+    dict["hello"] = 1
+  3)判断key是否存在
+    value,exists := dict["key"]
+  	if exists{
+	  	////
+	  }
+  4)range遍历
+  5)元素删除 
+    delete(map,key) 若map为nil,则会抛出异常
+  6)作为参数传递时，也是传递指针
+ 
+
+	

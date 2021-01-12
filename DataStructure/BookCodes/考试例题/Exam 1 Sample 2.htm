@@ -1,0 +1,201 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>Data Structures & Algorithms</H1>
+
+<H2>Makeup Exam 1</H2>
+<H2>Sample 2, 50 Minutes</H2>
+<BR>
+</H1>
+<ol>
+<li>
+An abbreviated version of the class <code class=var>LinearList</code>
+of the text is given below.
+No members other than those given below are available for this class.
+<pre class=code>
+<hr class=coderule>
+template&lt;class T&gt;
+class LinearList {
+   public:
+      LinearList(int MaxListSize = 10); // constructor
+      ~LinearList() {delete [] element;} // destructor
+      bool Find(int k, T&amp; x) const;
+         // return the k'th element of list in x
+      LinearList&lt;T&gt;&amp; InsertZero(int i, int k);
+         // insert k zeroes following element i
+   private:
+      int length;
+      int MaxSize;
+      T *element; // dynamic 1D array
+};
+
+template&lt;class T&gt;
+LinearList&lt;T&gt;::LinearList(int MaxListSize)
+{// Constructor for formula-based linear list.
+   MaxSize = MaxListSize;
+   element = new T[MaxSize];
+   length = 0;
+}
+
+template&lt;class T&gt;
+bool LinearList&lt;T&gt;::Find(int k, T&amp; x) const
+{// Set x to the k'th element of the list.
+ // Return false if no k'th; true otherwise.
+   if (k &lt; 1 || k &gt; length) return false; // no k'th
+   x = element[k - 1];
+   return true;
+}
+<hr class=coderule>
+</pre>
+The new member <code class=var>InsertZero</code> inserts
+<code class=var>k</code> zeroes after element <code class=var>i</code>.
+The
+<code class=var>NoMem</code> exception is thrown if the array
+<code class=var>element</code> doesn't have enough space for
+the resulting list and the
+<code class=var>BadInput</code> exception is thrown if <code class=var>k</code>
+&lt; 0 or <code class=var>i</code> is not within the range of the
+list length.
+<dl compact>
+<dt>(a)
+<dd>
+[8] Write C++ code for the <code class=var>InsertZero</code>
+member function.
+<dt>(b)
+[2] What is time complexity of your code as a function
+of the list length and <code class=var>k</code>?
+</dl>
+<br><br>
+<br><br><br>
+<li>
+A condensed version of the class <code class=var>Chain</code>
+is given below.
+<pre class=code>
+<hr class=coderule>
+template &lt;class T&gt;
+class ChainNode {
+   private:
+      T data;
+      ChainNode&lt;T&gt; *link;
+};
+
+template&lt;class T&gt;
+class Chain {
+   friend ChainIterator&lt;T&gt;;
+   public:
+      Chain() {first = 0;}
+      ~Chain();
+      bool IsBitonic() const; 
+   private:
+      ChainNode&lt;T&gt; *first;  // pointer to first node
+};
+
+template&lt;class T&gt;
+Chain&lt;T&gt;::~Chain()
+{// Chain destructor. Delete all nodes in chain.
+   ChainNode&lt;T&gt; *next;  // next node
+   while (first) {
+      next = first-&gt;link;
+      delete first;
+      first = next;
+      }
+}
+<hr class=coderule>
+</pre>
+The new member <code class=var>IsBitonic</code> determines whether
+the chain elements are in bitonic order (either a nondecreasing subsequence
+followed by a nonincreasing subsequence or the reverse; either
+subsequence may be empty)
+of their <code class=var>data</code> values.
+The function returns <code class=var>true</code>
+if the list is bitonic and <code class=var>false</code>
+if it is not.
+<dl compact>
+<dt>(a)
+<dd>
+[8] Write C++ code for the <code class=var>IsBitonic</code>
+member function.
+<dt>(b)
+[2] What is time complexity of your code as a function
+of the list length?
+</dl>
+
+<br><br><br>
+<br><br><br>
+<br><br><br>
+<br><br><br>
+<br><br><br>
+<br><br><br>
+<br><br><br>
+<li>
+In an <em class=var>n</em> x <em class=var>n</em> <strong>Z-matrix</strong>,
+all terms other than those
+in row 1, row <em class=var>n</em>, and the cross diagonal
+are zero.  A Z-matrix has at most
+3<em class=var>n</em>-2 nonzero terms.
+A Z-matrix can be compactly stored in a one-dimensional array
+by first storing row 1, then row <em class=var>n</em>,
+and then the remaining
+elements of the cross diagonal.
+<br>
+<pre class=figure>
+                              x x x x x x x x 
+                                           x 
+                                zero    x 
+                                      x   
+                                    x   zero  
+                                  x     
+                                x           
+                              x x x x x x x x
+<br>
+                         x denotes a possible nonzero
+                         all other terms are zero
+</pre>
+</p>
+<br>
+<dl compact>
+<dt> (a)
+<dd>
+[2] Give a sample 4 x 4 Z-matrix and its compact representation.
+<dt> (b)
+<dd>
+[8] Suppose that we are defining a class <clode class=var>ZMatrix</code>
+that represents an <em class=var>n</em> x <em class=var>n</em>
+N-matrix in a one-dimensional array <code class=var>t</em> as above.
+The class specification is as follows:
+<pre class=code>
+<hr class=coderule>
+template&lt;class T&gt;
+class ZMatrix {
+   public:
+      ZMatrix(int size = 10)
+         {n = size; t = new T [3*n-2];}
+      ~ZMatrix() {delete [] t;}
+      ZMatrix&lt;T&gt;&amp; Store(const T&amp; x, int i, int j);
+      T Retrieve(int i, int j);
+   private:
+      int n;    // dimension
+      T *t;     // 1D array
+};
+<hr class=coderule>
+</pre>
+Write C++ code for the member function <code class=var>Store</code> which
+stores <code class=var>x</code> as the <code class=var>(i,j)</code>
+element
+of the N-matrix, 1 <= <code class=var>i</code> <= <code class=var>n</code>
+and
+1 <= <code class=var>j</code> <= <code class=var>n</code>.
+The element is to be stored in the proper position of the one-dimensional
+array <code class=var>t</code>.
+
+</dl>
+</ol>
+
+
+<center>
+<A href="http:s97b.htm">Solutions</A>
+
+</html>

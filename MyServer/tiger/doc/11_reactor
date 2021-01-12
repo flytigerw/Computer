@@ -1,0 +1,85 @@
+reactor模型
+
+
+1.ReactorEvent   
+  一个fd上的事件类型:read,write,error,read_write
+  每种类型的事件可能有多个 ---> 比如有多个Fiber在阻塞等待该fd上的IO ----> 形成list
+  list中的每个元素Entry就应该记录阻塞等待的Fiber的相关信息
+  
+  数据成员:
+   1)int m_fd
+     事件的核心 
+   2)EntryList read,write,error,read_write;
+     4中等待队列
+   3)short int m_type
+     m_fd当前已含有的事件类型
+   4)std::mutex m_mtx
+     临界区的保护
+
+  成员函数:
+   1)bool add(Reactor * reactor, short int type,const Entry& entry)
+     为m_fd添加要监听的事件
+     调用reactor的add_event()进行添加
+     比如若reactor基于epoll实现，则调用epoll_ctl(),具体是调用EPOLL_CTL_ADD还是EPOLL_CTL_MOD,则需要判断m_type,type之间的关系
+     若m_type为0，则为ADD
+     若type为0，则什么也不做
+     若m_type不为0，且type不是m_type的子集，则为MOD
+
+     同时也会将entry添加到相应的list中
+
+     若事件添加失败，则entry的添加需要回滚
+
+  2)void trigger(Reactor * reactor, short int type)
+    type类型的事件已经到达.
+    唤醒fd相关队列上的Fiber ---> 调用trigger_without_lock(short int event_type, EntryList & entry_list)
+    若type为error_type，则也唤醒阻塞的Fiber
+    promise_type:代表没有发生的事件类型
+    m_type:正在监听的事件类型
+    m_type - promise_type : 已到来的事件类型
+    将已到来的事件类型从m_type中删除 ---> 调用epoll_ctl()的MOD
+    若m_type中的所有事件类型都已发生，则调用epoll_ctl()的DEL
+
+  3)void trigger_without_lock(short int event_type, EntryList & entry_list)
+    for (Entry & entry : entry_list) {
+        entry.m_types.get()[entry.idx] = event_type;   //见hook.cc . 记录到来的类型
+        Processer::WakeUp(entry.Fiber_info);           //Fiber唤醒
+    }
+    entry_list.clear();
+    
+
+2.FdContex : public ReactorEvent 
+  ReactorEvent包含了fd的事件属性
+  FdContex则还包含了fd的其他属性 --> 重点关注socket相关属性，比如IO timeout,是否为tcp socket,是否设置了O_NONBLOCK等
+
+3.FdCtxManager
+  管理一堆FdContex 
+  其只有一个静态单例对象
+
+  管理方式:采用二重hash表管理
+  typedef std::unordered_map<int,FdSlotPtr> Slots;
+  Slots m_buckets[BucketCount+1];     //1024张hash表
+  二重散列:
+  由于fd可能很大       ---> 超过1024
+  于是将fd进行高位截肢 ---> 只要低9位 ---> fd & BucketCount
+  比如:1025和1都位于第一个桶        ---> 一重散列
+  在第一个桶内再根据fd进行散列      ---> 二重散列
+
+  提供增删改查功能
+
+4.Reactor
+  基类.
+  实现类包括:EpollReactor,KQueueReactor
+
+  EpollReactor:
+  以epoll instance为核心
+  构造时创建epoll instance ---> m_epoll_fd
+  并为其分配线程开始工作
+  工作任务:
+   void run();
+   1)调用epoll_wait()进行fd的监听
+   2)监听返回后，对ready fds进行处理 ---> 先在FdCtxManager中找到其对应FdContext
+     再根据事件属性唤醒到来的事件类型对应的Fiber队列
+
+   对外提供事件的增删改接口 add_event(),del_event()
+  
+

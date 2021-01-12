@@ -1,0 +1,39 @@
+1 向指定线程发送cancel 请求
+  int pthread_cancel(pthread_t thread)
+  当即返回，不会等待目标线程的退出
+
+2 cancel state and cancel type
+  用于控制 线程响应cancel req的过程
+  a.int pthread_setcancelstate(int state, int* oldstate)
+    1)PTHREAD_CANCLE_DISABLE   --> 线程不可取消，挂起cancel req直到2)
+    2)PTHREAD_CANCLE_ENABLE    --> 通常将oldstate置为NULL，表示对前一状态不感兴趣  -默认类型
+
+  b.int pthread_setcanceltype(int type, int* oldtype)
+    1)PTHREAD_CANCLE_ASYNCHRONOUS -> 异步取消,可异步取消的线程不应分配任何资源，也不能获取mutex
+                                     基本只适用于执行计算密集型循环的线程
+    2)PTHREAD_CANCLE_DEFERED      -> 挂起cancel req直到cancellation point -默认类型
+
+  线程调用fork()时，子进程继承线程的cancel state and type
+  线程调用exec()时，将cancel state and type 恢复为默认类型
+
+3 cancellation point 
+  有些函数有能力将线程无限期阻塞 --> 这些函数必须是cancellation point 
+  其他见p554
+  线程在cpoint会终止 --> 为防止其变为僵尸线程，应该对其join或者detach
+                         pthread_join(tid,&res) --> res值PTHREAD_CANCLED 
+
+4 设置取消点
+  线程可能执行 不含 cpoint的代码 --> 线程也就可能永远不会响应cancel req
+  void pthread_testcanel(void)   --> 人为设置cpoint
+
+5 cleanup handler
+  线程取消时，不能草草收场，否则会将共享变量，mutex等置于一种不一致状态
+  应执行某些清理函数,尤其是当线程在执行特殊代码时被cancel
+  每个线程都含有清理函数栈
+  操作:
+  void pthread_cleanup_push(void (*clean)(void*) ,void* arg)
+  void pthread_cleanup_pop (int execute) --> 若execute非0，则无论如何都会执行清理函数
+  先push cleanup function
+  再pop to execute it
+  二者应该属于同一语句块 
+  线程正常终止时不会执行cleanup handler

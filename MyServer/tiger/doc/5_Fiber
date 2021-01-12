@@ -1,0 +1,41 @@
+1.Fiber对象
+  在Context基础上继续封装
+  父类:
+   1)SharedRefCounter
+     自身内部含有引用计数器+接口
+     含有强弱两种语义
+   2)ListNode
+     含有双向链表节点的结构
+     在Processor中，多个Fiber对象就会组成双向链表
+
+  数据成员:
+   1)Context m_ctx
+   2)FiberState m_state 
+     状态
+     BLOCK,DONE,RUNNABLE
+   3)uint64_t m_id      
+     唯一标识
+   4)atomic<uint64_t> suspend_id 
+     被挂起时的记录标识
+   5)Processor* m_processor
+     自己所属的processor
+   6)uint64_t yield_count
+     切换次数
+   7)任务函数 
+     栈大小
+  成员函数:
+   1)run()
+     Fiber执行的任务函数
+     结束后，状态修改为Done
+     调用Processor的静态方法FiberYield()，进行协程切换
+   2)static void ContextRun(intptr_t f)
+     在Fiber构造时被绑定到Context的启动函数
+     Context调用jump_fcontext()时，传递的第三参数为Fiber*.由汇编可知，其会传递给启动函数ContextRun
+     故在ContextRun中,f解释为Fiber*,再调用fiber的run    
+     这也是为什么Context对象都需要有自己所属的Fiber*
+
+   Fiber为上层，Context为下层
+   上层将回调函数ContextRun以及参数Fiber*传给下层
+
+   
+

@@ -1,0 +1,36 @@
+
+#define TaskInitPtr reinterpret_cast<Task*>(0x1)
+#define TaskRefInit(name) do { TaskRef ## name(TaskInitPtr); } while(0)
+
+使用之处:
+config.cpp::staticInitialize();
+  TaskRefInit(Affinity);       //静态注册这些keyinfo？
+  TaskRefInit(Location);
+  TaskRefInit(DebugInfo);
+  TaskRefInit(ClsMap);
+  ClsMap展开有:
+  do{
+    TaskRefClsMap(TaskInitPtr);    //会在容器中注册一个keyinfo 
+  }while(0)              
+
+#define TaskRefDefine(type, name) \
+    ALWAYS_INLINE type& TaskRef ## name(Task *tk) \
+    { \
+        typedef type T; \
+        static int idx = -1; \
+        if (UNLIKELY(tk == TaskInitPtr)) { \
+            if (idx == -1) \
+                idx = TaskAnys::Register<T>(); \ //注册一个type类的KeyInfo
+            static T ignore{}; \
+            return ignore; \
+        } \
+        //容器
+        return tk->anys_.get<T>(idx); \
+    }
+
+使用之处:
+在cls_local_storage.h中
+TaskRefDefine(CLSMap, ClsMap)  ---> 定义了TaskRefClsMap(Task& tk)函数
+
+
+

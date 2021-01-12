@@ -1,0 +1,389 @@
+
+
+1.文件:可以产生和消耗信息
+  比如socket,其并不代表存储着的信息.但socket的发送端消耗信息，接收端产出信息
+
+2.VFS(Virtual File System)
+  其为上层用户提供统一的 文件操作接口(file_options --> pdf428)
+  Linux支持多种文件系统.每个文件系统都要实现file_options中的函数以后才能被用户访问使用
+  用户可以直接调用这些接口来操作文件，而不需要关心文件属于什么文件系统以及文件系统的设计与实现
+
+3.进程调用open()打开一个文件
+  其会生成一个file对象 --> 内含file_options指针
+  
+
+4.进程的文件资源
+  struct task_struct{
+      .....
+      struct fs_struct* fs;
+      struct files_struct* files;
+  }
+  fs_struct重点字段   --> pdf429
+  1)struct dentry* root,*pwd,*alroot
+    其分别指向了当前进程 根目录，工作目录，备胎根目录
+    dentry是文件名的抽象名表示，因为文件都位于目录中，所以也可以称为目录项: 其记录了文件的各项属性(如文件名，访问权限..)
+    这三个目录不一定都位于同一文件系统中
+
+  2)struct vfsmount* rootmnt,*pwdmnt,*altrootmnt
+    其分别指向了上述目录所在的文件系统的挂载信息
+  
+  files_struct
+  保存了进程的 已打开文件的相关信息
+  主体为file*数组
+
+  进程打开一个文件后，会在OS中生成一个file对象，然后在进程的文件资源中添加一根file*指针
+  之后进程就可以通过打开文件号fd来访问这个file对象
+  fd就是相应的file在file*数组中的下标
+
+  file对象含有指针f_op --> 指向该文件所属文件系统的file_operations
+
+  在file对象中含有指针f_dentry指向自己的文件名对象
+  在dentry中记录了文件的部分属性(文件名，权限，文件的inode)，简化的格式为 <文件名 flags inode*>
+  易知同一内容的文件 可以有多个文件名
+  通过不同的文件名 访问同一内容的文件 的权限可能也就不同
+
+  具体文件系统和VFS之间的"界面"是一组数据结构:file_operations,dentry_operations,inode_operations
+  原则上，每种文件系统都要在内核中提供这些数据结构
+
+
+
+5.在文件的inode中含有字段u，其为union.其指明了当前文件所属的文件系统类型 --> pdf432
+
+6.若文件系统表示 按照特定格式进行"格式化"的一块存储介质
+  那么文件操作最终要转换为对介质的操作 --> 调用设备驱动
+
+7.常见文件
+  1)存储介质文件
+    此时文件是指 按一定的 组织形式 存储在物理介质上的 数据
+    其包含两部分内容:1.数据本身  2.数据的索引和其他管理信息
+    索引和管理信息存储在文件的"索引节点"中
+    每个文件都有且只有一个"索引节点"，即使文件没有数据，"索引节点"也是存在的
+    普通文件的内容为有效的数据
+    目录文件的内容为目录项,其记录了子文件的索引信息和其他信息(文件名,权限..)
+  
+  2)设备文件
+    相比于1)，其不一定含有存储着的数据.比如用于接收/发送的网卡，供采集/控制的机电设备
+    不管什么设备，在操作的过程中总会伴随着一定程度的数据采集和控制 --> 通过设备接口进行
+
+  3)特殊文件
+    在内存中含有inode和dentry结构，但不一定在外部存储介质中含有索引节点和目录项
+    其与外部设备无关
+    读取特殊文件时，读取的内容都是都是系统内部 按一定的规则临时生成出来的 或者 从内存中收集，加工出来的
+    比如 /dev/null文件，FIFO文件
+
+8.文件在磁盘上的记录方式:数据+管理信息(索引，权限..)
+  那么将文件读入到内存后，如何表示? OS又如何管理众多的文件?
+  首先，读取文件时，肯定不能把文件所有的内容一次性地全部读取到内存中.
+  可以先将文件的管理信息(磁盘inode)读入到内存中.需要文件的数据时，先通过管理信息索引到对应的数据，再将其读入
+  将磁盘inode读入到内存后，其应接受OS的管理 
+  那么首先就需要为磁盘inode建立内存模型(内存inode),然后OS以一定的组织方式来管理众多的内存模型实体
+
+  内存inode大致含有以下信息:
+  1)外存实体:磁盘inode
+  2)外存实体的索引 --> 即该磁盘inode位于哪一个磁盘上的哪一个位置(i_no,i_dev..)
+  3)用于OS管理的信息
+  4)文件信息缓存 --> 便于上层快速获取文件的一些信息
+  inode重点字段:  pdf436
+  1)i_no
+    文件inode在所属的文件系统含有唯一的编号
+  2)i_dev,i_rdev
+    文件所在的设备号
+    主设备号:表示设备的种类，比如软盘，IDE硬盘
+    次设备号:该类设备中的某个具体设备
+    除特殊文件外，一个索引节点必须要存储在某个设备上 -> i_dev
+    如果索引节点代表设备文件，那么还需要设备号 -> i_rdev
+  3)uid,gid
+    文件属主
+  4)i_atime,i_mtime,i_ctime
+    时间戳:access,modify,create
+  5)i_size
+    文件数据大小
+  6)i_link,i_dentry
+    内存中的目录项的简化格式: 文件名 flags inode*   -->   即每个文件名都对应一个目录项
+    所以 同一内容的文件 可以有多个文件名
+    这些文件名 可能位于同一目录下又或者没有，但他们的inode*都指向同一个
+    这些 文件名对应的dentry都通过d_alias字段 挂入文件inode的i_dentry队列上
+  7)i_count
+    inode可以通过几个list_head动态地链入内存中的若干队列中  
+    用i_count表示引用计数
+  8)union 
+    不同文件系统的磁盘inode不一样 --> ext2文件系统为ext2_inode  --> 438
+    可通过union嵌入到统一的内存inode中
+
+  需要这样一种机制:根据一个文件的文件名就可以在磁盘上找到该文件的索引节点
+                   将其读入到内存中，构建该文件的内存inode
+  
+  文件名保存在父目录中
+  目录文件也含有索引节点和数据部分(目录项)
+  对于ext2文件系统，其磁盘目录项为ext2_dir_entry.简要格式为<文件名 文件类型 文件的磁盘inode号 -> pdf439
+  在内存中，将其建模为dentry.简要格式:<文件名 flags inode* d_sb d_op>+ 动态内容 --> pdf440
+  d_sb:该目录所在的文件系统的超级块
+  d_op:目录操作函数表
+
+  可见目标文件的inode的位置记录在父目录数据内容中的某个目录项中
+  目录也是文件 --> 数据内容要通过inode索引找到
+                   inode保存在更上一层的目录数据内容中
+  以此可向上回溯到起点:根目录
+  根目录的inode位置是固定的
+  所以查找文件时，先通过根目录inode找到根目录的block
+  然后根据block中的目录项找到下层目录的inode
+
+  格式化为某种文件系统的存储设备都有自己的根目录
+  在super block中记录着根目录inode在磁盘上的位置和一些文件系统参数
+  super block一般位于第二个逻辑块中.第一个逻辑块为引导块
+
+  OS在内存中会建立整个系统的目录树 --> 系统目录
+  在系统初始化时，会将引导操作系统的设备作为根设备，并用其根目录来构建 系统目录的根目录
+  有了根设备以后就可将其他存储设备mount到目录树上
+  mount:从一个存储设备中读入super block.
+        在内存中建立一个super_block结构
+        然后将设备的根目录与一个目录树中的一个空目录挂钩 --> 用vfsmount粘连二者
+  
+  进程的根目录不一定是 系统目录的根目录
+  进程可通过chroot(dir)将某个目录设置为自己的根目录.
+  当进程通过全路径名查找文件时，其会从自己的根目录而非 系统目录的根目录 开始查找
+  进程也可以用相对路径名查找文件，其会从pwd目录开始查找
+
+  chroot()的实用性:FTP服务进程为特权用户进程.
+                   当远程用户与FTP服务进程建立链接后，可以发出 cd /,get /etc/passwd之类命令 
+                   通过chroot()修改FTP服务进程的根目录，使得远程用户不能访问系统根目录
+
+
+9.如果将磁盘格式化为ext2等类似的文件系统
+  那么当要读取一个文件的数据时
+    首先要先顺着磁盘的根目录找到该文件的磁盘inode号
+    然后计算该磁盘inode位于哪一个磁盘块中以及在磁盘块中的偏移
+    借助驱动程序将磁盘块读入，根据磁盘inode的块偏移读出磁盘inode并构建内存inode
+    然后根据内存inode中提供的信息将 数据在文件中的偏移换算成磁盘块号
+    最后驱动程序将磁盘块读入即可
+
+  
+  如果将磁盘格式化为设备文件，那么磁盘就是一个线性存储空间(字节数组)
+
+  VFS层包括:file，dentry，inode，super_block结构
+  每个磁盘文件都有目录项和索引节点存储在磁盘上，但只有需要时才在内存中建立相应的dentry和inode结构
+
+
+10.int __user_walk(const char* name,unsigned flags,struct nameidata* nd)
+   根据给定的文件路径名 在内存中找到或者建立代表目标文件或目录名 的dentry+inode结构  --> pdf444
+   参数:
+    1)name:用户输入的文件路径名
+    2)flags: pdf445
+    3)nameidata:搜索的中间结果,可以指导后续的路径搜索
+      a.dentry
+        文件的父目录
+      b.vfsmount* mnt
+        文件所在的文件系统的挂载信息，比如挂载点，文件系统的根节点
+   关键流程:
+   1)tmp = getname(name)
+     getname()会申请一个内存页面，并将用户空间中的路径字符串拷贝到内核空间中
+
+   2)path_init(tmp,flags,nd)
+     其根据路径名初始化nameidata，设置搜索的起点目录
+     若文件名为相对路径名，其起点目录为进程的pwd --> nd->dentry = current->fs->pwd
+     若为相对路径名，则其为进程的root或者alroot
+   
+   3)path_walk(tmp,nd)
+     根据起点目录，顺着路径名进行搜索
+     a.假如路径名为:///xx/yy
+       则会先去掉开头的///
+     
+     b.得到起点(中间)目录的inode
+       inode = nd->dentry->d_inode
+     
+     c.假如路径名为///xxx////yyy/
+      for{
+        1.permission(inode)    --->   中间目录访问权限检查
+        
+        2.用指针c顺着路径名进行解析
+          比如先解析出中间路径名xxx，并计算其hash值.
+          用strcut qstr存储解析出来的中间路径名和hash值 --> pdf450
+
+        3.若已解析结束 --> if(!c) goto last_component
+
+        4.若还没解析结束，则跳过后续多余的/
+          while(*c++='/')
+
+        5.若跳过多余的/后，c指向末尾，表明路径名是以/结尾的.此时也已解析结束了
+          if(!*c) goto last_with_slashes
+          收尾工作见pdf 478
+
+        6.到这说明解析尚未结束，刚刚解析出来的路径名表示一个中间目录
+          1)若中间目录名以 .开头
+            则只允许两种情况: 
+            a,.表示当前目录
+              比如路径名: ./xx/yy
+              不需要做额外处理，去解析下一个路径名
+            b,..表示父目录
+              比如路径名: ../xx/yy
+              接下来就需要先拿到父目录的inode:
+              follow_dotdot(nd)
+              inode = nd->dentry->d_inode
+              
+              follow_dotdot(nd)逻辑:
+              1.nd保存当前搜索的中间目录的 dentry 以及 该目录所在的文件系统的挂载信息vfsmount* mnt
+              2.while(1){
+
+                1)if(nd->dentry == current->fs->root &&
+                     nd->mnt == current->fs->rootmnt)
+                  中间目录为当前进程的根目录 --> 比如 /..
+                  什么也不用做，break返回
+
+                2)if(nd->dentry != nd->mnt->mnt_root)
+                  中间目录不为 该目录所属的文件系统的根目录
+                  那么可以直接通过dentry中d_parent字段进入到父目录中  
+                  dentry = dget(nd->dentry->d_parent)  -->  dget()会增加引用计数
+                  dput(nd->dentr)                      -->  递减之前目录的引用计数
+                  nd->dentry = dentry
+
+                  若为根目录，则要向上进入到父设备的目录树中
+                  dentry = dget(nd->mnt->mnt_moutpoint) --> 当前文件系统的挂载点 --> 父设备的某个目录
+                  nd->dentry = dentry --> 进入父设备的某个目录,然后再找到其父目录
+               }
+
+          2)若不以.开头，则接下来就要寻找 解析出来的中间目录名的dentry
+            a.用hash值在缓存中查找
+              dentry = cached_lookup(nd->dentry,&this...)
+              缓存为经典hash+LRU+引用计数 --> 参考leveldb的缓存
+
+              一个dentry中含有6个list_head  -->   同一个dentry可以动态地处于多个不同的队列中
+              dentry总结:pdf 454
+
+
+            b.若没找到，则要从磁盘中将磁盘目录项读入，并构建dentry，再加到缓存中
+              if(!dentry){
+                dentry = real_lookup(nd->dentry,&this...)
+              }
+            
+            c.找到dentry后，接下来就开始对其进行检验
+              检查其是否为mount point
+              检查其是否为一个符号链接，若是，则调用do_follow_link()进入到链接目录 
+        
+        7.至此，一个中间目录名的搜索已经完毕 --> 已找到该目录名的dentry和对应inode
+          接下来就开始处理下一个 中间路径名
+       }
+
+    4)从path_walk()中返回时，nameidata* nd的保存了目标文件的dentry结构 以及 目标文件所在设备的mount信息
+      最后将name占用内核页释放掉 --> putname() 
+
+关键函数解析:
+ 1.cached_lookup(dentry* parent,qstr* name,int flags)
+   给定目录名和父目录的目录项，在缓存中查找该目录名对应的目录项
+   1)调用d_lookup(parent,name)进行查找
+     将一个目录项dentry加入缓存中时，若只根据目录名的hash值进行插入，那么可能导致严重的hash碰撞 
+     比如学校为上百个学生在/home下建立了子目录，每个学生的子目录下都有子目录"project1"
+     如果对目录名project1进行hash插入，那么可能有上百个dentry结构挂在同一队列中
+     减少hash碰撞的一种方法:将 目录名的hash值 与 该目录的父目录的dentry地址 合起来进行二次hash
+
+     所以查找时，也应先进行二次hash，再根据二次hash值去查找hash表，得到dentry队列
+     在遍历dentry队列，逐个验证，找到满足要求的dentry   --->  pdf456
+     若能找到，则需要++dentry的引用计数
+
+   2)有些文件系统可能通过dentry_operations提供一个 对找到的dentry结构进行验证的函数d_revalidate
+     如果验证失败，就通过d_invalidate()将该dentry从hash表中摘除
+
+ 2.real_lookup(dentry* parent_entry,qstr* name,flags)
+   给定目录名和父目录dentry，从磁盘中读取对应的磁盘目录项并构建dentry，最后将其加入到缓存中并返回
+   1)parent_inode = parent_entry->d_inode
+     down(&parent_inode->i_sem)
+     用信号量保证对 父目录内容索引(inode) 的互斥访问
+  
+   2)result = d_lookup(parent_entry,name)
+     有可能其他进程先调用了real_lookup()，当前进程睡眠等待
+     醒来后，可能其他进程已经完成了dentry的创建工作，并已加入到了缓存中
+     所以醒来后，应该先检查目标dentry是否已经存在
+
+   3)若不存在:
+     entry = d_alloc(parent_entry,name)
+     为一个dentry结构分配内存，并进行基本的初始化
+     内存分配:1.调用kmem_cache_alloc()为dentry分配内存
+              2.若目录名比较短，那么直接使用dentry中的d_iname(固定长度的字节数组)存储目录名
+                若目录名比较长，那么调用kmalloc()为目录名分配内存空间
+    
+     初始化的重点:dentry->d_parent = dget(parent)
+                 dentry->d_sb = parent->d_sb
+                 list_add(&dentry->d_child,&parent->d_subdirs)
+    
+   4)result = dir->i_op->lookup(parent_inode,dentry) 
+     去磁盘中 根据父目录inode 寻找并读取 当前目录名的磁盘目录项，并用读取的内容来构建dentry
+     在磁盘上的寻找过程因文件系统而异
+     Ext2文件系统的lookup为ext2_lookup
+
+
+ 3.ext2_lookup(parent_inode,dentry)要点
+   1)struct ext2_dir_entry2* de  --> Ext2文件系统磁盘目录项格式
+     ext2_find_entry(parent_inode,dentry->d_name.name,dentry->d_name.len,&de)
+     从磁盘上找到并读入当前节点的磁盘目录项
+     要点:
+     a.通过父目录的inode可计算出 父目录数据内容所在的block的编号
+       目录block线性存储着 磁盘目录项. ---> 此处，磁盘目录项为ext2_dir_entry2 --> 每个目录项因为文件名的长度不同而大小不一
+       Ext2为 磁盘目录项分配空间时，不会让其跨block存储
+
+       计算出block编号后就可调用磁盘驱动程序读取block
+       由于磁盘的物理特性，在读取一个block时需要花费一定的时间，而这些时间主要消耗在准备工作上(寻道..)
+       准备好以后，读取一个block和读取几个相邻block的时间消耗相差不大
+       所以，在进行磁盘读取时，通常都会 预读 一些相邻block  --> 这些相邻block很可能马上会用到
+
+       而且磁盘的读取操作由磁盘驱动器完成，无需CPU介入
+       所以第一个block读入以后，CPU对该block的处理和后续block的读入可以并行，形成流水操作
+
+       由于磁盘的读取代价较高，所以可以采用buffer对已读取的block进行缓冲
+       每次要读取block时，先在buffer中搜索目标block，若没找到，再从磁盘中读取block到buffer中
+       为了便于管理buffer的中block,内核其会为每个读入的block添加一个buffer_head，其记录该block的一些关键信息
+       通过直接管理buffer_head来间接管理block
+       通常用LRU+Hash来管理多个buffer_head
+
+    b.读入block后，就开始在block中搜索 目标磁盘目录项(通过名字进行搜索匹配)
+      找到后，只保留 磁盘目录项所在的block,释放其他block
+  
+   2)根据 磁盘目录项中的inode号 找到其对应的内存inode
+     类似dentry,内存inode也有hash缓存
+     所以先在缓存中查找.
+     inode号在同一设备上才是唯一的，为了减少hash碰撞，可将设备的super_block地址也纳入hash运算中
+     若在缓存中没有找到，则需要先从磁盘中读入磁盘inode并建立其内存inode再加入到缓存中
+     整个过程与dentry的查找类似 -->  get_new_node() pdf467 
+
+     ext2文件系统中，从磁盘中读取磁盘inode的函数为ext2_read_inode() -->  pdf468
+     要点:
+     a.ext2文件将磁盘划分为若干 block_group
+       每个block_group中含有 索引block和数据block.
+       每个block_group含有一个组描述结构，通过super_block进行访问
+       由磁盘的super_block提供整体的划分参数
+
+       所以查找时，先根据索引节点号计算出该节点所在的block_group以及组内偏移
+       再计算出节点所在的block号
+       再通过设备驱动程序bread()将该block读入到buffer中
+       磁盘inode的大小固定，所以block可以看做inode数组 ---> 可用下标索引具体某个数组元素，而非采用遍历的方式
+       
+      b.根据磁盘inode构建内存inode
+        内存inode含有两部分内容:
+        1.所有文件系统的共有字段(属于VFS层)
+        2.具体的某个文件系统特有的字段 --> inode中的union结构
+          对于ext2文件系统而言，其为ext2_inode_info ---> pdf471
+          重点字段: __u32 i_data[15]   --> 文件内容的索引
+                   若文件为符号链接，文件的内容为目标文件路径名 --> 直接存储在i_data中
+        根据inode表示的文件类型(普通文件，目录，符号链接，设备)来设置相应的字段
+        若该inode为设备文件的inode，则需要调用init_speical_inode()进行处理 --> pdf514
+
+        设备文件inode的特殊点:inode索引的内容为设备号 --> 可以直接存储在磁盘inode中的i_block[]中,而不需要用额外的磁盘block存储
+        如果是块设备，那么inode->i_bdev指向一个block_device结构
+      
+  
+   3)找到目标文件的内存inode和内存dentry，就可将二者互相挂钩
+     dentry->d_inode = inode
+     list_add(&entry->d_alias,&inode->i_dentry)
+
+ 4.do_follow_link(dentry,nd)
+   1)检查符号链接长度:current->link_count.不能太长
+   2)具体的进入符号链接文件的方法由inode_operations中的follow_link决定
+     在Ext2文件系统中，其为ext2_follow_link()
+   ext2_follow_link(dentry,nd)
+   1)链接的目标文件名保存在inode中的i_data中
+     char* s = ((char*)dentry->d_inode->u.ext2_i.idata)
+   2)进入更高层的vfs_follow_link()中
+     因为符号链接可以链接到另一个文件系统中
+     在vfs_follow_link中会调用path_walk()来找到 链接的目标文件的dentry结构 --> pdf476
+
+
+
+

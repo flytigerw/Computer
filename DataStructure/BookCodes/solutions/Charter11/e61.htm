@@ -1,0 +1,51 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 11, Exercise 61<BR>
+<BR>
+</H1>
+
+
+The height increases only when two trees of the same height
+are combined.  We can prove that the number of elements
+in a tree of height <code class=var>h</code> is at least
+<code class=var>2<sup>h-1</sup></code>.  We shall do this by
+induction on <code class=var>h</code>.
+<br><br>
+For the induction base use <code class=var>h = 1</code>.
+A tree of height <code class=var>1</code>
+has exactly <code class=var>1 &gt;= 2<sup>h-1</sup></code>
+element/node.
+<br><br>
+For the induction hypothesis assume that trees of height
+<code class=var>h</code> for
+<code class=var>h &lt; m</code>, where
+<code class=var>m</code> is an arbitrary integer <code class=var>&gt;= 1</code>,
+have at least
+<code class=var>2<sup>h-1</sup></code> elements.
+<br><br>
+In the induction step we must show that all trees of height
+<code class=var>m + 1</code> created using the height rule
+have at least
+<code class=var>2<sup>m</sup></code> elements.
+Consider a height <code class=var>m + 1</code> tree created
+using the height rule.  Consider the union operation that first caused this
+tree to have this height.  During this union operation
+two trees of height <code class=var>m</code> were combined.  From the
+induction hypothesis it follows that each of these trees
+had at least
+<code class=var>2<sup>m - 1</sup></code> elements at this time.
+Therefore, the resulting tree has at least
+<code class=var>2<sup>m</sup></code> elements.  Since future operations
+do not reduce the number of elements in a tree, the height
+<code class=var>m + 1</code> tree has at least
+<code class=var>2<sup>m</sup></code> elements now.
+
+</FONT>
+</BODY>
+</HTML>

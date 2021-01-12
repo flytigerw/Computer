@@ -1,0 +1,60 @@
+ 
+ 
+The ziplist is a specially encoded  dually linked list  that is designed to be very memory efficient. 
+It stores  both strings and integer values,where integers are encoded as actual integers instead of a series of characters. 
+
+It allows push and pop operations on either side of the list in O(1) time.
+However, because every operation requires a reallocation of the memory used by the ziplist, the actual complexity is related to the amount of memory used by the ziplist.
+
+The general layout of the ziplist is as follows:
+  <zlbytes><zltail><zllen><entry><entry><zlend>
+<zlbytes>:
+ It is an unsigned integer to hold the number of bytes that the ziplist occupies.
+ This value needs to be stored to be able to resize the entire structure without the need to traverse it first.
+
+<zltail>:
+ It is the offset to the last entry in the list. 
+ This allows a pop operation on the far side of the list without the need for full traversal.
+
+<zllen>:
+ It is the number of entries.
+ When this value is larger than 2**16-2,we need to traverse the entire list to know how many items it holds.
+
+<zlend>:
+ It is a single byte special value, equal to 255, which indicates the end of the list.
+
+
+
+Every entry in the ziplist is prefixed by a header that contains two pieces of information.
+First, the length of the previous entry is stored to be able to traverse the list from back to front. 
+Second, the encoding with an optional string length of the entry itself is stored.
+
+The length of the previous entry is encoded in the following way:
+If this length is smaller than 254 bytes, it will only consume a single byte that takes the length as value.
+When the length is greater than or equal to 254, it will consume 5 bytes. The first byte is set to 254 to indicate a larger value is following. The remaining 4 bytes take the length of the previous entry as value.
+
+The other header field of the entry itself depends on the contents of the entry.
+When the entry is a string, the first 2 bits of this header will hold the type of encoding used to store the length of the string, followed by the actual length of the string. 
+When the entry is an integer the first 2 bits are both set to 1. The following 2 bits are used to specify what kind of integer will be stored after this header.
+
+An overview of the different types and encodings is as follows:
+  |00pppppp| - 1 byte
+       String value with length less than or equal to 63 bytes (6 bits).
+  |01pppppp|qqqqqqqq| - 2 bytes
+       String value with length less than or equal to 16383 bytes (14 bits).
+  |10______|qqqqqqqq|rrrrrrrr|ssssssss|tttttttt| - 5 bytes
+      String value with length greater than or equal to 16384 bytes.
+  |11000000| - 1 byte
+       Integer encoded as int16_t (2 bytes).
+  |11010000| - 1 byte
+       Integer encoded as int32_t (4 bytes).
+  |11100000| - 1 byte
+       Integer encoded as int64_t (8 bytes).
+  |11110000| - 1 byte
+       Integer encoded as 24 bit signed (3 bytes).
+  |11111110| - 1 byte
+       Integer encoded as 8 bit signed (1 byte).
+  |1111xxxx| - (with xxxx between 0000 and 1101) immediate 4 bit integer.
+       Unsigned integer from 0 to 12. The encoded value is actually from 1 to 13 because 0000 and 1111 can not be used, so 1 should be subtracted from the encoded 4 bit value to obtain the right value.
+  All the integers are represented in little endian byte order.
+  

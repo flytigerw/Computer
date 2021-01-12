@@ -1,0 +1,57 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 7, Exercise 9<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+C++ uses the array of arrays representation. When <code class=var>m = 10</code>
+and <code class=var>n = 2</code>, we have
+<code class=var>1</code> one-dimensional array of size
+<code class=var>10</code>  (the elements of this array are C++ pointers)
+and 
+<code class=var>10</code> one-dimensional arrays of size
+<code class=var>2</code> (the elements of these arrays are integers). 
+So, the total space is
+<br>
+<code class=var>1 x 10 x 4 + 10 x 2 x 4  = 120</code> bytes.
+
+<br><br>
+When a single one-dimensional array is used (i.e., when the elements
+are mapped using (say) row-major order), the space required
+is <code class=var>10 x 2 x 4 = 80</code> bytes.
+The ratio is <code class=var>120 / 80 = 1.5</code>.
+
+<br><br>
+For general <code class=var>m</code> and <code class=var>n</code>,
+the array of arrays representation requires
+<br>
+<code class=var>1 x m x 4 + m x n x 4 = 4mn + 4m</code>
+bytes.
+<br>
+The one-dimensional mapping takes
+<code class=var>m x n x 4 = 4mn</code>
+bytes.
+<br><br>
+<dt>(b)
+<dd>
+The ratio is
+<br>
+<code class=var>(4mn + 4m) / (4mn) = 1 + 4/n</code>.
+<br>
+This is maximum when <code class=var>n</code> is least.
+For a two-dimensional array, <code class=var>n &gt;= 2</code>.
+So, the maximum value of the ratio is
+<code class=var>1 + 4/2 = 3</code>.
+</dl>
+
+</FONT>
+</BODY>
+</HTML>

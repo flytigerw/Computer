@@ -1,0 +1,24 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 45<BR>
+<BR>
+</H1>
+Yes, the compressed file produced by LZW compression can be longer
+than the original file.  For example, consider a file with a single character.
+Since every code produced by the LZW compressor is <code class=code>12</code>
+bits long, the single character file gets replaced by a <code class=code>2</code>
+character file (the twelve-bit code gets output as two bytes in this case).
+<br><br>
+The worst that can happen is that each character of the input file is replaced
+by a twelve-bit code. So, if the input file is
+<code class=var>n</code> bytes/characters long, the ``compressed file'' is
+at most <code class=code>ceil(1.5n)</code> bytes long.
+
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,555 @@
+
+
+1.IPC
+ pipe,signal,trace,fifo,message queue,shared memory,semaphore,socket
+
+
+2.sys_pipe(unsined long* fds)         
+  父进程用此系统调用创建一个匿名管道
+  管道的两端用两个fd标识
+  核心代码:do_pipe(fd)    --> pdf698
+
+    
+  1)file* f1 = get_empty_filp()
+    file* f2 = get_empty_filp()
+    从free_list中摘取两个file对象
+
+  2)inode* inode = get_pipe_inode()
+    a.调用get_empty_inode()新分配一个inode对象
+    b.调用pipe_new(inode)设置inode的pipe_inode_info字段
+      管道通信的本质:其内部含有一张内存页 (用文件系统的机制来管理内存页)
+                     某些进程只能向其中写
+                     某些进程只能从其中读
+      pipe_inode_info记录了管道的一些meta info:比如内部的内存页地址，读写者的数量..
+
+    c.设置inode的某些字段:比如state,time..
+      inode层的函数表:inode->f_op = rdwr_pipe_fops  --> pdf702
+      并没有设置inode->i_op ---> i_op是操作"有形文件"的函数表
+
+  3)file层和inode层的中间为dentry层
+    所以需要分配一个dentry来连接file和inode
+    在此情景下，dentry层的函数表:dentry->d_op = pipe_fs_dentry_operations
+
+  4)如前所述,file是文件内容的窗口
+    在此情景下:底层的文件内容就是内存页
+               f1是只读窗口,f2是只写窗口
+    所以需要对f1和f2进行设置,满足的窗口要求
+    f_pos      f_flags        f_op            f_mode      f_vfsmnt
+f1    0        O_RDONLY    read_pipe_fops      1           pipe_mnt
+f2    0        O_WRONLY    write_pipe_fops     0           pipe_mnt
+    
+    既然要用文件系统的机制来管理管道,那么pipe文件也应有所属的文件系统 --> 其为pipe_fs_type,在系统初始化时通过kern_mount()进行挂载,并让pipe_mnt指向相应的挂载结构(vfsmount)
+    
+    
+  
+  3)借助open_fds位图，找到两个空闲fd
+    并将f1和f2安装到相应的槽位上:files[fd1]=f1
+      
+
+3.使用pipe的shell命令例子:
+  ls -l | wc -l
+  1)shell进程先创建一个匿名管道，读写两端的文件句柄为:fd0,fd1
+  2)shell进程fork()出进程B
+    B会完整地继承shell的文件句柄表
+    然后shell关闭管道的写端 --> close(fd1)
+    B可以在exec("ls -l")时通过close_on_exec()位图关闭管道的读端 --> close(fd0)
+    此时父子进程之间就形成了一条单向通信管道
+
+  3)如法炮制,shell进程fork()出进程C,并关闭管道的读端 --> close(fd0)
+    管道的写端已经被关闭，进程C继承不了，只能继承管道的读端
+    此时，在进程BC之间就形成了一条通信管道:B通过fd1写,C通过fd0读
+  
+  在shell命令中,通常会使用dup()+close()来进行文件句柄的重定向
+  在此例中:进程B的fd1会重定向到STDOUT(fd 1)
+           进程C的fd0会重定向到STDIN(fd 0)
+
+4.管道的读写和关闭
+  1)关闭管道的某一端
+    close(fd) --> filp_close() --> fput()
+    fput()会递减file的共享计数,若减到0(没有读者或写者了),就会调用具体的文件release操作
+    read 端:read_pipe_fops->pipe_read_release()
+    write端:write_pipe_fops->write_pipe_release()
+    二者都调用了pipe_release(inode,decr,decw) --> pdf710
+    decr:要减少的读者数量
+    decw:要减少的写者数量
+
+    先根据参数减少inode->i_pipe中的记录的读写者数量(pipe_inode_info.readers,writers)
+    若都减到0,则表明已经没有人(Both readers and writers)在使用管道了
+     那么就需要释放底层的内存页资源
+     对于常规的文件操作，释放时需要将inode写回磁盘
+
+    否则就唤醒inode上的等待者(why?)
+  
+  2)读
+    sys_read(fd,buf,count) -> file.f_op -> read_pipe_fops.pipe_read(file,buf,count,ppos) --> pdf711
+    a.获取信号量,保证对inode->i_pipe操作的互斥性
+      down_interruptible(PIPE_SEM(*inode)) ---> interruptible表明睡眠者不仅可以被wake_up(sem)唤醒,也可被其他信号唤醒
+    
+    b.若管道中没有数据可读 inode->i_pipe->len = 0
+      1.若没有写者 inode->i_pipe->writers = 0 或者 pipe文件设置为非阻塞读取(O_NONBLOCK)
+        那么就直接退出
+      
+      2.否则就先阻塞等待写者写入数据 pipe_wait(inode) --> pdf712
+        醒来后，二次检验是 管道中是否有数据 以及 是否有写者 --> 可能有多个task_struct因条件不满足而睡眠,条件满足时,所有task_struct都会被唤醒 --> 资源竞争,胜者为王,劣者继续sleep
+
+    c.数据读取
+      管道将 底层的内存页面 组织为 环形缓冲区 --> PPT
+
+    d.由于缓冲区大小限于一个页面
+      写者写满后，就需要睡眠等待
+      读者读取一些数据后,就可以唤醒一些睡眠的写者
+
+  3)写
+    sys_write() -> write_pipe_fops.pipe_write()
+    a.down_interruptible(PIPE_SEM(*inode))
+    b.若没有读者,i_pipe->readers = 0
+      则没有生产的意义,向进程发送SIGPIPE信号
+
+    c.若写入量 < PIPE_BUF
+      则可以保证原子性的一次性写入    -->   只要保证写入时有足够的空间即可
+      令free表示空闲空间的需求量:
+      free = count < PIPE_BUF ? count : 1 --> 若写入量超过PIPE_BUF,则不能保证原子性,可能需要多次写入
+                                              那么此时只要保证有空间即可
+       
+    c.空间不够
+      1.非阻塞写 
+        go out
+      2.阻塞写
+        睡眠等待读者读取后的唤醒
+
+
+5.命名管道
+  相比于匿名管道，其
+  有名:有文件名
+  有形:文件的inode存在于外存介质上,进程在任何时间(不仅仅在fork())建立与该文件之间的联系
+  fifo文件严格遵循先进先出原则 --> 没有随意移动文件读写指针的lseek()操作
+
+  fifo文件的操作函数表:pdf 719 ---> 与pipe文件的类似
+
+  fifo文件的打开:
+  1)初次打开时,需要新建磁盘inode,读入到内存后构建内存inode
+    然后调用init_special_inode()对fifo这类特殊文件的inode进行初始化:inode->i_fop=&def_fifo_fops --> pdf721
+  2)在随后的dentry_open()中,会调用函数表中的fifo_open(inode,file)
+    调用点:pdf 574
+    实现点:pdf 721
+     a.调用pipe_new(inode)构建底层的缓冲区(内存页)和管理机制(pipe_inode_info)
+     b.以读者身份打开fifo文件
+       1.没有写者+非阻塞式
+         设置file->f_version=PIPE_WCOUNTER(*inode) --> 用于pipe_poll()对命名管道的查询
+         后退出 
+       2.没有写者+阻塞式
+         调用wait_for_partner()阻塞睡眠等待写者上线
+       3.有写者
+         若之前读者数为0，那么有写者可能位于睡眠中 --> 需要调用wake_up_parnter()进行唤醒
+       file->f_op = &read_fifo_fops;  读者视角
+     
+     c.以写者身份打开fifo文件
+       1.没有读者+非阻塞式
+         直接退出 
+       2.没有读者+阻塞式
+         调用wait_for_partner()阻塞睡眠等待读者上线
+       3.有读者
+         若之前写者数为0，那么有读者可能位于睡眠中 --> 需要调用wake_up_parnter()进行唤醒
+       file->f_op = &write_fifo_fops;  写者视角
+
+      d.以读写者身份打开fifo文件
+       同一个进程打开了fifo的读写端，所以不需要等待
+       可以唤醒之前可能睡眠的读写者 --> 比如Reader1非阻塞式地打开fifo时，没有写者，于是睡眠等待
+                                        现在读写者已上线，自然可以唤醒沉睡的Reader1
+
+      命名管道建立后，其后的读，写，关闭操作与匿名管道无异
+      FIFO文件的含有磁盘inode，但数据只存在与内存缓冲页面中
+
+
+6.Linux信号表:pdf 731
+  信号的发送与处理是异步的
+  进程A向进程B发送信号后，不需要同步等待至B接收处理后再继续后续流程
+  进程B收到信号后，不会立马处理，而会在某些时间点进行处理(比如系统调用的返回前夕)
+  进程不知道信号何时到达,不需要特定的操作来同步等待至信号的到达
+  
+  信号与硬中断的相似性:异步，屏蔽，嵌套
+
+
+7.进程的信号资源:
+  1)task_struct.signal_struct 
+    {
+      atmoic_t  count;
+      struct k_sigaction aciton[64];  --> 信号向量表,位于系统空间中,但"向量"所指的处理程序通常位于用户空间中
+                                          中断向量表,位于系统空间中,"向量"指向的处理程序也位于系统空间中
+      spinlokc_t  siglock;            --> 用于保证资源操作的互斥
+    }
+
+    struct sigaction{
+      union{
+        __sighandler_t _sa_handler;
+        void (* _sa_sigaction)(int,struct siginfo*,void*);  
+        二者都代表 用户/系统 为信号绑定的信号处理程序,但后者可通过参数siginfo获取信号相关信息 --> pdf729
+        在中断机制中，中断服务程序可以读取外设的状态寄存器获取进一步的信息
+        在信号机制中，信息封装在siginfo中 --> 通信的媒介
+        系统内置的信号处理程序:SIG_DFL,SIG_IGN
+      }_u;
+
+      sigset_t sa_mask;         //处理当前信号时要屏蔽的信号
+                                  当前信号本身总是自动屏蔽,除非在sa_flags中指定SA_NODEFER或SA_MASK标志 -> 借鉴了在中断响应时会关中断以防止中断嵌套的经验
+                                  起源见pdf 728
+
+      unsigned long sa_flags;   见pdf 729
+
+      void (* sa_restorer)(void);
+    }
+
+  2)struct sigpending{
+      struct sigqueue* head,**tail;
+      sigset_t signal;        //模拟8259A中的中断请求寄存器
+    }
+    当中断请求到来时,中断请求寄存存器中的某一位就会被设置为1,表示有相应的中断请求等待处理,直到中断响应程序读取该寄存器时才会被清0
+    若上一次中断还没被响应,下一次中断就已到来
+    那么CPU无法 仅根据中断请求寄存器的标志位 感知到多次中断的到来
+    但中断服务程序能够感知到 某个中断"通道"上有中断请求.
+    然后"轮询"该"连接到该通道上的所有中断源",查看哪些中断源发出了中断请求
+    以此解决多个相同信号到来时的感知问题
+
+    在软件层面上,则设置了一个信号队列
+    每到来一个信号,先将模拟的中断请求寄存器相应位设置为1,然后将其(siginfo)挂入到队列中,以避免信号的丢失
+
+  3)sigset_t blocked;    
+    模拟8259A中的中断屏蔽寄存器
+
+  4)int sigpending 
+    指示当前进程是否有悬而未决的信号
+
+  5)sas_ss_sp,sas_ss_size
+    处理程序工作区(函数运行栈)
+
+8.信号的检测时机:
+  1)进程因 系统调用，中断，异常进入系统空间后
+    从系统空间返回到用户空间的前夕
+  2)刚被唤醒时
+  检测后的处理流程:pdf 727
+
+
+9.信号相关的函数
+ 1)为信号install handler  --> 调整向量表中对应的sigaction
+   a.sighanlder_t signal(int signum,sighanlder_t hanlder)
+     sighanlder_t --> void(*)(int) --> 被回调时,上层为其传递信号编号
+     返回原来的hanlder
+     老式接口,功能简单,只能设置sigaction里的_sa_handler
+     常用于将信号的handler设置为SIG_DFL,SIG_IGN
+
+     函数主要逻辑:  pdf734
+     1.构建一个sigaction
+       struct sigaction new_sa,old_sa;
+       new_sa.sa_handler = handler;
+       new_sa.sa_flags = SA_ONESHOT | SA_NOMASK;
+        ONESHOT:signal handler被调用后，会将其设置为SIG_DFL
+        NOMASK :在处理该信号时,不屏蔽其他任何信号
+     
+     2.do_sigaction(sig,&new_sa,&old_sa);
+
+   b.int sigaction(int signum,const struct sigaction* newact, struct sigaction* oldact)
+     通过参数返回之前的sigaction
+     内核中,系统调用表中对应的函数:sys_rt_sigaction()
+     主要逻辑:pdf 734
+     1.调用copy_from_user()将用户空间中的sigaction拷贝到内核中
+     2.do_sigaction(sig,&new_sa,&old_sa);
+
+ 
+ 2)int do_sigaction(sig,new_sa,old_sa) pdf735
+   重点:
+   a.SIGKILL和SIGSTOP的signal hanlder不允许改变
+     这两个信号也不能被屏蔽 --> 将二者从sigaction的sa_mask中移除
+   b.设置信号向量表中的sigaction
+   c.POSIX相关规定  -->   pdf736
+ 
+ 3)rm_from_queue(sig,struct sigpending* s)  pdf737
+   将已到来,尚未处理的信号丢弃
+   核心:遍历sigpending中的信号队列,将sig对应的sigqueue释放掉
+
+ 4)sigrocmask() --> 修改task_struct中的信号屏蔽位图blocked
+                    信号屏蔽:暂时停止对该信号的响应 --> 解除屏蔽后，已到达的信号还是会处理的
+   sigpending() --> 检查有哪些信号已到达而尚未处理
+   sigsuspend() --> 暂时修改task_struct.blocked,让进程进入睡眠,等待任何一个未屏蔽的信号的到达
+
+ 5)进程在用户空间通过系统调用发送信号:
+   a.kill(pid,sig)
+     可以将信号发送给某个进程(pid>0)
+                     发送者所在进程组中的所有进程(pid=0)
+                     系统中的所有进程(pid=-1)
+                     某个进程组中的所有进程(pid<0)
+     
+   b.sigqueue(pid,sig,const union sigval val)
+     只能将信号发送给某个进程(由pid指定),但可携带附加信息sigval --> 长整数,通常解释为siginfo*o
+
+
+   c.raise(sig)
+     发送信号给自己 --> kill(getpid(),sig)
+
+   核心:先找到对应的task_struct
+        然后调用send_sig_info(sig,siginfo* info,task_struct* t)
+ 
+ 6)send_sig_info(sig,info,t)
+   a.bad_signal(sig,info,t)？
+     做一些检查 --> pdf742
+   
+   b.handle_stop_signal(sig,t)
+     进程在收到某些特定信号后,就不允许再屏蔽一些特定的后续信号,要将其从屏蔽位图中剔除
+     比如:进程收到SIGSTOP后会进入TASK_STOPPED状态,后续需要被SIGCONT信号唤醒,所以不能屏蔽之
+          其他例子见pdf743
+     ....
+  
+   c.deliver_signal(sig,siginfo,t) --> pdf746
+     1.将信号投递给目标task_struct --> 1."点亮"模拟的中断请求寄存器的相应位:t.sigpending.signal
+                                     2.将siginfo挂入到信号队列中:t.sigpending.sigqueue
+
+       对于传统信号(sig<SIGRTMIN),若已有相同信号处于待处理状态(t.sigpending.signal的相应位还亮着) 
+                                则不会投递当前信号  --> 信号丢失
+       对于新的实时信号,则都会进行信号投递:将siginfo挂入到信号队列中
+     
+     2.信号投递后，检查目标进程是否屏蔽了该信号 --> sigismemeber(&t->blocked,sig)
+       若目标进程没有屏蔽该信号，且位于睡眠中(TASK_INTERRUPTIBLE),那么就将其唤醒 ---> 信号发送后,会唤醒目标进程去处理
+
+
+ 7)内核向某个进程发送信号
+   比如:在do_page_fault()中,当页面异常无法恢复时就需要向当前进程发送一个SIGBUS信号
+   force_sig(int sig,struct task_struct* p) --> pdf749
+   特点:其会"强制"目标进程接收信号,所以不允许目标进程忽略或屏蔽该信号,
+        最终还是调用send_sig_info(sig,info,t) --> info值为1,表示该信号由内核发送
+ 
+ 8)信号处理
+   在中断机制中,CPU在每条指令结束时会检测是否有中断请求存在
+   在信号机制中,信号检测的时机:1)进程因 系统调用，中断，异常进入系统空间后
+                                 从系统空间返回到用户空间的前夕
+                                 所以当进程运行在用户空间时,收到信号后不会立马对其进行处理.
+                                     必须先要通过某种手段(比如时钟中断)陷入到内核,然后从内核返回时才会进行处理
+                                     在此情况下,信号的发送和处理之间会有一定的延迟
+                                 若进程正运行于系统空间中(比如正在进行异常处理),此时有信号送达,那么返回到用户空间之前，此信号肯定会被处理
+                                     时间差相对较小,可以认为是立即对信号进行处理
+
+                               2)刚被唤醒时
+   检测例子:pdf749
+ 
+ 9)检测到待处理的信号后，调用do_signal(pt_regs* regs,sigset_t* oldset)进行处理 --> pdf750
+   a.if((regs->xcs & 3) != 3)
+      return 1;
+     进程因中断,异常,系统调用陷入内核时,会在其系统栈中保存现场 --> CPU中的各个寄存器 --> 封装在pt_regs结构中
+     regs->xcs --> CPU进入内核态前,CS的内容
+                   若CPU是从用户态转为内核态(中断,异常,系统调用),那么最低两位为3
+                     那么现在CPU正处于从内核态转回用户态的前夕,进行信号处理是正常的
+   
+   b.for(;;) --> 遍历信号队列,依次处理每个 未屏蔽的未决信号
+     1.if(current->ptrace & PT_PTRACED && signr != SIGKILL) --> 被父进程追踪而处于debug模式
+       pdf 743
+
+     2.查看信号向量表,根据其signal handler的类型做相应的处理
+       1)SIG_IGN
+         不能忽略SIGCHILD信号
+         SIGCHILD信号通常是 子进程调用exit()结束生命周期时 发向父进程的
+         此时需要调用sys_wait4(-1,NULL,WHOHANG,NULL)检查所有的子进程,
+          若能找到一个死亡的子进程,就为其料理后事,然后返回
+          WHOHANG:若一个都没找到，也立即返回，不阻塞等待
+
+       2)SIG_DFL
+         不同信号的默认方式不同 --> pdf752
+       以上为系统内置的signal handler,在系统空间中运行
+
+       3)用户自定义的handler
+         调用handle_signal(sig,sigaction,&sig_info,oldset,regs)
+         然后return 1
+         即do_signal()每次最多只处理一个 含有自定义handler的未屏蔽的未决信号
+
+   c.若系统调用会调用驱动程序,而驱动程序执行失败,那么会发送相关信号,比如SIGTTIN
+     一般会希望此类系统调用能重新执行 
+
+     //系统调用的重新执行
+     if(regs->orig_eax >= 0){                    //系统调用号必须合法
+       if(regs->eax == -ERESTARTNOHAND ||
+          regs->eax == -ERESTARTSYS || 
+          regs->eax == -ERESTARTNOINTR)  //若失败的系统调用要求重新执行，则会将返回值eax设置为这三个参数之一
+          
+          regs->eax = regs->orig_eax;    //设置系统调用号
+          regs->eip -= 2;                //正常eip指向系统调用后的下一条指令 --> 即int 0x80后的下一条指令
+                                           进程返回到用户空间时,CPU又会去执行eip指向的int 0x80指令
+     }
+     
+  
+ 10)static void handle_signal(sig,sigaction,&sig_info,oldset,regs)
+    先返回到用户空间执行handler,然后返回到系统空间 --> 蛮复杂的 --> pdf755.要结合系统调用一起看
+
+
+10.进程A通过ptrace()可以动态地读写进程B的内存和寄存器,包括指令,数据,函数栈和所有的寄存器
+   与信号机制相结合,可以实现进程A对进程B的跟踪和控制
+   gdb的底层原理类似ptrace()
+   可以在受gdb控制的进程中设置断点,检查函数栈以确定函数调用路线,检查或改变局部变量或全局变量的内容
+
+11.int ptrace(int request , int pid, int addr,int data)
+   操作码pdf766  进程号
+   进程A通过ptrace()跟踪/控制进程B的流程:
+   1)A先调用ptrace(PTRACE_ATTACH,pid_B...)与B建立联系
+   2)然后A就可以调用ptrace(PEEK/POKE,pid_B,addr,data) 读/写 B的指令,数据或者各个寄存器
+     或者通过PTRACE_SINGLESTEP,PTACE_KILL,PTRACE_SYSCALL,PTRACE_CONT等操作来控制B的运行
+   3)最后,A调用ptrace(PTRACE_DETACH,pid_B...)与B脱离关系
+
+12.内核实现:sys_ptrace(request,pid,addr,data) --> pdf766
+   根据request操作码进行不同的处理:
+   1)PTRACE_TRACEME
+     主动请求被追踪
+     如果尚没有被追踪，设置PT_PTRACED标志位即可
+   
+   2)对于其他操作，都要先找到被跟踪进程(B)的task_struct
+     关键操作:task_struct* child = find_task_by_pid(pid) --> 在hash缓存中根据pid查找
+              get_task_struct(child) --> 递增task_struct引用计数,避免B的task_struct被提前释放
+                                         考虑情景:A通过access_process_vm()读取B的虚存空间时
+                                                  可能导致A阻塞睡眠
+                                                  若B先醒来运行,调用exit(),释放task_struct
+     gdb获取被跟踪进程的pid方式:
+     a.gdb prog
+       prog由gdb通过fork()和exec()启动 --> prog就是gdb的子进程 --> 父进程当然知道子进程的pid
+     b.若prog已经在运行,则先用ps查找其pid
+       再输入gdb prog pid
+   
+   3)PTRACE_ATTACH 
+     让跟踪进程(A)与被跟踪进程(B)建立联系
+     a.建立联系需要的条件的检验 --> pdf767
+       一般需要两个进程属于同一用户或同一组 --> 否则需要将当前用户提升特权进程(suser())
+                                                或者为其赋予相关权限capable(CAP_SYS_PTRACE)
+     b.建立联系需要的操作 
+       1.设置PT_TRACED标志位
+         child->ptrace |= PT_PTRACED
+       2.让A称为B的父进程
+         child->p_pptr=current
+       3.向B发送SIGSTOP信号，暂停B的运行
+         send_sig(SIGSTOP,child,1)
+   
+   4)若request不是PTRACE_ATTACH,那么其肯定表示A对于B的跟踪/控制
+     那么就要求B已设立PT_TRACED标志位，是A的子进程且处于TASK_STOPPED状态 --> 检验见pdf 768
+   
+   5)PTRACE_PEEKTXT,PTRACE_PEEKDATA:
+     表示A要读取B的虚存空间中(用户空间部分) addr处的一个长字(32位读取,CPU只需要一条指令,原子操作) -> 读取B的指令或数据
+     a.调用access_process_vm(task_struct* tsk,unsigned long addr,void* buf,len,int write) 
+       其是对给定进程的存储空间进行读写的通用函数
+       1.调用find_extend_vma()找到addr所在的虚存区
+       2.根据读/写长度计算 所涉及的虚存页
+       3.调用access_one_page() --> 对进程的虚存页进行读写的通用函数
+         先根据页表找到虚存页面对应的物理页面,若没找到,则需要从外存进行加载 --> 导致A阻塞睡眠
+         然后将物理页面映射到A的虚存空间中
+
+     b.调用put_user()将读取到的数据写回A的用户空间
+   
+   6)PTRACE_SEEKUSR
+     有两大功能:
+     a.子进程在进入系统空间时,会将现场(寄存器)保存在thread_struct和系统栈中 
+       读取方式:get_reg(task_struct* tsk,unsigned long regno) --> pdf770
+                在此处regno = 寄存器号(ptrace.h)*4
+                FS和GS寄存器位于task_struct中,其他寄存器位于系统栈中 -> 访问方式:栈基址(thread_struct.esp0)+偏移量
+     
+     b.读取调试寄存器的内容
+       用户进程可设置一些调试寄存器来使CPU在一定的条件下落入陷阱,从而进入一个断点
+       条件包括:1)CPU执行某一指令时
+                2)CPU读写某一内存地址时
+       陷阱的处理程序为do_debug() --> pdf772
+       
+       
+       番外:struct user结构 --> 进程在abort或dump内存映象时使用的
+       when the kernel dumps core,it starts bt dumping the user struct 
+       The user struct will be used by gdb to figure out where the data and stack segments are within the file and what virtual addresses to use 
+       重点字段:pdf774
+        u_debugreg[0-7] --> 调试寄存器
+                  
+   7)PTRACE_POKETEXT,PTRACE_POKEDATA,PTRACE_POKEUSER --> 与PEEK_XXX操作相反,为写操作
+     pdf 774
+   
+   8)PTRACE_SYSCALL,PTRACE_CONT --> pdf776
+     让被跟踪进程在 下一次系统调用时 暂停或继续 
+     XX_SYSCALL -> 暂停 -> 设置PT_TRACESYS标志位
+     XX_CONT    -> 继续 -> 取消PT_TRACESYS标志位 -> task_struct->ptrace &= ~PT_TRACESYS
+
+     这两个标志位和PTRACE_SINGLESTEP(让进程在执行下一条指令后暂停)是互斥的
+     所以需要清除该进程的EFL标志寄存器中的TRAP_FLAG位 --> pdf 776
+
+     wake_up_process(child) --> 唤醒子进程 
+                                子进程再进行下一次系统调用时,就会检测到PT_TRACESYS标志位,然后调用syscall_trace(void)进行处理 --> pdf776
+
+     syscall_trace(void) -> pdf777
+     a.暂停当前进程,并行父进程发送SIGCHLD信号
+        current->state = TASK_STOPPED
+        notify_parent(current,SIGCHLD)
+        schedule()
+     b.等待父进程的SIGCONT信号
+     c.醒来后
+       if(current->exit_code){
+          send_sig(current->exit_code,current,1);
+          current->exit_code = 0;
+       }
+       return
+
+     系统调用程序entry.S的部分代码:
+     ENTRY(system_call)
+      pushl %eax                                  save orig_eax
+      SALE_ALL                                    保存现场
+      GET_CURRENT(%ebx)                           ebx保存task_struct的地址
+      cmpl $(NR_syscalls),%eax                    系统调用号检查
+      jae badsys
+      testb $0x02,tsk_ptrace(%ebx)                PT_TRACESYS标志位检查
+      jne tracesys                                若检测到标志位，就调用syscall_trace，暂停进程的执行
+      call *SYMBOL_NAME(sys_call_table)(,%eax,4)  否则查表,调用具体的程序
+      ....
+  tracesys:
+      movl $_ENOSYS,EAX(%esp)   
+      call SYMBOL_NAME(syscall_trace)
+      movl ORIG_EAX(%esp),%eax             --> 父进程收到SIGCHILD信号后,就知道子进程在系统调用入口处陷入了暂停状态
+                                               然后可通过PTRACE_SEEKUSR等操作读写子进程的相关数据
+                                               比如:设置将子进程系统栈的eax寄存器的内容设置为某个系统调用号
+      cmpl $(NR_syscalls),%eax                      子进程从syscall_trace中返回后,再去执行父进程指定的系统调用
+      jae tracesys_exit                        --> 设置的值过大,跳过系统调用的执行
+      call *SYMBOL_NAME(sys_call_table)(,%eax,4)  
+      movl %eax,EAX(%esp)                      保存返回值到系统栈中
+    tracesys_exit:
+      call SYMBOL_NAME(syscall_trace)      --> 结束时再调用syscall_trace(),让父进程能收集子进程系统调用的运行结果
+      jmp ret_from_sys_call
+   
+   9)PTRACE_KILL
+     让进程退出运行
+     重点:current->exit_code = SIGKILL
+     如果进程处于PT_TRACESYS状态,那么进程进行下一次系统调用时,就会进入到syscall_trace()中 --> 醒来后,向自身发送一个SIGKILL信号
+   
+   10)PTRACE_SINGLESTEP 
+      让子进程进入单步执行的状态
+      核心:设置进程系统栈中ELF寄存器中的TRAP_FLAG位
+           进程被调度运行时,会进行现场恢复 --> 硬件ELF寄存器的TRAP_FLAG标志位被设置 -> CPU每执行完一条指令后都会去检测该标志位，若已设立，则暂停当前进程的运行
+   
+   11)Others: pdf779
+
+13.调试工具也可以通过/proc目录下的特殊文件来读写进程内存空间和其他信息
+   但ptrace()有无可替代的作用:可以跟踪应用程序所做的系统调用  
+                              对于闭源linux程序，若要知道其究竟干了什么
+                              最好的方法就是监视其做了哪些系统调用，调用参数是什么，返回值是什么
+   linux shell环境下系统调用追踪:strace命令
+   例子:strace echo hello
+
+14.管道通信的缺点
+  1)发送方发送的报文(信息)在管道中被汇聚成无格式的字节流
+    接收方难以从字节流中划分出各条报文
+    而且缺乏一些控制手段,比如报文的优先级
+
+  2)管道的缓冲区大小是静态有限的
+    发送者也无法预先知道缓冲区的可用空间大小
+
+  3)管道机制占用打开文件号
+
+15.SystemV IPC包括:Message Queue + Shared Memory + Semaphore
+  统一的调用接口:
+  int ipc(unsigned int call,int first,int second,int third,void* ptr,int forth)
+  call为操作码:pdf 783
+  根据操作码选择相应的IPC机制
+
+  sys_ipc()代码:pdf 784
+  核心:根据call参数选择调用相应的IPC函数
+       比如call == SEMOP
+       调用sys_semop(first,(struct sembu*)ptr,second)
+
+
+16.Messague Queue
+  1)使用图示见ppt
+  2)整体结构
+
+  2)sys_msgget(key_t key,int msgflg) -> pdf 786

@@ -1,0 +1,228 @@
+1.进程打开一个文件时，会在内核中创建一个file结构
+  一个file结构代表一个独立的打开文件上下文
+  file就像是 文件内容的窗口，通过不同的窗口望向同一内容的文件的效果是不一样的
+
+  file结构重点字段:   pdf552
+   1)struct dentry* f_dentry
+     文件内容的索引
+   2)loff_t f_pos
+     当前file对象所看到的 文件读写指针
+   3)
+  
+  
+2.sys_open(const char* filename,int flags,int mode)
+  1)将filename从用户空间拷贝到内核空间
+  2)fd = get_unused_fd()
+    进程的文件资源保存在task_struct中的files_struct中 --->  pdf554
+    其最重要的内容为file*数组 --> 进程打开一个文件时，会在内核中创建一个file结构，进程只需要保留file*即可
+                                  file*在数组中的下标就为fd
+                                  上层用户通过fd在file*数组中索引，进而找到更底层的file的结构
+    如何对fd进行管理呢? --> 如何分配和撤销fd?
+    最简单粗暴的方法:打开一个文件时，搜索file*数组，找到第一个空闲位置
+    优化:只需要关心数组中的位置的占有情况，不用关心位置上的元素内容
+         所以可以用位图来模拟数组的位置占有分布情况
+         为什么采用位图?  --->  可搭配汇编指令bsfl，高效地完成空闲位置的搜索  --> 见get_unsed_fd()
+    上层用户只需要与位图打交道，下层程序则根据位图的内容来做相应的处理
+    每种位图都面向一个特定的上层用户
+
+    file*数组含有两种位图
+    a.open_fds
+      其记录了文件的打开情况
+    b.close_on_exec
+      其记录了 子进程在执行exec时应该关闭的文件
+
+    对象对于动态数量资源的管理:当数量较少时，直接保存在对象内
+                               超过阈值时，则需要将其从对象内"迁移"到对象外的堆中，然后在对象中保存指针即可
+    对象files_struct对于资源file*的管理就采用了该方式       --->      pdf555
+  
+  3)struct file* f = filp_open(filename,flags,mode)
+    文件打开的主体
+    a.上层(open()层)的标志约定 与 下层(filp_open())的标志约定不一致
+      所以先要对flags进行转换 --> pdf556
+
+    b.调用open_namei(filename,flag,mode,&nd)来找到或创建 目标文件的dentry和inode --> 保存到nd中，并通过参数返回
+      1.若没有指定O_CREAT标志位，则直接通过path_init()和path_namei()直接搜索目标文件的nd
+      2.否则，在path_init()指定LOOKUP_PARENT标志位，再通过path_namei()搜索到 目标文件的父目录的nd
+        由于路径情况复杂，所以要考虑到各种异常路径，并做处理
+        比如路径的终点为 . 或者 ..，那么表示open()在创建目录.而目录必须要由mkdir()创建.所以会返回出错码:-EISDIR
+      
+      3.调用lookup_hash()
+        其会用 父目录dentry + 目标节点名 在缓存中查找目标节点的dentry
+        若不存在，则新建一个dentry，设置基本的字段,比如name,parent.但暂时还没有inode
+        然后调用vfs_create()为新文件分配inode,并将新文件的dentry写入到父目录的data block中
+      
+      4.若目标文件的dentry存在
+        则需要对目标文件进行检验
+        比如:若目标文件为mount point,则要调用__follow_down()进入到 挂载的文件系统中 --> 与多个文件系统挂载到同一目录下的处理类似
+             若目标文件为符号链接，则要顺着链接前进到目标节点中 --> 调用dentry->d_inode->i_op->follow_link() --> 在ext2文件系统中，其为ext2_follow_link()
+               符号链接可以跨设备，而该目标设备可能并未挂载 --> 返回出错码，-ENOENT
+               此外符号链接还要考虑循环链接等问题 --> pdf563
+
+        然后进行最后的检查，比如权限检查，文件类型检查，标志位检查等... --> pdf565
+
+      5.如果标志位中指定了O_TRUNC，则需要对文件内容进行截断
+        对文件进行修改就需要考虑到互斥
+
+        1)若文件已经通过mmap()映射到某个进程的虚存空间，那么就需要保证 常规写 和 虚存写 之间的互斥
+          通过inode中的i_writecount字段来保证互斥
+          i_writecount值:
+          a.>0
+           当前文件只能进行常规写,其值 表示当前 拥有该文件常规写访问许可的 进程数
+          b.=0
+            no mappings,no writers
+          c.<0
+           当前文件只能进行虚存写,其值 表示当前 拥有该文件虚存写访问许可的 进程数
+
+          在创建file结构时,若指定了可写标志位,或者在通过常规写修改文件内容时,都会调用get_write_access()来进一步检查写访问权限
+           检查包括:
+             若i_writecount < 0,返回ETXTBSY.
+             否则++i_writecount,可以进行常规写的人数+1
+            i_writecount为共享变量,而且检查涉及到多个步骤,所以需要在临界区中检查 --> 通过spin_lock来维护临界区
+
+          写完后或者释放file结构时则要调用put_write_access(),原子性地递减i_writecount即可(不需要临界区) --> 常规写的人数-1
+          
+          在执行mmap()时，则会调用deny_write_access()来检查写访问许可
+           检查包括:
+             若i_writecount > 0,返回ETXTBSY.
+             否则--i_writecount,可以进行虚存写的人数+1
+
+        2)进程之间也可通过文件锁来保证对文件的互斥访问
+          文件锁分为两类:
+          a.advisory lock
+            内核只提供加锁和检测文件是否加锁的手段 --> flock()
+            但不强制性地参与锁的检测  --> 若进程在访问文件前，没有调用flock()，内核也不会进一步地去检测锁
+          b.mandatory lock
+            在进程访问文件之前，内核都会去检测文件的加锁情况
+          在inode中含有字段MS_MANDLOCK,表示 是否允许 文件使用mandatory lock
+          该字段同样适用于super_block,表示 是否允许 整个文件系统的文件 使用mandatory lock
+
+          在对文件内容进行truncate时，内核需要检验目标文件是否添加了强制锁:locks_verify_locked() 
+          inode中含有 一个文件锁队列file_lock* i_lock
+          每当进程对一个文件的区间进行加锁时，就会创建一个file_lock结构并挂入队列中
+          file_lock重点字段: pdf569
+          a.loff_t fl_start,fl_end
+            加锁区间
+          b.fl_type
+            锁的类型 --> pdf570
+         
+         若检测文件添加强制锁，就执行do_truncate()进行文件截尾  --> 核心在于将inode的size改为0,次要的在于一系列的验证 --> pdf571
+         最后由于inode的内容发生了改变，所以需要调用mark_inode_dirty()将其挂到所属的super_block中的s_dirty队列中
+         内核会在合适的时间点将该内存inode写回到磁盘inode中
+
+    c.open_namei()结束后，我们就可以得到目标文件的 dentry和inode结构 
+      就下来就需要建立目标文件的 一个上下文 --> file结构
+      dentry_open()要点: --> pdf573
+       在内核中含有一个空闲file结构队列 --> free_list
+       所以需要时，就从队列中摘取一个file结构
+       然后对其初始化，重点字段:dentry,vfsmnt,pos,f_op --> pdf574
+       最后将其挂入到 该文件所在的文件系统的super_block的file* s_files队列中 
+       对于具体的文件系统，打开文件时可能需要附加操作-->f_op->open. 在ext2文件系统中，其为ext2_open_file() -> pdf575
+       插曲:大文件的设置 --> pdf575
+
+  4)接下来需要将 file结构 "安装到" 当前进程的file_struct中
+    在files_struct中含有file*数组files,而在1)中已经找到了一个空闲fd
+    直接通过files[fd] = &file 来在当前进程和目标文件之间 建立连接
+
+    
+3.int vfs_create(struct inode* parent_dir,struct dentry* dentry,int mode)
+  功能:为目标新文件创建inode,建立新文件的dentry和inode之间的联系
+       并将新文件的dentry写入父目录的 文件内容 中
+  要点:
+  1)每个进程都有一个"文件访问权限屏蔽码"umask
+    其记录在进程的fs_struct中
+    由该进程新建文件时，若umask中的某一位为1，则新建文件的访问权限就会被屏蔽掉
+    比如若umask=077,则该进程新建的文件只能由文件主使用,同组人和其他用户的访问权限就被屏蔽掉了
+    umask代代相传，也可以通过umask()改变
+
+    所以第一步需要结合mode和umask来确定新建文件的访问模式
+
+  2)因为会修改父目录文件的内容，所以要保证互斥
+    down(&parent_dir->i_zombie)
+
+  3)调用may_create()进行 创建权限 检查
+
+  4)创建文件的过程因文件系统而异
+    在VFS层，其为dentry->i_op->create(parent_dir,dentry,mode)
+    在ext2文件系统中，其为:ext2_creare()
+
+    ext2_creare(parent_dir,dentry,mode)要点:
+    a.调用ext2_new_inode()分配一个磁盘inode并创建内存inode
+      1.调用new_node()新建一个内存inode结构
+        简单初始化以后，将其加入到内存inode缓存中
+
+      2.磁盘inode分配的基本思想
+        现代存储介质分为许多块组
+        一般来说，文件应该和其父目录位于同一块组中
+                  文件的内容和文件的索引节点也应存储在同一块组中，这样才能提高效率
+        根据统计学规律，一个块组中的 磁盘inode数和数据block数 有最佳比例值 --> 在格式化文件系统时，可以根据此比例值分配块组中的索引节点和数据block
+        同时，每个块组中平均有多少个目录，每个目录下平均有多少个文件，都有参考值
+
+        如果当前在创建普通文件，那么应该从其父目录所处的块组中分配磁盘inode
+        若正在创建目录，那么就要考虑将来其属下的文件能否都容纳在同一块组中.
+        所以应优先找一个空闲磁盘inode数较多的块组,要不惜离开其 父目录所在的块组
+        代码见pdf580
+
+        找到合适的块组以后，接下来就要从该块组中分配一个磁盘inode
+        分配思想:每个块组都有一个磁盘inode位图
+                 需要时，会将其读入到缓冲区中，并将其地址记录在super_block中
+                 然后直接搜索位图找到第一个空闲的磁盘节点号,将其设置为1
+                 位图就是磁盘inode资源的管理者
+                 通过直接地与管理者打交道来间接地管控资源
+
+                 因为位图内容已经修改，所以将缓冲区标记为dirty
+                 若super_block中指定了MY_SYNCHRONOUS标志，则调用驱动程序ll_rw_block()将缓冲区刷新到磁盘上
+
+                 假如i表示块组号，j表示找到的磁盘inode在本块组位图中的序号
+                 可以结合二者，变换出该磁盘inode在整个设备中的索引节点号，设为x
+                 内存inode.i_ino = x  --> 在内存inode和内存inode之间建立联系
+
+                 内存inode的进一步完善:pdf584
+                 注意:新建文件的uid并不是当前进程的uid，而是其fsuid
+
+                 最后将inode插入hash表中，便于查找
+                 由于inode号只在同一设备上保持唯一性,所以在计算hash值时,可以将其所在设备的super_block地址也添加进去，以保证全系统范围内的唯一性
+    
+    b.设置内存inode中的一些函数表，比如:i_op,i_fop.完成VFS层 和 ext2文件系统层的对接  --> pdf578
+      调用mark_inode_dirty(inode)
+
+    c.将目标新文件的相关内容(比如文件名,inode号等)写入到 父目录的 文件内容数据块中
+      建立起父目录与子文件之间的连接
+
+    d.最后在 文件名dentry与文件内容索引inode之间建立连接  --->  dentry->d_inode = inode
+                                                                多个文件名可以索引到同一文件内容
+                                                                这些dentry都通过d_alias字段链入到inode的i_dentry中
+
+
+4.文件的关闭sys_close(unsigned int fd)
+  要点:
+  1)fd >= max_fds ?   
+    参数检查
+  2)file* f = files[fd]
+    if(!f)
+      needn't close return      --->  如果不检查会怎么样?
+    files[fd]=NULL
+    找到对应槽位的file*,并将该槽位置空  --->  断开fd与file*之间的连接
+
+  3)将位图close_on_exec和open_fds的对应位置清0
+    因为在通过open()创建新文件时，会先分配fd，最后才会建立fd与file*之间的连接
+    所以，若进程1正通过open()创建新文件，已经分配了fd，但还没有建立fd与file*之间的连接.
+    此时进程2调用close()关闭此fd,若没有做上述的if(!f)的检查,则会在位图中将进程1新申请的fd释放掉
+  
+  4)主体为filp_close()
+    要点:
+    a.有些文件系统要求在关闭文件时需要将文件的内容写回到设备上
+      调用file->f_op->flush()进行写回
+      在ext2文件系统中，flush()函数为null
+
+    b.遍历inode的i_flock队列，把属主为该"进程"(以进程的files_struct的地址作为属主)的FL_POSIX锁去掉 --> 进程通过该file结构在inode上添加的强制锁 
+
+    c.调用fput(file)
+      其会递减file结构的共享计数，若减到0，则会进行相应的资源释放
+      1.释放advisory_lock
+      2.每种文件系统对于file的释放可能会有附加操作:file->f_op->release(inode,file)
+        在ext2文件系统中，该函数为:ext2_release_file() --> 其只是将预分配的数据块释放掉
+      3.调用put_write_access()归还写访问许可
+      4.目标文件的对应denty以及其所在设备的vfsmount就少了一个用户
+        所以要调用dput()和mntput()来递减其共享计数，若减到0，则也要做相应的资源释放处理
+      4.将file结构添加到free_list中
+    

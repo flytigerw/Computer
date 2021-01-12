@@ -1,0 +1,51 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 3<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>changeLength2D.h</code>. Test code is
+included in <code class=code>changeLength2D.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+void changeLength2D(T**& a, int oldRows, int copyRows,
+                    int copyColumns, int newRows, int newColumns)
+{// Resize the two-dimensional array a that has oldRows number of rows.
+ // The dimensions of the resized array are newRows x newColumns.
+ // Copy the top left oldRows x newColumns sub array into the resized array.
+   // make sure new dimensions are adequate
+   if (copyRows &gt; newRows || copyColumns &gt; newColumns)
+      throw illegalParameterValue("new dimensions are too small");
+
+   T** temp = new T*[newRows];              // array for rows
+   // create row arrays for temp
+   for (int i = 0; i &lt; newRows; i++)
+      temp[i] = new T[newColumns];
+
+   // copy from old space to new space, delete old space
+   for (int i = 0; i &lt; copyRows; i++)
+   {
+      copy(a[i], a[i] + copyColumns, temp[i]);
+      delete [] a[i];                      // deallocate old memory
+   }
+
+   // delete remaining rows of a
+   for (int i = copyRows; i &lt; oldRows; i++)
+     delete [] a[i];
+
+   delete [] a;
+   a = temp;
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

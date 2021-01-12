@@ -1,0 +1,70 @@
+
+
+
+
+
+1.静态链接的缺点:
+ 1)浪费磁盘和内存空间
+   比如program1和program2都 静态链接了 库文件libx.o
+   那么在磁盘和内存中都有两份libx.o的副本
+
+ 2)如果libx需要更新，那么更新后
+   新程序要对所有模块重新进行链接
+
+2.动态链接 
+  即在程序加载运行时进行链接
+  比如:现有目标文件program1.o,libx.o,program2.o
+       当要运行程序program1时，系统首先加载program1.o
+       其会发现program1.o依赖于libx.o
+       于是将libx.o 以及其他依赖模块 都加载到内存中
+       然后调用动态链接器进行链接 : 将libx.o装载到program1的虚拟地址空间中
+                                    将程序中未决议的符号绑定到libx.o中，并进行重定位
+       链接完毕后，系统从program1.o的程序入口处开始执行
+       
+       当要运行程序program2时，系统会加载program2.o
+       其会发现 依赖模块libx.o 已经存在于内存中
+       所以不会再加载libx.o,只会将program2.o与libx.o进行链接
+  
+  好处:可以节省磁盘和内存空间
+       减少页面的换入换出
+       增加CPU的缓存命中率  --> 不同进程间的数据和指令访问都集中在同一共享模块上
+       库文件升级更加方便:只要保证新旧库文件的接口不变，就可以用新的库文件 代替 旧的目标文件,再动态链接到程序中即可
+                          不需要对程序所有的模块进行重新链接
+  
+  程序的插件就利用了程序的动态链接:主程序制定调用接口
+                                   第三方根据接口编写插件程序
+                                   然后，将插件程序动态链接到主程序中
+
+  动态链接可以提供程序的平台兼容性:比如程序P需要调用函数printf()
+                                   在不同的OS平台上，printf()的实现可能不同
+                                   如果采用静态链接，那么程序P需要与各个平台上 包含printf()的静态库 分别进行链接，形成不同的程序版本
+                                   若采用动态链接，各个平台都能提供包含printf()的共享库
+                                   程序P在该平台上运行时，动态链接平台提供的共享库即可
+
+3.例子:
+ lib.h                        lib.c
+#ifndef LIB_H               #include<stdio.h>
+#define LIB_H                void foobar(int i){
+ void foobar(int);              printf("Printing from Lib.so %d\n",i)
+#endif                          sleep(-1);
+                             }
+
+ p1.c                         p2.c
+#include "lib.h"            #include "lib.h"
+ int main(){                 int main(){
+   foobar(1);                 foobar(1); 
+   return 0;                  returb 0;
+ }                           }
+  
+1)将lib.c编译生成 共享库文件
+  gcc -fPIC -shared lib.so lib.c
+
+2)编译p1.c和p2.c，并让其与lib.so链接，形成可执行文件
+  gcc -o p1 p1.c ./lib.so
+  gcc -o p2 p2.c ./lib.so
+  见图:185页
+  运行前的链接:在编译p1.c时，编译器并不知道foobar符号的地址
+               所以在链接p1.o形成可执行文件时，链接器需要决议foobar符号
+               如果链接的是共享库文件，链接器可以根据共享库文件中保存的符号信息 将foobar符号的引用 标记为动态引用.暂时不进行符号重定位，等装载时再进行
+               如果链接的是静态库文件，链接器可以根据静态文件中保存的符号信息,将foobar符号进行重定位
+

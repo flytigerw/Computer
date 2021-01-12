@@ -1,0 +1,448 @@
+1.I/O multiplexing
+  It allows us to simultaneously monitor multiple fds to see if I/O is possible on any of them
+  select() and poll() essentially provide the same functionality
+  They are historically widespread
+  We can use them to monitor fds for regular files,terminals,pseudoterminals,pipes,FIFOs,sockets and some types of character devices
+  Both of them allow a process to block indefinitely waiting for fds to become ready or to specify a timeout on the call
+
+  int select(int fds, fd_set* readfds,fd_set* writefds,fd_set* exceptfds,struct timeval* timeout)
+  It blocks until one or more of fds of a set becomes ready
+  1)exceptfds
+    It's the set of fds to see if an exceptional condition has occured
+    Exceptional condition in Linux:
+     a.A state change of the pseudoterminal slave connected to a master that is in a packet mode
+     b.Out of band data is received on a stream socket
+
+  2)fd_set is implemented as bit mask
+    All manipulation of fd sets is done via four macros
+    a.void FD_ZERO(fd_set* fdset)
+      It initializes the fd_set pointed to by fdset to be empty
+
+    b.void FD_SET(int fd,fd_set* fdset)
+      It adds the fd to the fd_set
+
+    c.void FD_CLR(int fd,fd_set* fdset)
+      It removes the fd from the fdset
+
+    d.int FD_ISSET(int fd,fd_set* fdset)
+      It returns ture if fd is a member of the fdset
+
+  3)a fdset has a maximum size,defined by the constant FD_SETSIZE
+  
+  4)The readfd,writefds and exceptfds are all value-result
+    Before the call to select(),the fdsets pointed to by these arguments must be initialized (using FD_ZERO() and FD_SET()) to contain the set of fds of interest
+    The select() modifies each of these structures,so that,on return,they contain the set of fds that are ready
+    Since these structures are modified by the call,we must ensure that we initialize them if we are repeatedly calling select() within a loop
+    These structures can later be examined by FD_ISSET()
+  
+  5)If we are not interested in a particualr class of events,then the corresponding fdset argument shoule be set as NULL
+
+  6)The nfds should be set one greater than highest fd number included in any of the three fdsets
+    It allows select() more efficient,since the kernel knows not to check whether fd numbers higher than this value are part of each fdset
+
+  7)timeout
+  struct timeval{
+    time_t      tv_sec;           //seconds
+    suseconds_t tv_usec;          //Microseconds 
+  }
+   If both fields are 0,then select() don't block.
+   It simply polls the specified fds to see which ones are ready and returns immediately   
+
+   If timeout is NULL,select() can block indefinitely
+   select() blocks until one of the following occurs
+    a.At least one of the fds specified in the three fdsets becomes ready
+    b.It's interrupted by signal handler
+    c.The amount of time spcified by timeout has passed
+   
+   On Linux,if the select() returns because one or more fds become ready or is interested by signal handler,and timeout is not-null,then select() update the structrue to which timeout points to indicate how much time remained until the call time out
+
+   Portable apps using select() within a loop should always ensure timeout should be initialized before each select()and ignore the information returned in the structrue after the call
+  
+  8)returns value
+    a.-1
+      It indicates an error occured
+       1)EBADF
+         One of the fds in the fdsets is invalid
+       2)EINTR
+         The call was interrupted by the signal handler
+   b.0
+     It indicates the select() timed out before any fd became ready
+     In this case,each of the returned fdsets will be set empty
+   
+   c.A pos value
+     It's the number of ready fds
+     Each of the returned fdsets must be examined using FD_ISSET() in order to find out which events occured
+
+2.int poll(struct pollfd fds[],nfds_t nfds,int timeout)
+  It performs a similar task to select()
+  The major difference between them is how we specify the fds to be monitored
+  With select(),we provide three sets,each marked to indicate the fds of interest
+  With poll(),we provide a list of fds,each marked with the events of interest
+  
+  1)nfds
+    It specifies the size of array fds[]
+  2)struct pollfd{
+    int     fd;
+    short   events;             //Requested events bit mask which specifies the events to be monitored for the fd
+    short   revents;           //Returned events bit mask which specifies which events have occured for the fd
+  }
+  Bit Masks:
+   1)Read 
+     POLLIN      : Data other than high-priority data can be read
+     POLLPRI     : High priority data can be read
+     POLLRDHUP   : Shutdown on peer socket --> It's designed primarily for use with the ET mode of epoll api
+                                               It's returned when the remote end of the stream socket connection has shut down the writing half of the connection
+                                               It allows an app that use epoll ET mode to employ simpler code to recognize a remote shutdown
+  2)Write
+     POLLOUT     : Normal data can be written
+  3)Error --> only used in revents
+     POLLERR     : An error has occured
+     POLLHUP     : A hangup has occured 
+     PLLNVAL     : File Descriptor is not open
+  We can specify events as 0 if we are no interested in events on the fd
+  We can specify fd as negative value which causes events to be ignored and the revents to be returned as 0 
+  Both techniques can be used to disable monitoring a single fd without rebuilding the whole fd list
+  
+  3)timeout
+    -1:block indefinitely until a fd listed in the fds array became ready or a singal is caught
+    0 :don't block and just peform a check to see which fds are ready
+    >0:Block up to timeout millseconds
+
+  4)return value 
+    -1:It indicates an error occured
+       EINTR:The call was interrupted by a signal handler
+       poll() is never automatically restarted if interrupted by a singal handler
+    0 :The call timed out before any fd became ready
+    >0:It indicates one or more fds are ready and corresponding pollfd structures in the fds array has nonzero revents value
+    select() counts a fd multiple times if it occured in more than  one returned fdsets
+    poll() counts ready fds and a fd is counted only once even if multiple bits are set in the revents filed
+
+3.When is a fd ready?
+  A fd is considered to be ready if an I/O function wouldn't block,regaredless of whether the function would actually transfer data
+  select() and poll() tell us whether an I/O function would block rather than whether it would successfully tansfer data
+  1)regular files
+    They are always marked readable or writeable by select() and returned POLLIN or POLLOUT set in revents for poll()
+    Because:
+    a.A read() will always return data,end-of-file,or error
+    b.A write() will always immediately transfer data or fail with some error
+
+  2)terminals and pseudoterminals
+    It can be seen in pdf 63-3
+
+  3)pipes and FIFOs 
+    They can be seen in pdf 1343
+
+  4)sockets
+   Codition or event                     revents in poll()
+   Input available                          POLLIN
+   Ouput available                          POLLOUT
+   Incoming connection established o        POLLIN
+   on the listening socket
+   Out-of-band data received                POLLPRI
+   Stream socket perr closed 
+   connection or executed shutdown          POLLIN | POLLOUT | POLLRDHUP
+
+4.Comparison of select() and poll()
+  1)Implementation details 
+    They both employ the same set of the kernel internal poll routines
+    These poll routines are distinct from the poll() sysCall itself
+    Each routine returns the information about the readniess of a single fd
+    These readniess information takes the form of a bit mask whose values correspond to the bits returned in the revents filed
+    So the implementation of poll() involves calling poll routines for each fd and placing resulting information in the corresponding revents field
+    To implement select() a set of macros are used to convert the information returned by the kernel poll routines to the corresponding event types returned by select()
+    #define POLLIN_SET (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)    ---> ready for reading
+    #define POLLOUT_SET(POLLWRBAND | POLLWRNORM | POLLOUT |POLLERR)              ---> ready for writing 
+    #define POLLEX_SET (POLLPRI)                                                 ---> exceptional condition
+
+    Addtionally,poll() returns POLLNVAL in the revents if one of the monitored fds was closed,while select() returns -1 with error EBADF
+    
+  
+  2)API differences 
+    a.The use of fd_set can place an upper limit (FD_SETSIZE) on the range of fds that can be monitored by select() while poll() does't have such limit
+    b.Because fd_set of select is value-result,we must reinitialize them if making repeated select() calls within a loop
+      By using separate events and revents,poll() can avoid this requirement
+    c.The timeout precision afforded by select()(microseconds)is greater than poll()
+    d.If one of the fds being monitored was closed,then poll() informs us exactly which one,via POLLNVAL bit in the corresponding revents field
+      By contrast,select() merely returns -1 with errno EBADF,leaving us to determine which fd was closed
+  
+  3)Performance 
+    The performance of select() and poll() is similar in the following cases
+    a.The range of fds to be monitored is small
+    b.A large number of fds are being monitored,but they are densely packed ---> Most of fds range from 0 to some limit are being monitored 
+    If the set of fd to be monitored is sparse --> The max fd number is N,but only a few fds range from 0 to N are being monitored,then poll() can perform better than select()
+
+-----------------------------------------------------------------------------------------------------------------------
+5.Problems with poll() and select()
+  Although they are portable,long-standing,widely used method of monitoring multiple fds for readiness,they suffer problems when monitoring large number of fds
+  When calling select() and poll(),a program must pass a data structrue to kernel describling the fds to be monitored,after check the fds,the kernel returns a modified version of this data structrue to user.
+  For poll(),the size of data structrue increases with the number of fds being monitored and the task of copying it between kerner and user space back and again consumes a noticeable amount of CPU time when monitoring large number of fds
+  After the call to select() and poll(),the program must inspect every element of the returned structrue to see which fds are ready
+  Typically,the kernel makes repeated call to monitor the same set of fds
+  However,the kernel doesn't remember the list of fds to be monitored between successive calls
+
+  Signal driven IO and epoll allow the kernel to record a persisting list of fds in which the process is interested  
+
+----------------------------------------------------------------------------------------------------------------------
+
+6.With signal-driven I/O,the process can request the kernel send it a signal when I/O is possible on a fd
+  The process can perform other activities until the I/O is possible at which time the signal is delievered to the process
+  The steps to use signal-driven I/O
+  1)Establish the handler for the signal delievered by sigal-driven I/O mechanism.
+    By default,the signal is SIGIO whose default action is to terminate a process
+
+  2)Set the owner for the fd ---> The process or the process group that receive the signal when I/O is possible on th e fd 
+    The owner is set using fcntl() -->  fcntl(fd,F_SETOWN,pid)
+    If pid > 0 --> It is interpreted as PID
+    If pid < 0 --> It is interpreted as PGID
+
+    id = fcntl(fd,F_GETOWN)  ---> It returns the ID of the process or the process group that receive signal when I/O is possible on a specifed fd
+
+  3)Enabling nonblocking I/O by setting O_NONBLOCK flag and  Enabling signal-driven I/O by turning on O_ASYNC flag
+    flags = fcntl(fd,F_GETFL)
+    fcntl(fd,F_SETFL,flags | O_ASYNC | O_NONBLOCK);
+  4)The process can perform other tasks
+    When the I/O is possible,the kernel generates a signal and invokes the handler
+  5)signal-driven I/O provides edge-triggered notification
+    It means that once a process has been notified that I/O is possible,it shoule perform I/O as much as possible
+    Assuming an nonblocking fd,it means executing a loop that performs I/O call until the call fails with error EBADF or EWOULDBLOCK
+
+7.When "IO is possible" is signaled for various types of fds
+  1)Terminals and pseudoterminals
+    A signal is generated whenever new input becomes available,even if previous input has'nt been read
+    Input possible is signaled if an EOF occurs on a terminal
+    There is not output possible for terminal.A terminal disconnect is also not signaled 
+    There is output possible for pseudoterminal:The signal is generated whenever new input was consumed on the master side of the pseudoterminal 
+
+  2)Pipes and FIFOs
+    a.For the read end,the signal is generated in the following circumstances
+      1)Data is written into the pipe even if there were already unread input in the pipe
+      2)The write end is closed
+    b.For the write end
+      1)A read from the pipe increases the amount of the free space so that it is now possible to write bytes without blocking
+      2)The read end of pipe is closed
+
+  3)sockets
+    a.For datagram sockets in both UNIX and Internet domain
+      1)An input datagram arrives the socket even if there were already unread datagrams 
+      2)An asynchonous error occur on the socket
+    b.For stream sockets in both UNIX and Internet domain 
+      1)A new connection is received on the connection
+      2)A TCP connect request completes
+      3)New input received on the socket even if there were already unread input available
+      4)The peer closes its writing half of the connection using shutdown() or close its socket altogether using close()
+      5)Output is possible ----> space becomes available in the socket send buffer
+      6)An asynchonous error occur on the socket
+   
+   4)inotify fd
+     The signal is generated when an event occurs for one of the fds monitored by the inotify fd
+
+8.Refining the use of sigal-driven I/O
+  If apps need to simultaneously monitor large number of fds(certain types of network servers),then signal-driven I/O can provide signigicant performance advantages by comparison with select() and poll()
+  It provides better performance because the kernel can remember the list of the fds to be monitored,and signal the program only when the events actually occur on the fds
+  Signal-driven I/O scales according the number of I/O events that occur instead of the number of fds being monitored
+
+  To take full advantages of signal-driven I/O,we must perform two steps
+  1)Empoly fcntl() F_SETSIG to specify a realtime signal that should be delievered instead of SIGIO when I/O is possible on a fd
+   Ex: if(fcntl(fd,F_SETSIG,sig) == -1)
+           errExit("fcntl");
+   F_GETSIG performs the converse of the F_SETSIG
+       sig = fcntl(fd,F_GETSIG,sig);
+       if(sig == -1)
+         errExit()
+   We must define _GNU_SOURCE feature test macro
+  2)Specify SA_SIGINFO flag when using sigaction() to establish handler for the realtime signal
+
+    F_SETSIG and SA_SIGINFO serves two purposes and both of them are required when monitoring large number of events on multiple fds
+     a.SIGIO is one of the standard,nonqueueing signals
+       If multiple events are siganled while SIGIO is blocked(perhaps the SIGIO handler is already invoked),then all notification except the first will be lost
+       realtime signal can be queued ---> multiple notifications can be queued
+     b.If SA_SIGINFO is specified in sa.sa_flags when using sigaction() to establish handler,then a siginfo_t structure is passed as the second argument to the signal handler 
+       Fields of interests in the siginfo_t structrue passed to signal handler are as follows
+       1)si_signo
+         It's the signal that cause the invocation of the handler
+         It's the same as the first argument to the signal handler
+       2)si_fd
+         The fd for which the I/O events occured
+       3)si_code
+         A code indicating the type of event occured
+       4)si_band
+         It's a bit mask containing the same bits as are returned in the revents by the poll()
+       si_code and si_band can be seen in pdf 1353
+
+9.If an app is purely input-driven,instead of monitoring I/O events via signal handler,we can nomanate the "IO possible " signal,and accept the queued signals using sigwaitinfo() or sigtimedwait() which return a siginfo_t structrue as above
+  This manner returns us a synchronous model of event processing
+
+10.Handling signal-queue overflow
+   There is a limit on the number of realtime signals that can queued 
+   If the limit is reached,the kernel reverts to delievering the default SIGIO signal for "IO possible" notifiactions
+   It informs us that a signal queue has overflowed and because SIGIO is not queued,futhur information will be lost
+   To address this problem,we can increase the limit or establish a handler for SIGIO and when SIGIO is delievered,the app can drain the queue of realtime signals using sigwaitinfo() and temporarily revert to the use of select() or poll() to obtain a complete list of fds with outstanding I/O events
+
+
+11.Linux provides two nonstandard fcntl() opeartions to set the target of the "I/O possible" signals
+   F_SETOWN_EX and F_GETOWN_EX
+   F_SETOWN_EX is similar to F_SETOWN but it also specified thread as the target
+   For this operation,the third argument of fcnctl() is a pointer to the following form
+   struct f_owner_ex{
+     int type;
+     pid_t pid;
+   }
+   The type defines the meaning of the pid field and has the following values
+   1)F_ONWER_PGRP
+     The target is a PGRP and unlike F_SETOWN,a PGID is specified as a positive value
+   2)F_ONWER_PID
+     The target is a process
+   3)F_OWNER_TID
+     The target is a thread and the pid is value returned by clone() or gettid()
+
+12.The central data structure of epoll API is an epoll instance which is referred to via an open fd
+   It's not used for IO
+   It'a a handle for kernel data structures that serve two purposes:
+    1)Recording a list of fds that the process is interested in monitoring  --> interest list
+    2)Maintaining a list of fds that are ready for IO  --> ready list
+   
+   
+13.int epoll_create()
+   It creates a new epoll instance and returns a fd referring to the epoll instance 
+   Multiple fds may refer to the same epoll instance as a consequence of fork() or dup()
+   If the fd is no longer required,it should be closed using close()
+   When all fds referring to an epoll instance are closed,the epoll instance is destroyed and associated resources are released back
+    
+    
+14.int epoll_ctl(int epfd,int op,int fd,struct epoll_event* ev) 
+   It modifies the interest list of the epoll instance referred to by epfd
+   1)fd
+     It can't refer to the regular file or directory(the error EPERM results)
+   2)op
+     It specifies the operations to be perfomed
+     a.EPOLL_CTL_ADD 
+       Add the fd to interest list
+       If the fd is alreay in the list,then the call fails with error EEXIST
+       The events that we are interested in monitoring of the fd is specified in the buffer pointed to by ev
+     
+     b.EPOLL_CTL_MOD
+       Modify the event settings for the fd,using the information in ev
+       If the fd is not in the interest list,then the call fails with error ENOENT
+     
+     c.EPOLL_CTL_DEL
+       Remove the fd from the interest list
+       If the fd is not in the interest list,then the call fails with error ENOENT
+
+   3)ev
+   struct epoll_event{
+     uint32_t   events;
+     epoll_data_t data;
+   }
+   events is bit mask,which is similar to poll events.
+   additional mask:
+    1)EPOLLET
+      Employ ET notification.By default it's LT
+    2)EPOLLONESHOT
+      Disable monitoring after event notification
+      By default,once a fd is added into the interest list,it remains active until we explicitly remove it from the interest list using epoll_ctl() 
+      If this flag is specified,after the epoll_wait() that informs us that a fd is ready,then the fd is marked as inactive in the interest list and we won't be informed about it's state by furture epoll_wait() calls
+      We can reenable monitoring of the fd using epoll_ctl() EPOLL_CTL_MOD operation
+
+
+   data is a union,one of whose members can be used to specify information that is passed back to calling process via epoll_wait() if the fd is later becomes ready
+   typedef union epoll_data{
+     void*    ptr;            //Pointer to user-defiend data
+     int      fd;             
+     uint32_t u32;            
+     unint64_t u64;           
+   }epoll_data_t;
+
+
+15.int epoll_wait(int epfd,struct epoll_event* evlist,int size,int timeout)
+   It returns information about ready fds from the epoll instance.
+   The ready fds information is returned in evlist ---> It's an array of epoll_event
+   The evlist array is allocated by caller,and the array size is specified in size
+
+   Each item in evlist returns information about a single ready fd
+   The events subfield returns a mask of events that has occured on the fd
+   The data subfield returns whatever value was specified in the ev.data when we registered fd in the interest list.
+   So it can provide the mechanism for finding out the fd number associated with the events
+   When we make epoll_ctl() that adds a fd into the interest list,we should either set ev.data.fd to the fd number or set ev.data.ptr to point to a structure that contains the fd number
+
+   The timeout argument determines the blocking behaviour of epoll_wait()
+   1)-1
+     Block until an event occurs on one of the fds in the interest list or until a signal is caught
+   2)0
+     Perform a nonblocking check
+   3)>0
+     Block for up to timeout milliseconds
+   
+   On success,it returns the number of items that have been placed in the array evlist
+   On error,it returns -1 and error is set to indicate the error
+
+   It's possible for one thread to use epoll_ctl() to add a fd to the interest list while the epoll instance is being monitored by epoll_wait() in another thread
+   The changes to the interest list will be taken account immediately and epoll_wait() can return information about the new added fds
+
+
+16.More Details
+   1)When creating an epoll instance using epoll_ctl(),the kernel creates an in-memory inode and open file description,and allocates a fd that refers to the open file description in the calling process
+     The interest list and ready list for an epoll instance is assocaited with open file description instead of fd
+     An IO event on a single open fd description may cause multiple fds to be ready
+   2)When performing an epoll_ctl() EPOLL_CTL_ADD operation,the kernel adds an item into the interest list that records both the number of the monitored fd and a reference to the corresponding open file description 
+     When calling epoll_wait(),the kernel monitors the open file description 
+     An open file description is removed from interest list once all fds that refer to the open file description have been closed
+   
+
+17.Comparison between select(),poll(),epoll()
+  1)On each call to poll(),select(),we must pass a data structrue to the kernel that identifies all of the fds that are to be monitored.And on return,the kernel passes back a data structrue that describling the readiness of all of these fds. ----> we must inspect the data structrue to find out which of the N fds are ready
+   By contrast,with epoll,we use epoll_ctl() to build up a data structrue in the kernel space that lists the set of fds to be monitored.
+   Once the data structrue has been built up,each later epoll_wait() call doesn't need to pass any information about the fds to the kernel and the call returns the information about only the fds that are ready
+
+-----------------------------------------------------------------------------------------------------------------------
+18.ET and LT
+ By default,epoll employs LT notification. --> user is notified by epoll_wait() that a fd is ready if IO can be performed on the fd
+ ET notification ---> user is notified when new IO activity has occured on the fd since last epoll_wait() --> IO activtiy may generate signal --> signal-driven
+ Suppose we are using epoll to monitor a socket for input(EPOLLIN),and the following steps occur:
+ 1)Input arrives on the socket
+ 2)We call epoll_wait() ----> It will tell us that the socket is ready regardless of ET or LT
+ 3)We perform second call to epoll_wait()  
+   As for LT,user will be informed that the socket is ready
+-- As for ET,the epoll_wait() will block,because no new data has arrived on the fd since previous call to epoll_wait()
+ 
+ 
+ ET is employed in conjunction with O_NONBLOCK.And for each fd that is ready,process IO until revelent system call returns with error EAGAIN or EWOULDBLOCK
+ ET notification may cause fd starvation
+ Ex:
+  A ready fd has a large amount of input available.But we don't know 
+  After detecting that the fd is ready,we attempt to read as much as possile,then we risk starving the other fds of attention
+  One solution is to maintain a fd list of fds that have been notified as being ready,and execute a loop that continuously perform the following actions:
+  1)Monitor fds using epoll_wait and add the ready fds to the fd list
+    If the fd list is not empty,the timeout for the monitoring step should be small or 0,so that if no new fds are ready,the process can quickly proceed to the next step
+  2)Performe a limited amout of IO on the fds in the fd list(perhaps cycling through them in round-robin fashion)
+    A fd can be removed from the list once revelent nonblocking IO call returns with EAGIN or EERROR
+
+ LT is employed with blocking fd ---> Usually use a loop that continuously checks fd for readiness(epoll_wait) and the n perform some IO on the ready fds before once more checking for ready fds
+
+
+19.Sometimes a process needs to simultaneously wait for IO to become ready on the fd and the delivery of the signal
+   We can use following code
+   sig_atomic_t got = 0;
+   void handler(int sig){
+     got = 1;
+   }
+
+   int main(int argc,char* argv){
+      struct sigaction sa;
+      ......
+      sa.sa_sigaction = handler
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = 0;
+      if(sigaction(SIGUSR1,&sa,NULL) == -1)    //wait for the signal
+        errExit("sigaction");
+
+      ready = select(nfds,&readfds,NULL,NULL,NULL); //wait for ready fds    ---> the signal may interrupt select()
+      if(ready > 0){
+        ....
+      }else if(ready == -1 && errno == EINTR){
+        if(got)
+          ////
+      }else{
+        ///other error
+      }
+   }
+ 

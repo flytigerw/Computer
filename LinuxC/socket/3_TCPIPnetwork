@@ -1,0 +1,152 @@
+1.Internet connects different networks,allowing hosts on different networks to communicate
+  Subnet refers to one of the networks composing the internet
+  Internet aims to hide details of different physical networks and present an unified network architecture to all hosts on the connected network --> a single format address can identify all hosts in the internet
+
+2 Router is a computer,whose function is to connect one subnet to another one,transferring data between them
+  As well as understanding the internet protocols being used,a router must also understand the data-link-layer protocols used on each of subnets that it connects
+  A router has multiple network interfaces, one for each of the subnets to which it is connected
+  Multihomed host has multiple network interfaces and each has a different network address 
+
+3 A network protocol is a set of rules defining how information is transmitted across a network
+  Network protocols are orginized as a series of layers,with each layer building on the layer below it to add features that are made avaliable to high layers
+
+4 Transmission Control Protocol(TCP)is the most heavily used transport-layer protocol
+  Addresss Resolution Protocol(ARP) is concerned with mapping internet address to hardware address 
+  Internet Control Message Protocol is used to convey error and control information across the network
+  It is used by ping program which is used to check whether a particular host is avaliable and visible on TCP/IP network
+  It is also used by traceroute which traces the path of an IP packet through the network
+
+5 Transparency:each protocol shields higher layers from the operation and complexity of lower layers
+  Eg:an app making use of TCP only needs to know how to use the standard SOCKET API and know that it is employing a reliable,byte-stream transport service and does't need to understand the details of the operation of TCP
+  Nor does the app need to know the details of the operation of IP or the data-link layer
+
+6 Encapsulation:the key idea is that the information passed from a high layer to a low layer is treated as opaque data by low layer
+  Low layer makes no attempt to interpret the information sent from the upper layer,but merely adds its own layer-specific header before passing the packet to lower layer
+  When data is passed from low layer to a higher layer,a converse unpacking process takes place
+
+7 Data-link layer consists of device driver and hardware interface to the underlying physical medium
+  It is concerned with transferring data across a physical link in a network
+  It encapsulates datagrams from network layer into frames.In addtion to the data to be transmitted,each frame includes a header containing:destination address and frame size
+  It transmits frames across the physical link and handles the ACK from the receiver.It may also perform error detection,retransmission,flow control and large network packet split
+  All communication details are handeld in the driver and hardware so app-programming can generally ignore the data-link layer
+
+8 Maximum Transmission Unit(MTU):the limit of the size of a frame
+
+9 IP network layer
+  It is concerned with delivering packets from the source host to dest host
+  It performs a variety of tasks
+  1)Breaking data into fragments small enough for transmission via data-link layer
+  2)Routing data across the internet
+  3)Providing services to the transport layer
+
+10 IP datagram
+   IP transmits data in form of datagrams
+   Each datagram sent between two hosts travels independently across the network,possibly taking a different route
+   Datagram includes a header,which ranges in size from 20-60bytes
+   Header contains the address of target host,so that the datagram can be routed through the network to its destination
+   It also includes the originating address of the datagram,so that the receiving host knows the origin of the datagram
+   IP implementation places an upper limit on the size of datagrams and datagrams must be as large as the limit specified by IP's minimum reassembly buffer size
+
+11 IP is connectionless and unreliable --> datagrams may arrive out of orrider ,or be duplicated,or even not arrive at all
+   Reliablity must be provided either by using a reliable transport-layer protocol or within the application itself
+   IPv4 provides a checksum for the header which allows the error detection for the header,but doesn't allow the error detectuion for the data
+
+12 IPv4 datagrams can be up to 65535bytes which is much larger than the data-link's MTU
+   When an IP datagram is larger than the MTU,IP fragments the datagram into suitably sized units for transmission.
+   These fragments are then reassembled at the final destination to recreate the original datagram
+   Each IP fragment is itself an IP datagram that contains an offset field giving the location of the fragment within the original datagram    The entire datagram is unsable if any fragment is lost or contains transmissions error
+   Modern TCP implementations employ algorithms to determine the MTU of a path between hosts,and accordingly break up the data they pass to IP,so that IP is not asked to transmit datagrams that exceed this size
+
+11 IP address consists of two parts
+   1)A network ID:specify the network on whcih the host resides
+   2)A host ID:identify the host within the network
+
+   IPv4 address consists of 32-bits and is usually written in dotted-decimal notation --> with 4 bytes of the address being written as decimal numbers separated by dots
+  
+   When an orgization applies for a range of IPv4 address for its hosts,it receives a 32-bit network address and a corresponding 32-bit netwok mask
+   The 1s in mask indicate which part of the address contains the assigened network ID
+   The 0s indiccate which part of the address is avaliable to the orgization to assign as unique host IDs on its network
+   The network ID component occupies the leftmost part of the mask
+
+   Ex:The organization may receive network address--204.152.189.0 and network mask --/24
+   The /24 indicates that the network ID part of assigned address consists of leftmost 24bits,with remaining 8 bits specifying the host ID
+   The organization can assign 254 unique Internet address to its computers: .1~~~.254
+   .0 address is used to identify the network itself and .255 is the subnet broadcast address
+   .1 address is normally defined as the loopback address and is conventionally assigned the hostname:localhost
+   A datagram sent to this address never actually reaches the network,but instead automatically loops back to the sending host
+   It is convenient for testing client and server programs on the same host
+
+12 Subnetting divides the host ID part of an IPv4 address into two parts:subnet ID and host ID
+   The organization often doesn't attach all of its hosts to a single network,but instead may operate a set of subnetworks with each subnetwork being identified by the combination of the network ID plus subnetID
+   Subnet mask serves the role as the network mask
+
+13 Port Numbers
+   The task of transport layer is to provide an end-to-end communication service to app residing on different hosts
+   So the transport layer must have the ability to differentiate the apps on a host --> that's what port numbers do 
+
+14 Well-knwon,registered,and privileged ports
+   SSH   22
+   HTTP  80
+   The port numbers in the range 0-1023 are also privileged --> only privileged process can bind to these ports
+
+   Although TCP and UDP ports with the same number are distinct entities,the same well-known port is assigned to service under both TCP and UDP
+   The service is avaliale under only one of the protocols 
+
+15 Ephemeral ports
+   If the app doesn't select a particular port,then TCP or UDP assign an ephemeral port to identify the app 
+   It also assigns an ephemeral port if we bind a socket to port 0
+   The ephemeral port's range is defined by two numbers contained in the file /proc/sys/net/ipv4/ip_local_port_range
+
+16 UDP just add two features to IP:port numbers and data checksum to allow detection of errors in the transmitted data but not strong error detection
+   Like IP,UDP is connetionless and is unreliable
+   If the app layered on top of UDP requires reliablity,then this must be implemented within the app
+
+15 With UDP,we can easily cause IP fragmentation by transmitting datagram that exceeds MTU
+  A UDP-based app generally doesn't konw the MTU of a path between the source and dest
+  The conservative approach for UDP to IP fragmentation is to ensure the transmitted IP datagram is less than the IPv4 minimum reassembly buffer size of 576 which is lower than the path MTU
+  8 bytes for UDP header
+  20 bytes for IP header
+  left 548 bytes for UDP datagram itself
+
+16 TCP provides a reliable,connection-oritened,bidrectional,byte-stream communication channel between two end points
+   TCP transmits data in form of segment
+ 
+17 When a TCP segment arrives at the dest without errors,the receiveing TCP send a positive ACK to sender,informing it of the successfully delivered data
+   If a segment arrives with errors,then it is discarded and no ACK is sent
+   To handle the segemnt never arrives or is discarded,the sender starts a timer when each segment is transmitted
+   If an ACK is not received before the time expires,the segment is retransmitted
+   Since the time taken to transmit a segment and receive ACK varies according to the current traffic loading,TCP employs an algorithm to dynamically adjust the size of the retransmission timeout
+   The receiving TCP may not send ACK immediately,but instead wait for a fraction of a second to see if the ACK can be piggybacked inside a response that the receiver may send straight back to the sender
+   It requires the TCP segment has the ACK field
+   The aim of piggybacking is to save a TCP segment.
+
+18 Each byte that is transmitted over TCP connection is assigned a logic number,which indicates the position of that byte in the data stream
+   Each of the two streams in the connection has its own sequence numbering
+   The segment include a field containing the sequence number of the first byte in segment 
+   Purposes of sequence 
+   1)To ensure the TCP segments will be assembled in correct order at the destination and then passed as a byte stream to app layer
+   2)The ACK message passed from receiver back to sender can use sequence number to identify which TCP segment was received
+   3)To eliminate dupilcate segments  
+     Such duplicates may occur either because of the retransmission of IP datagram or because of the TCP's own retransmission algorithm,which could retransmit a successfully delivered segment if the ACK for that segment was lost or was not received in a timely fashion
+     
+    The initial sequence number(ISN) for a stream doesn't start at 0. 
+    Instead it is generated via an algorithm that increases ISN assigned to successive TCP connection 
+
+19 Flow control prevents a fast sender from overwhelming a slow receiver by maintaining a buffer for incoming data in receiver
+   With eack ACK,the receiver advises the sender of how much space is left in the buffer
+
+20 Congestion control
+   If a sending TCP transmits packet faster than they can be relayed by an intervening router,the router will start dropping packets which leads to high rates of packet loss and consequently a serious performance degradation 
+   Two circumstances:
+   1)At the initial sending period,the sender could start by immediately injecting as many segments into the network as would be permitted by the window size advertised by the receiver.The problem is that if the network could't handler this flood of segments,the sender risks overwhelming the network immediately
+   2)If the sending TCP detects a congestion is occuring based on the assumption that segment loss because of transmission error is very low thus if a segment is lost,the cause is assumed to be congestion.Then it must reduce its transmission rate
+   
+   TCP congestion-control strategy employs two algorithms in combination:slow-start and congestion avoidance
+
+   1)slow-start
+     Make the sending TCP initailly transmit segments at a slow rate to avoid overwhelming network at start,but allows it to exponentially increase the rate as these segments are ACKed by the receiving TCP.But if exponential increase is not restrained,it still may overwhelm the network.So we need place a governor on the rate increase
+  2)congestion avoidance
+    The sending TCP starts with a small congestion window,which limits the amount of unACKed data it can transmit.
+    As the sender receives ACKs from receiver,the congestion window initially grows exponentially
+    Once the the window reaches a threshold believed to be close to the transmission capcacity of network,it grows linear
+    Then sending TCP transmit remains constrained by the receiving TCP's advertised window and local TCP's send buffer

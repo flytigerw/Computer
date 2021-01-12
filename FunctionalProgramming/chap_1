@@ -1,0 +1,116 @@
+
+
+Pure Function,Lazy Evaluation,Pattern Matching
+
+Functional Programming:一种编程风格
+                       强调表达式的求值而不是指令的执行
+                       表达式由函数和基本的值组合而成
+
+FP重在定义结果是什么,而不是获取结果的指令
+例子:数列求和
+命令式编程:循环数列,将和累加到某个变量上       
+  显示地要求计算机需要做什么，说明计算最终结果需要执行的每个步骤
+
+函数式编程:只需要定义数列的和，当需要求和时，计算机知道如何去做
+           比如定义数列的和:第一个元素与剩余元素的相加,若数列为空，则和为0
+
+
+例2:读取一系列文件，统计每个文件的行数
+命令式编程思路:
+1)打开每个文件
+2)定义变量count记录行数
+3)逐个字符的读取，每读取到一个\n就++count
+4)读完一个文件后，存储counter
+
+vector<int> count_lines_in_files(const vector<string>& files){
+  vector<int> res;
+  char c = 0;
+  //逐个文件的处理
+  for(const auto& file: files){
+
+    //统计文件的行数
+    int count = 0;
+    ifstream in(file);
+    while(in.get(c)){
+      if(c == '\n')
+        ++count;
+    }
+
+    res.push_back(count);
+  }
+}
+缺点:在函数中定义了过多变量来跟踪函数的状态 --> 状态变量
+     人工自行维护容易出错
+
+使用文件流迭代器进行改进:
+int count_lines(const string& file){
+  ifstream in(file);
+  return std::count(std::istreambuf_iterator<char>(in),
+                    std::istreambuf_iterator<char>(),
+                    '\n');
+}
+vector<int> count_lines_in_files(const vector<string>& files){
+  vector<int> res;
+  for(const auto& file:files)
+    res.push_back(count_lines(file));   //不需要关心文件行数具体如何统计的
+  return res;
+}
+
+进一步减少人工维护的状态变量
+vector<int> count_lines_in_files(const vector<string>& files){
+  vector<int> res(files.size());
+  std::transform(files.cbegin(),files.cend(),     //数据输入
+                 res.begin(),                     //数据输出
+                 count_lines);                    //输入如何转为输出
+  return res;                                     //将状态变量的维护交给标准库
+}
+
+
+用c++20的range语法来表述:
+vector<int> count_lines_in_files(const vector<string>& files){
+  return files | trasform(count_lines);     --> | 类似于管道.用于数据的流转
+                                                将数据输入给 函数转换,得到输出结果
+                                                自己不需要维护任何状态变量
+}
+
+为此例添加文件名的校验:
+open_file  :string  -> ifstream : 接收文件名,校验,然后返回文件流
+count_lines:ifstream-> int      : 统计文件流中有多少行
+
+vector<int> count_lines_in_files(const vector<string>& files){
+  return files | transform(open_file) 
+               | transform(count_lines);
+}
+
+
+
+
+减少考虑的状态变量数
+使用更高层次的抽象来表述应该做什么，而不是应该怎样去做
+
+
+
+2.OOP将状态保存在对象中，便于管理
+  不相干的操作之间因为共享可变状态而形成依赖关系 --> pdf8
+  
+  局部的可变变量也是不好的 
+  因为其创建了 同一函数内部 不同部分 之间的依赖关系,给代码重构带来困难
+
+  FP的核心思想:Pure Function
+   函数只使用而不修改传递给它们的实际参数
+   使用相同的实参多次调用纯函数，将得到相同的结果，并不会留下调用痕迹(no side effects,不会影响程序的其他部分)
+
+  纯正的Pure Function太过严格
+  作者对于纯函数的理解:任何没有可见副作用的函数为纯函数   -->   纯函数用于高层的抽象,底层需要非纯函数的支撑
+                       纯函数的调用者除了接收其返回结果外,看不到其任何执行痕迹 --> 纯函数的执行不会修改外部变量
+                       不提倡只使用纯函数，而是限制非纯函数的数量
+  
+
+3.函数内部状态变量的讨论:pdf 9
+
+
+  
+4.函数式思考:输入是什么，输出是什么，输入到输出需要怎样的转换
+  例子:pdf 10
+  
+  函数的组合和提升:pdf 12

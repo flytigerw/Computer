@@ -1,0 +1,183 @@
+
+1.When working with disk files,the read() and write() don't directly initiate disk access
+  Instead,they simply copy data between a user-space buffer and a buffer in the kernel ---> buffer cache
+  For output,at some later point,the kernel writes its buffer to the disk
+  Hence,the sysCall is not synchronized with disk operations
+  If in the interim,another process attempts to read the files,then the kernel automatically supplies the data from the kernel buffer cache,instead of the the data from the disk file
+  For input,the kernel reads data from disk and stores it in a kernel buffer cache
+  Calls to read() fetch data from the buffer cache until it's exhausted at which point the kernel reads next segment of file into the buffer cache
+  For sequential file access,the kernel typically performs read-ahead to try to ensure the next blocks of file are read into the buffer cache before the reading process require them
+
+  The aim of this design is to make read() and write() fast since they don't need to wait on a disk operation
+  The design is also efficient since it reduces the number of disk transfers that the kernel must perform
+
+  The Linux kernel imposes no fixed upper limit on the size of the buffer cache
+  The kernel will allocate as many buffer cache pages as are required,limited only by the amount of avaliable physical memory
+  If avaliable memory is scarce,the kernel flushes some modified buffer cache pages into disk,in order to free them for reuse
+
+  File I/O buffers are included in page cache which contains pages from memory-mapped file
+
+
+2.Effect of buffer size on I/O sysCalls performance
+  The kernel perfrom the same disk accesses,regardless of whether we perform 1000 wirtes of a single byte or single write of 1000bytes
+  The latter is preferable since it requires a single system call
+  Although much faster than disk operation,the sycCall nevertheless takes an appreciable amount of time 
+  More can be seen in pdf 234
+
+3.Buffering I/O in stdio library
+  Buffering of data into large blocks to reduce system calls is exactly what is done by the C library I/O functions(fprintf(),fscanf()) when operating on disk files
+  Thus,using stdio library relieves us of the task of buffering data for output with wirte() or for input with read()
+  1)Set the buffering mode of a stdio stream
+    int setvbuf(FILE* stream,char* buf,int mode,size_t size)
+    a.stream
+      It identifies the file stream whose buffering is to be modified
+    b.After the stream has been opened,the setvbuf() must be performed before any stdio function on the stream
+      The setvbuf() affects the behaviour of all subsequent stdio operations on the specifed stream 
+    c.buf and size
+      They specify the buffer to be used for the stream 
+      1)If buf is not-NULL,then it points a block of memory of size bytes which is to be used as the buffer for the stream
+        Since the buffer is used by stdio library,it must point to a location either statically allocated or dynamically allocated on the heap
+        It can't point to a location that is allocated as a local function variable,since chaos will result when that function finished and its stack frame is deallocated
+      2)If buf is NULL,the stdio library automatically allocates a buffer for use with the stream
+    
+    d.mode
+      It specifies the type of buffering
+      1)_IONBF
+        Don't buffer I/O
+        Each stdio library call result in an immediate write() or read()
+        It's default for stderr,so that error is guaranteed to appear immediately
+      2)_IOLBF
+        Employ line-buffered IO
+        For output streams,data is buffered until a newline character 
+        For input streams,data is read a line at a time
+        It's default for streams referring terminal devices
+      3)_IOFBF
+        Employ fully buffered IO
+        Data is read or written via read() or write() in units equal to the size of the buffer
+        It's default for streams referring to disk files
+   Ex: #define BUF_SIZE 1024
+        static char buf[BUF_SIZE];
+        if(setvbuf(stdout,buf,_IOFBF,BUF_SIZE) != 0)
+          errExit("setvbuf");
+  
+  2)void setbuf(FILE*stream,char* buf)
+    It's layered on top of setvbuf() and performs a similar task
+    setbuf(fp,buf) is equivalent to setvbuf(fp,buf,(buf != NULL) ? _IOFBF:_IONBF,BUFSIZE)
+    BUFSIZ is defined in <stdio.h>
+
+  3)void setbuffer(FILE* stream,char* buf,size_t size)
+    It's similar to setbuf() but it allows caller to specify the size of buf
+
+4.Flush a stdio buffer
+  int fflush(FILE* stream)
+  For output stream,it flushes the output buffer into kernel
+  For input stream,it causes the buffered input to be discarded
+  A stdio buffer is automatically flushed when the corresponding stream is closed
+
+
+5.Synchronized I/O completetion:An I/O operation is has been either successful or diagnosed as unsuccessful
+  There are two types of synchronized I/O completion and the difference between them involves the metadata which the kernel stores along with the data for a file
+  File metadata includes file owner and group,permission,size,number of hard links and so on
+  First type is the synchronized I/O data integrity completion 
+  It' concerned with ensuring that a file data update transfers sufficient information to allow later retrieval of that data to proceed
+  Details can be seen in book
+
+6.Controlling the kernel buffering of file I/O
+  1)int fsync(int fd)
+    It causes the buffered data and all metadata associated with the open fd to be flushed to disk
+    It forces the file to the synchronized I/O file integrity completion state
+    The call returns only after all the transfer to the disk device has completed
+
+  2)int fdatasync(int fd)
+    It operates similarly to fsync() but only forces the file to the synchronized I/O data integrity completion state
+    It can potentially reduce the number of disk operations
+    Ex:If the file data has been changed but the size has not,then it only forces the data to updated while the metada won't be updated
+    Reducing the number of disk I/O operation in this manner is useful for certain apps whose performance is crucial but the accurate maintenance of certain metada is not essential
+    It can make considerable performance difference for apps that are using multipe file updates:Because the file data and metadata normally reside in different parts of the disk,updating them both would require repeated seek operations backward and forward across the disk
+  
+  3)void sync(void)
+    It causes all kerner buffers containing updated information(data blocks,pointer blocks,metadata and so on)to be flushed to disk
+  
+  A permanently running kernel thread ensures the modified kernel buffers are flushed to disk if they are not explicitly synchronized within 30 seconds
+  It's done to ensure that the buffers don't remain unsynchronized with disk file for long periods
+  On Linux,it's pdflush thread
+  
+  Flags:
+  1)O_SYNC
+    Specifiying this flag when calling open() makes all subsequent write() to the file automatically flushes the file data and metadata to the disk
+    Using O_SYNC can strongly affect the performance
+    The test can be seen in pdf242
+    In summary,if we need to force the flush of kernel buffering,we should consider either whether we can design our app with large write() buffer sizes or make judicious use of occasionl calls to fsync() or fdatasync(),instead of using O_SYNC flag when opening the file
+  
+  2)O_DSYNC
+    It causes the writes to be performered according to the requirements of synchronized I/O data integrity completetion 
+
+  3)O_RSYNC 
+    It's specified in conjunction with either O_SYNC or O_DSYNC and extends the writes behaviours of these flags to read operations
+    a.O_RSYNC | O_DSYNC
+      It causes the reads are completed according to the requirements of synchronized I/O data integrity(Prior to performering the read,all pending writes are completed as though carried out with O_DSYNC)
+    b.O_RSYNC | O_SYNC
+      Difference:synchronized I/O file integrity   O_SYNC
+
+7.Advise the kernel about hte I/O patterns
+  int posix_fadvise(int fd,off_t offset,off_t len,int advice)
+  It allows to inform the kernel of its likely pattern for accessing file data and then the kernel in the way in which the buffer cache is working
+  1)offset and len
+    They specify the region of the file
+    If len is 0,then it means all bytes from the offset through to the end of the file
+  2)advice
+    a.POSIX_FADV_NORMAL
+      The process has no special advise to give about access patterns
+      It set the file read-ahead window size to the default size
+    b.POSIX_FADV_SEQUENTIAL
+      The process expects to read data sequentially in the region
+      It sets the file read-ahead window size to twice the default size
+    c.POSIX_FADV_RANDOM
+      The process expects to access the data in random order
+      It disables file read-ahead
+    d.POSIX_FADV_WILLNEED
+      The process expects the access the region in the near furture
+      The kernel performs read-ahead to populate the buffer cache with file data in the region specified by offset and len
+      So subsequent read() calls don't block on disk I/O.They simply fetch data from the buffer cache
+      But the kernel makes no guarantees about how long the data fetched from the file will remain resident in the buffer cache
+      If the memory pressure is high,the pages will eventually be reused and we should ensure the elapsed time between posix_fadvise() and the subsequent read() call is short
+    e.POSIX_FADV_DONTNEED
+      The process don't expect to access the specified file region in the near furture
+      It advises the kernel that it can free the corresponding cache pages
+      If the underlying device is not currently congested with a series of queued write operations,then kernel flushes any modified pages in the specified region
+      The kernel then also attempts to free any pages in that region
+      Since congestion on the device can't be controlled by the app,an alternate way to ensure the cache pages to be freed is to precede the POSIX_FADV_DONTNEED with a sync() or fdatasync()
+
+
+8.Bypass the buffer cache
+  Linux allow an app the bypass the buffer cache when performing disk I/O,thus transferring data directly from user-space to file or disk device
+  Using direct I/O can considerably degrade the performance
+  Because the kernel applies a number of optimizations to improve the performance of I/O via buffer cache,including perfrom sequential read-ahead,performing I/O in clusters of disk blocks
+  All these optimizations are lost when using direct I/O
+  Direct I/O is intended only for apps with specialized I/O requirements
+
+  We can perform direct I/O on an individual file or on a block device
+  We use O_DIRECT flag when calling open()
+
+  Alignment restrictions for direct I/O
+   a.The data buffer being transferred must be aligned on a memory boundary that is multiple of the block size
+   b.The file or device offsets at which data transfer commences must be a multiple of the block size
+   c.The length of data to be transferred must be a multiple of the block size
+   Failure to observe any of the restrictions result in EINVAL
+
+9.Mix stdio library and sysCalls for file I/O
+  I/O sysCalls transfer the data directly to the buffer cache
+  stdio library waits until the stream's user-buffer is flushed
+  1)int fileno(FILE* stream)
+    It returns the corresponding fd that the stdio library has opened for this stream
+    Then the fd can be used in ususal I/O sysCalls
+  
+  2)FILE* fdopen(int fd,const char* mode)
+    It's the reverse the fileno()
+    Given a fd,it creates a stream that uses the fd for I/O
+    mode is the same as for fopen(),r,w,a,...
+  
+  fdopen() is especially useful for fds referring to files other than regular files
+  Ex:Creating sockets and pipes returns fds.
+     To use stdio with these fds,we must use fdopen() to create a corresponding file stream
+

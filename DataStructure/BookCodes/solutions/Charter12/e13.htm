@@ -1,0 +1,123 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 12, Exercise 13<BR>
+<BR>
+</H1>
+
+
+Let <code class=code>y = heap[size]</code>.
+When the element in <code class=code>heap[i]</code> is removed from the
+max heap, the size of the max heap decreases by
+<code class=var>1</code> and we must insert <code class=var>y</code>
+back into the heap.  Since the position <code class=code>heap[i]</code>
+is vacant, we try to put <code class=code>y</code> into
+<code class=code>heap[i]</code>.  We can put <code class=code>y</code>
+into <code class=code>heap[i]</code> iff <code class=code>y &lt;= heap[i/2]</code>
+and <code class=code>y &gt;= max{heap[2*i], heap[2*i + 1]}</code>
+(assuming <code class=code>i</code> is not the root and has two children).
+Notice that at most one of these two conditions can be violated by
+<code class=code>y</code>.
+<br><br>
+When <code class=code>y</code> is greater
+than the element in the parent position, we use the strategy used
+to insert an element into a max heap and follow the path from
+<code class=code>i</code> towards the root until we find the
+place to put <code class=code>y</code>.
+When
+<code class=code>y</code> is smaller than one or both of the children
+of <code class=code>i</code>, we use the strategy used by
+<code class=code>removeMax</code> and follow a path from
+<code class=code>i</code> towards the leaves until we find the
+place for <code class=code>y</code>.
+<!--
+The resulting code is given below.
+
+
+<HR class = coderule>
+<pre class = code>
+public class MaxHeapWithRemoveElementAt extends MaxHeap
+{
+   // constructors
+   /** create a heap with the given initial capacity */
+   public MaxHeapWithRemoveElementAt(int initialCapacity)
+      {super(initialCapacity);}
+   
+   /** create a heap with initial capacity 10 */
+   public MaxHeapWithRemoveElementAt()
+      {super(10);}
+
+   
+   /** remove element in heap[i] and return it
+     * @return null iff heap[i] is not part of the heap */
+   public Comparable removeElementAt(int i)
+   {
+      if (i &lt; 1 || i &gt; size)
+         // heap elements are heap[1:size]
+         return null;
+   
+      // handle removal of last element as special case
+      if (i == size)
+         return heap[size--];
+
+      // removal of element other than last one
+      Comparable x = heap[i];           // element to remove
+   
+      // take last element out of heap, will try to put it at heap[i]
+      Comparable y = heap[size--];      // last element
+   
+      // see if y is &lt;= element at parent of i
+      if (i == 1 || y.compareTo(heap[i / 2]) &lt;= 0)
+      {// no problem with parent element, move down the tree
+       // looking for place for y 
+         int ci = 2 * i; // child of i
+         while (ci &lt;= size)
+         {
+            // heap[ci] should be larger child of i
+            if (ci &lt; size &amp;&amp;
+                heap[ci].compareTo(heap[ci + 1]) &lt; 0)
+               ci++;
+      
+            // can we put y in heap[i]?
+            if (y.compareTo(heap[ci]) &gt;= 0)
+               break;   // yes
+      
+            // no
+            heap[i] = heap[ci]; // move child up
+            i = ci;             // move down a level
+            ci *= 2;
+         }
+      }
+      else
+         // y is &gt;= all elements in subtree with root i
+         // move up the tree looking for place for y
+         while (i != 1 &amp;&amp; heap[i / 2].compareTo(y) &lt; 0)
+         {// cannot put y in heap[i]
+            heap[i] = heap[i / 2]; // move element down
+            i /= 2;                // move to parent
+         }
+   
+      // put y into heap[i]
+      heap[i] = y;
+
+      return x;
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+
+The complexity is <code class=var>O(log n)</code> because
+the number of iterations of each <code class=code>while</code>
+loop is
+<code class=var>O(log n)</code> and each iteration takes
+<code class=code>O(1)</code> time.
+--!>
+
+</FONT>
+</BODY>
+</HTML>

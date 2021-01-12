@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/root/MyServer/tiger/src/thread.h
+pthread.h
+-
+functional
+-
+memory
+-
+thread
+-
+semaphore.h
+-
+stdint.h
+-
+
+/root/MyServer/tiger/tests/test_thread.cc
+../src/thread.h
+/root/MyServer/tiger/src/thread.h
+iostream
+-
+vector
+-
+

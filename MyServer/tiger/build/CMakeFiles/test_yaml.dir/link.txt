@@ -1,0 +1,1 @@
+/usr/bin/c++   -rdynamic -O0 -ggdb -std=c++11 -Wall -Wno-deprecated -Werror -Wno-unused-function -Wno-builtin-macro-redefined   -rdynamic CMakeFiles/test_yaml.dir/tests/test_yaml.cc.o  -o ../bin/test_yaml  -L/root/MyServer/tiger/lib -Wl,-rpath,/root/MyServer/tiger/lib ../lib/libtiger.so -lyaml-cpp 

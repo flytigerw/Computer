@@ -1,0 +1,153 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Shell Sort<BR>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+
+Let <code class=var>a<sub>1</sub></code>,
+<code class=var>...</code>,
+<code class=var>a<sub>n</sub></code> be a sequence of
+<code class=var>n</code> elements.  Elements
+<code class=var>a<sub>i</sub></code>
+and <code class=var>a<sub>j</sub></code>,
+<code class=var>i &lt;
+j</code>, are <strong>inverted</strong> iff
+<code class=var>a<sub>i</sub> &gt;
+a<sub>j</sub></code>.  The number of pairs
+<code class=var>(i,j)</code> such that
+<code class=var>a<sub>i</sub></code>
+and <code class=var>a<sub>j</sub></code> are inverted is the <strong>inversion number</strong>
+of the element sequence.
+Exercise 18.46 shows that the inversion number of an unsorted sequence
+in <code class=var>O(n<sup>2</sup>)</code> while that of
+a sorted sequence is <code class=var>0</code>.
+Consequently, sort-methods such as those of
+Chapter 2, which reduce the inversion number by at most one
+each time two elements are compared,
+must take <code class=var>O(n<sup>2</sup>)</code>
+time to sort <code class=var>n</code> elements.
+<br><br>
+Asymptotically faster sort methods are possible only if we
+can reduce the inversion number by more than
+<code class=var>Omega(1)</code> following a comparison.  The sort method due to
+Donald Shell and known as Shell Sort compares elements
+that are far apart rather than adjacent pairs of elements in an
+attempt to make larger reductions in the inversion number.
+For example, suppose we are sorting the sequence <code class=var>5, 4, 3, 2, 1</code>.
+By comparing and swapping the adjacent pair <code class=var>(5, 4)</code>, as is done in bubble sort,
+the inversion number is reduced by <code class=var>1</code>.  However, when we compare and swap the
+pair <code class=var>(5, 1)</code>, the inversion number reduces by <code class=var>4</code>.
+<br><br>
+In Shell sort, we use a sequence of diminishing increments
+<code class=var>s<sub>1</sub> &gt; s<sub>2</sub> &gt;
+s<sub>3</sub> ...
+s<sub>q</sub> = 1</code>.
+(Because of this, Shell sort is also known as
+<strong>diminishing increment sort</strong>.)
+For any increment <code class=code>x</code>, we view the sequence
+<code class=code>a[0:n-1]</code> to be sorted
+as being comprised of several subsequences. 
+The first is <code class=code>a[0]</code>,
+<code class=code>a[0+x]</code>,
+<code class=code>a[0+2x]</code>, ...;
+the second is
+<code class=code>a[1]</code>,
+<code class=code>a[1+x]</code>,
+<code class=code>a[1+2x]</code>, ...;
+the third is
+<code class=code>a[2]</code>,
+<code class=code>a[2+x]</code>,
+<code class=code>a[2+2x]</code>, ...; etc.
+These subsequences are comprised of elements that are
+<code class=code>x</code> units apart in the array.
+Each subsequence is sorted using insertion sort and then the
+process is repeated using the next increment.
+Since the last increment is <code class=var>1</code>,
+<code class=code>a[0:n-1]</code> has only
+one subsequence when the last increment is used.
+This subsequence is <code class=code>a[0]</code>,
+<code class=code>a[1]</code>,
+<code class=code>a[2]</code>, ...
+Performing an insertion sort in this subsequence guarantees
+that the result is sorted.  The insertion sorts done with the
+earlier increments allow elements to move toward their  
+final spots by making large jumps.
+The net result is a faster sort than when we simply use insertion
+sort.  Notice that insertion sort is identical to shell sort
+when the increment sequence is just <code class=var>1</code>.
+<br><br>
+Suppose we use the increment sequence <code class=var>3</code>, <code class=var>1</code> to sort the elements
+<code class=var>5, 4, 3, 2, 1</code>.  For the increment <code class=var>3</code>, the subsequences are
+<code class=var>5, 2; 4, 1</code>; and <code class=var>3</code>.
+Sorting these subsequences using the insertion sort method
+yields <code class=var>2, 1, 3, 5, 4</code>.
+The next and final increment to use is <code class=var>1</code>.
+Sorting with this increment results in the sorted sequence <code class=var>1, 2, 3, 4, 5</code>.
+<br><br>
+Although any diminishing sequence of increments (with the last one being <code class=var>1</code>)
+can be used,
+the performance of Shell sort depends acutely on the particular
+increment sequence
+that is used.  Donald Knuth's book <em>The art of computer programming::Sorting
+and searching</em>, volume 3, 2nd Edition,
+Addison-Wesley, 1998 contains a discussion of the asymptotic complexity
+of Shell sort using various increment sequences.  An empirical
+evaluation appears in the paper ``Empirical results on the running time
+of Shellsort,'' by M. Weiss, <em>Computer Journal</em>, 1991, 88-91.
+The complexity of Shell sort is <code class=var>O(n<sup>1.5</sup>)</code>
+when the increment sequence is of the form
+<code class=var>s<sub>i</sub></code> = <code class=var>2<sup>t-i</sup>-1</code>
+for <code class=var>t</code> = <code class=var>floor(log<sub>2</sub>n)</code> and
+<code class=var>0 &lt;= i &lt;= t</code> as well as when the sequence is derived in
+the following way: start with an increment of <code class=var>n/2</code>; to get the next increment,
+divide the current increment by <code class=var>2</code>, if the result is even, add <code class=var>1</code> to make
+the increment odd; continue until the increment becomes <code class=var>1</code>.
+Weiss has observed that the observed performance is better when
+the next increment is obtained by dividing by <code class=var>2.2</code> rather than by <code class=var>2</code>.
+<br><br>
+The code for Shell sort using the divide by <code class=var>2.2</code> strategy to generate
+succeeding increments is given below.
+
+
+<HR class = coderule>
+<pre class = code>
+public class ShellSort
+{
+   template <class T>
+   void shellSort(T a[], int n)
+   {// Sort a[0:n-1] using Shell sort.
+      int incr = n / 2;  // initial increment
+      while (incr >= 1)
+      {// insertion sort all sequences spaced by incr
+         for (int i = incr; i &lt; a.length; i++)
+         {// insert a[i] into a[i - incr], a[i - 2*incr], ...
+            T insertElement = a[i];
+            int j;
+            for (j = i - incr;
+                 j >= 0 && insertElement < a[j];
+                 j -= incr)
+               a[j + incr] = a[j];
+            a[j + incr] = insertElement;
+         }
+   
+         // reduce increment by a factor of 2.2
+         if (incr == 2)
+            incr = 1;  // last increment must be 1
+         else
+            incr = (int) (incr / 2.2);
+      }
+   }
+}
+<hr class=coderule>
+</pre>
+
+
+</FONT>
+</BODY>
+</HTML>

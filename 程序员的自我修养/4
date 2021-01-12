@@ -1,0 +1,301 @@
+
+
+
+
+1.多个目标文件在进行静态链接时，相同性质的段会进行合并，比如.text,.data,.bss...
+  整个链接过程分为两步:
+  1)信息收集与整合
+    扫描所有的输入目标文件
+    a.收集文件中各个段的位置，长度和属性.
+      然后将各个目标文件中具有相同性质的段进行合并,并记录合并后的段在输出文件中的位置，长度和属性等信息
+      并为整合后的段分配虚拟地址空间
+    b.收集各个符号表中的 符号定义和符号引用，将它们整合到一个全局的符号表中
+
+  2)符号解析和重定位
+    根据 各个输入目标文件中的重定位信息 进行符号解析与重定位
+
+2.例子:
+a.c:                              b.c:
+ extern int shared;               int shared = 1;
+ int main(){                      void swap(int* a,int* b){  
+   int a = 100;                       *a ^= *b ^= *a ^= *b;
+   swap(&a,&shared);              }
+ }
+先对两个文件进行编译:gcc -c a.c b.c
+目标文件a.o和b.o各个段的属性:objdump -h xx.o
+暂时只考虑.text,.data,.bss段
+
+----------------------------------------------------------------------------------
+a.o:     file format elf64-x86-64
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .text         0000002c  0000000000000000  0000000000000000  00000040  2**0
+                  CONTENTS, ALLOC, LOAD, RELOC, READONLY, CODE
+  1 .data         00000000  0000000000000000  0000000000000000  0000006c  2**0
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .bss          00000000  0000000000000000  0000000000000000  0000006c  2**0
+                  ALLOC
+----------------------------------------------------------------------------------
+b.o:     file format elf64-x86-64
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .text         0000004b  0000000000000000  0000000000000000  00000040  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .data         00000004  0000000000000000  0000000000000000  0000008c  2**2
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .bss          00000000  0000000000000000  0000000000000000  00000090  2**0
+                  ALLOC
+----------------------------------------------------------------------------------
+
+然后将目标文件进行链接:ld a.o b.o -e main -o ab
+-e main:表示将main函数作为程序入口
+链接后的可执行文件中各个段的属性:
+----------------------------------------------------------------------------------
+ab:     file format elf64-x86-64
+
+Sections:
+Idx Name          Size      VMA               LMA               File off  Algn
+  0 .text         00000077  00000000004000e8  00000000004000e8  000000e8  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .eh_frame     00000058  0000000000400160  0000000000400160  00000160  2**3
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  2 .data         00000004  0000000000601000  0000000000601000  00001000  2**2
+                  CONTENTS, ALLOC, LOAD, DATA
+----------------------------------------------------------------------------------
+
+VMA:Virtual Memory Address.程序加载时的虚拟地址
+特点:
+ 1)链接前，目标文件的VMA都是0 ---> 并没有分配虚拟地址空间
+   链接后，代码段.text的起始地址为4000e8,并不是0
+           代码段和数据段并不连续，中间插有eh_frame
+ 2)a.o的代码段长度:2c
+   b.o的代码段长度:4b
+   求和:2c + 4b = 77 --> ab的代码段长度
+   所以链接后的代码段肯定包含main函数和swap函数的代码
+
+
+在链接的第一步，会为整合后的段分配虚拟地址空间,比如.text段的起始地址为4000e8,长度为77
+ 然后需要调整段中各个符号的虚拟地址
+ 段合并前，符号在各个段中的偏移是固定的.
+ 段合并后，只需要 为每个符号的段内偏移 添加一个 合并段起始地址+段间偏移，就可以将其调整到正确的虚拟地址
+
+ 比如swap函数在b.o的代码段中的偏移量为X    --> 段内偏移
+ 合并后的代码段起始地址为4000e8            --> 合并段起始地址
+ b.o的代码段 在合并后的代码段中的偏移为Y   --> 段间偏移
+ 那么swap符号的虚拟地址为:4000e8+Y+X
+
+在链接的第二步，会对 引用的外部符号进行解析与重定位:
+ 1)在a.c中引用了两个外部符号:shared和swap
+   对a.o进行反汇编:objdump -d a.o
+   <main>:
+    0:	55                   	push   %rbp
+    1:	48 89 e5             	mov    %rsp,%rbp
+    4:	48 83 ec 10          	sub    $0x10,%rsp
+    8:	c7 45 fc 64 00 00 00 	movl   $0x64,-0x4(%rbp)   //int a = 10
+    f:	48 8d 45 fc          	lea    -0x4(%rbp),%rax    //&a
+   13:	be 00 00 00 00       	mov    $0x0,%esi          //si中保存第二参数:&shared   -> 引用的外部符号，先标记为0
+   18:	48 89 c7             	mov    %rax,%rdi          //di中保存第一参数:&a
+   1b:	b8 00 00 00 00       	mov    $0x0,%eax
+   20:	e8 00 00 00 00       	callq  25 <main+0x25>     //call swap --> 引用外部符号 -> 跳转地址先标记为下一条指令地址
+   25:	b8 00 00 00 00       	mov    $0x0,%eax
+   2a:	c9                   	leaveq 
+   2b:	c3                   	retq 
+
+   a.o的符号表:readelf -s a.o
+   Num    Value          Size Type    Bind   Vis      Ndx Name
+    0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+    1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS a.c
+    2: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 
+    3: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 
+    4: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 
+    5: 0000000000000000     0 SECTION LOCAL  DEFAULT    6 
+    6: 0000000000000000     0 SECTION LOCAL  DEFAULT    7 
+    7: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 
+    8: 0000000000000000    44 FUNC    GLOBAL DEFAULT    1 main
+    9: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND shared		--> 未定义的符号
+   10: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND swap
+
+
+ 
+ 2)链接后的反汇编结果:objdump -d ab
+   <main>:
+   4000e8:	55                   	push   %rbp             --->代码段起始地址:4000e8
+   4000e9:	48 89 e5             	mov    %rsp,%rbp
+   4000ec:	48 83 ec 10          	sub    $0x10,%rsp
+   4000f0:	c7 45 fc 64 00 00 00 	movl   $0x64,-0x4(%rbp)
+   4000f7:	48 8d 45 fc          	lea    -0x4(%rbp),%rax
+   4000fb:	be 00 10 60 00       	mov    $0x601000,%esi   //shared地址为:0x601000
+   400100:	48 89 c7             	mov    %rax,%rdi
+   400103:	b8 00 00 00 00       	mov    $0x0,%eax
+   400108:	e8 07 00 00 00       	callq  400114 <swap>    //swap地址为:400114
+   40010d:	b8 00 00 00 00       	mov    $0x0,%eax
+   400112:	c9                   	leaveq 
+   400113:	c3                   	retq   
+
+   400114 <swap>:
+   400114:	55                   	push   %rbp
+
+   ab的符号表 -> 链接后的全局符号表:readelf -s ab:
+   Num    Value          Size Type    Bind   Vis      Ndx Name
+    0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+    1: 00000000004000e8     0 SECTION LOCAL  DEFAULT    1 
+    2: 0000000000400160     0 SECTION LOCAL  DEFAULT    2 
+    3: 0000000000601000     0 SECTION LOCAL  DEFAULT    3 
+    4: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 
+    5: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS a.c
+    6: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS b.c
+    7: 0000000000400114    75 FUNC    GLOBAL DEFAULT    1 swap          --> 符号地址为400114
+    8: 0000000000601000     4 OBJECT  GLOBAL DEFAULT    3 shared        --> 符号地址为601000
+    9: 0000000000601004     0 NOTYPE  GLOBAL DEFAULT    3 __bss_start
+   10: 00000000004000e8    44 FUNC    GLOBAL DEFAULT    1 main
+   11: 0000000000601004     0 NOTYPE  GLOBAL DEFAULT    3 _edata
+   12: 0000000000601008     0 NOTYPE  GLOBAL DEFAULT    3 _end
+
+ 3)目标文件中 需要进行重定位的位置 都记录在重定位表中
+   可通过objdump -r xx.o查看
+   比如a.o的重定位表:
+
+   ELOCATION RECORDS FOR [.text]:     --> 代码段的重定位表
+   OFFSET           TYPE              VALUE 
+   0000000000000014 R_X86_64_32       shared
+   0000000000000021 R_X86_64_PC32     swap-0x0000000000000004
+
+   在目标文件中,Offset表示 需要被重定位的位置 相对于该段起始的偏移 -> 比如在a.o中，shared位于第14字节，swap位于第21字节
+   在可执行文件或共享对象文件中，Offset表示 需要被重定位的位置的虚拟地址
+
+   具体的重定位方法(地址修正过程) --> 110页
+
+3.C++编译器可能在不同的 编译单元(目标文件)中 生成相同的代码 --> 比如 一个模板 在不同的编译单元中 实例化为相同的类型
+  如果生成的相同代码在链接后的文件中都保留下来，那么就会造成大量的代码冗余
+  常用的解决办法:将模板的实例代码存放在段中
+                 一个段中只有一个模板实例
+  比如:模板函数add<T>()
+  若某个编译单元以 int类型和float类型 实例化了该模板函数
+  那么 该编译单元对应的目标文件中 就有两个该模板实例的段:.temp.add<int>,.temp.add<float>
+  当别的编译单元也以int类型或float类型实例化了该模板函数，那么就会生成相同的段名 --> 链接器在链接时只选择一个来合并到代码段中
+
+  对于虚函数表，默认构造函数等都是同样的处理
+  在C++中，类的定义放在.h文件中
+  编译单元为.c文件
+  不同的编译单元可能都要include同一个.h文件 ---> 编译器会在不同的编译单元中为类生成相同的默认构造函数，虚函数表等代码
+                                                 一般都采用上述的方式来 消除链接后文件中的重复代码
+
+  若不同的编译单元采用不同的编译器版本或者优化选项
+  那么就可能导致 同一个函数在不同编译单元中 生成不同的代码  --> 链接器选择其中一个来合并到代码段中，同时给出警告信息
+
+4.通常一个链接单元为 目标文件
+  但目标文件可能很大，包含上千个函数，函数都保存在同一个代码段中
+  而此刻我们可能只用到其中几个函数，但链接时会将整个代码段链接进来，然后寻找我们所需要的函数
+  这会造成链接后的目标文件过大，而且含有大量无用代码
+
+  解决:在编译时，可将每个函数编译到一个段中
+       链接时，链接器先计算函数之间的依赖关系，再拉取所有有关联的段 
+  缺点:链接过程较长
+       函数段过多，增加重定位过程的复杂度
+  
+  GCC相关的编译选项:-ffunction-sections, -fdata-sections  --> 将函数或变量分别保持到独立的段中
+
+5.Linux程序执行的大概过程:
+  1)从_start处开始执行指令
+  2)初始化进程的执行环境            --> 代码放在文件中的.init段中
+  3)调用main函数  --> 用户视角
+  4)资源清理，结束进程              --> 代码放在文件中的.fini段中
+
+  只要函数放在.init或.fini段中
+  那么该函数就会在main函数前或后被调用
+  
+  全局对象的构造和析构函数就分别放在.init和.fini段中
+
+6.不同的编译单元采用不同的编译器进行编译，那么最后这些目标文件能够链接吗?
+  目标文件必须要满足以下要求:采用同样的目标文件格式，拥有同样的符号修饰标准
+                             变量的内存分布方式相同，函数调用方式相同等等
+  目标文件中的内容为二进制
+  与二进制兼容性相关的内容称为ABI(Application Binary Interface) 
+  影响C/C++目标文件的二进制兼容性的因素:pdf 116
+  C++的二进制兼容性很不好 --> 有时同一个编译器的不同版本编译出来的目标文件都不兼容
+
+7.一个语言的开发环境会有语言库
+  其是对OS API的封装
+  比如C语言的库函数printf就封装了OS的write()
+
+  Linux下C语言静态库:libc.a
+  其是一组目标文件的集合，包括printf.o，fwrite.o，time.o等等
+  可以用ar查看其包含哪些目标文件:
+  ar -t libc.a
+  将libc.a进行解压得到所有的目标文件
+  ar -x libc.a
+
+  每个目标文件中只有一个函数，比如printf.o中只有printf  --> 链接单元为目标文件(除非开启了函数级别链接)，若目标文件含有太多函数，则链接时，可能链入太多无用函数
+  对目标文件进行反编译，得到库函数原型
+  objdump -d xx.o
+  
+  例子:120页
+  
+
+8.链接过程控制:比如链接时使用哪些目标文件，输出文件的格式，是否要指定输出文件中各个段的虚拟地址，段的名称，段存放的顺序等
+  可以使用链接脚本控制链接过程
+  Linux下的默认链接脚本:ld -verbose
+
+
+9.脱离C语言库的程序例子:
+char* str = "hello world\n";
+void print(){
+  __asm__ __volatile__("movl $13,%%edx \n\t"
+      "movl %0,%%ecx \n\t"
+      "movl $0,%%ebx \n\t"
+      "movl $4,%%eax \n\t"
+      "int  $0x80 \n\t"       //直接进行系统调用
+      :
+      :"m"(str)
+      :"edx","ecx","ebx");
+}
+
+void exit(){
+  __asm__ __volatile__("movl $42,%ebx \n\t"
+      "movl $1,%eax \n\t"   //系统调用号
+      "int $0x80 \n\t");
+}
+
+void nomain(){        //通过链接控制，使得程序的入口不为main，而为nomain
+  print();
+  exit();             //正常的C语言程序会return N，然后调用exit()结束进程
+}
+
+编译选项:gcc -c -fno-builtin helloworld.c
+-fno-builtin:gcc编译器提供很多Built-in Function
+             它会将常用的C库函数替换为内置函数，以达到优化的目的
+             exit()就是内置函数
+
+链接选项:ld -static -e nomain -o helloworld
+-static : 静态链接
+-e  xxx : 指定程序的入口函数
+
+使用链接脚本控制链接过程:
+比如:
+ENTRY(nomain)                                     //指定程序的入口为nomain
+SECTIONS{ 
+  . = 0x08048000 + SIZEOF_HEADERS;                //赋值语句，.表示当前虚拟地址.该条应具有紧跟输出段tinytext
+                                                  //所以tinitext段的起始虚拟地址为:0x08048000+SIZEOF_HEADERS
+  tinytext : {*(.text)*(.data)*(.rodata)}         //将输入文件中的.text,.data,.rodata合并到输出文件中的tinytext段
+  /DISCARD/ : {*(.comment)}                       //将输入文件中的.comment段丢弃
+}
+
+链接脚本语法:129页
+        
+  
+10.现代的软硬件平台种类繁多，各有差异
+   比如:
+   硬件平台:CPU的位数(32,64),字节序(大端,小段),内存对齐规则
+   软件平台:是否支持动态链接，是否支持调试
+   每种软硬件平台都有自己的目标文件格式
+   而且同一目标文件格式比如ELF格式，在不同的软硬件平台上都有着不同的变种  --> 导致编译器和链接器难以处理不同平台之间的目标文件
+   BFD库(Binary File Descriptor Library)  --->  类似与VFS
+   BFD能处理多种目标文件格式，并为上层(GCC,ld链接器,调试器)提供统一的接口
+   若要新增一种目标文件格式，则只需要添加到BFD库中即可
+
+
+  
+
+ 

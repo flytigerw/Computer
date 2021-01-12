@@ -1,0 +1,46 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 27<BR>
+<BR>
+</H1>
+
+Suppose that
+first fit uses <code class=var>k</code> bins to pack an instance
+<code class=var>I</code> that requires a minimum of
+<code class=var>b(I)</code> bins.
+We may assume that <code class=var>k > 1</code>, because
+when <code class=var>k <= 1</code>, we see that
+<code class=var>k = b(I)</code>.
+<br><br>
+
+The sum of the utilized capacity
+in the bins <code class=var>2i - 1</code> and <code class = var>2i</code>
+exceeds <code class = var>c</code>, because, otherwise,
+first fit would have packed all the objects that are
+in bin <code class=var>2i</code>
+into bin <code class = var>2i - 1</code> and not started
+bin <code clas = var>2i</code>, <code class=var>1 <= i <= k/2</code>.
+This means that when <code class=var>k</code> is even,
+the sum of the space requirements of the <code class=var>n</code>
+objects exceeds <code class = var>(kc)/2</code>.  Hence, when
+<code class=var>k</code> is even,
+<code class=var>b(I)</code> exceeds <code class=var>k/2</code>.
+In other words, <code class=var>k < 2b(I)</code>.
+<br><br>
+When <code class=var>k</code> is odd, the sum of the object space requirements
+exceeds <code class=var>(k-1)c/2</code>, and so <code class=var>b(I) > (k-1)/2</code>.
+Therefore, <code class=var>k < 2b(I) + 1</code>.  Since <code class=var>k</code>
+and <code class=var>b(I)</code> are integers,
+it follows that
+<code class=var>k <= 2b(I)</code>.
+
+
+</FONT>
+</BODY>
+</HTML>

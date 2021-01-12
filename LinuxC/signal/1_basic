@@ -1,0 +1,219 @@
+1 信号是事件发生时的通知机制
+  称为软件中断 ----> 打断了程序的正常执行
+  信号大多来自于内核,引发内核为进程产生信号的事件有
+   a.硬件发生异常，通知内核，内核再发送信号给相应进程。比如内存访问越界
+   b.用户键入了产生信号的终端特殊字符 ---> C-c
+   c.发生了软件事件 ---> 定时器到期，进程的CPU时间片耗尽
+
+  信号产生后，会于稍后发给进程。信号产生和到达期间 ---> pending
+  若进程处于运行状态，则信号会立即送达
+  若进程处于挂起状态，则信号会等进程再次运行时再送达
+
+  进程可以阻塞信号的到来 ---> 保证自身不会被某些信号打断
+  通过将信号添加到信号掩码中 ---> 会让信号一直处于pending状态 ---> 直到稍后对其解除阻塞(从信号掩码中移除)
+  /proc/PID/status  ---> 包含该进程的信号掩码
+  
+  进程的对于信号的操作
+   a.终止进程 --> 进程异常终止
+   b.产生核心转储文件 --> 包含进程虚拟内存的镜像，可load到debugger上以检查进程终止时的状态
+   c.暂停进程
+   d.恢复进程的执行
+  进程对信号的diposition:
+   a.忽略信号
+   b.采取默认行为
+   c.执行信号处理程序
+
+2 常见信号
+  a.SIGABRT :进程调用abort,内核向进程发送该信号  ---> 默认term + core
+  b.SIGALRM :alarm()和setitimer()设置的定时器到期，内核产生
+  c.SIGBUS  :通常是内存访问错误时产生
+  d.SIGCHLD :子进程终止(exit()或者被kill),或者暂停和恢复时，内核发送该信号给父进程
+  e.SIGCONT :发送给暂停的进程 ---> 恢复运行
+             若进程正在运行中 ---> 忽略该信号
+  f.SIGFPE  :FPE-->浮点异常   ---> 因特定类型的算术错误而产生
+  g.SIGHUP  :终端断开时,发送该信号给终端控制进程
+             也可用于守护进程 ---> 收到时，重新进行初始化并重新读取配置文件
+  h.SIGINT  :用户在终端输入C-c---> 终端驱动程序发送信号给前台进程组 ---> 默认为终止进程
+  i.SIGKILL :sure kill
+  j.SIGSTOP :sure stop
+  k.SIGPIPE :进程A向PIPE,FIFO,SOCKET写入时，若无相应的阅读进程时，内核产生该信号
+             通常是由于阅读进程已经关闭了作为IPC通道的fd
+  l.SIGQUIT :用户键入退出字符时，发送该信号给前台进程组
+             默认term+core
+             用gdb加载核心转储文件，用backtrace命令获取堆栈跟踪信息
+  m.SIGSEGV :应用程序引用无效内存页 ---> 指针包含错误地址
+  n.SIGSYS  :系统调用有误时产生
+             通常为系统调用号有误
+  o.SIGTERM :为其设置处理程序 ---> 清除临时文件和其他资源
+             应该先使用SIGTERM终止进程，清除资源
+             再使用SIGKILL kill 失控进程
+  p.SIGSTP  :用户键入C-z,发送信号给前台进程组 ---> 暂停运行
+  q.SIGTTIN :后台进程尝试对终端 read时，终端驱动程序发送该信号,默认term
+  r.SIGTTOU :后台进程尝试对终端 write
+  s.SIGWINCH:终端窗口尺寸发生变化时
+  t.SIGXCPU :进程的CPU时间超过了限制
+
+
+3 建立信号处理程序
+ A. void (* signal(int sig,void (*handler)(int)))(int)
+    函数名:signal
+    返回值:func pointer --> arg为sig,ret为void --> 之前的handler
+    参数  :int sig
+          :func pointer --> arg为sig,ret为void
+    sig为信号编号,handler为具体的处理程序地址
+例子:为信号建立暂时的handler，事后恢复
+    void (*oldhandler)(int);
+    oldhandler = signal(SIGxx,newHandler);
+    if(oldhandler == SIG_ERR)
+      errExit("signal");
+    //xxxxxxxxxx
+    if(signal(SIGxx,oldhandler) == SIG_ERR)
+      errExit("signal")
+
+    系统自带的handler宏
+    1)SIG_DFL :设置信号的diposition为默认处理
+    2)SIG_IGN :设置信号的diposition为忽略它
+    
+    进程收到信号后，自身被打断
+    内核调用handler，调用完后返回用户程序
+
+4 kill()发送信号
+ int kill(pid_t pid, int sig)
+ 
+ pid标识一个或多个目标进程
+  a.>0  将sig发给pid指定进程
+  b.=0  发给 同组 的每个进程，包括自身
+  c.<-1 发给GID=|pid|的进程组内的所有下属进程  ---> 向一个进程组发送sig
+  d.=-1 调用者有权将sig发给除init和自身进程以外的所有进程 ---> 广播信号
+ 没有匹配的pid ---> 调用失败，置errno为ESRCH
+
+ 进程需要一定的权限才能把将sig发给其他进程
+  a.特权级进程can send sig to everyone
+  b.init进程仅能接收已经install handler的信号  ----> 防止以外kill init进程
+  c.若发送者 实际或有效用户ID 匹配
+      接受者 实际或saved set-user-id
+    则非特权进程也可以send sig to another process
+    那么用户可以向 自身启动的 set-user-id进程 发送信号
+  d.非特权进程可向一个 session 中的任意进程 发送SIGCONT  ---> 运行任务控制的shell可以重启已停止的任务，即使任务进程修改了UID
+ 若发送进程权限不足 --->调用失败，置errno为EPERM
+  
+ 其他send sig的方法
+  a.int raise(int sig)
+    用于给自身send sig --> 立即接收
+    唯一error --> sig无效，errno=EINVAL
+  b.int killpg(pid_t pgrp,int sig)
+    向某进程组的所有进程send sig
+ 
+5 检查进程的存在
+  a.kill(pid,0) --> sig为0，kill执行错误检查，看是否可以向目标进程发送信号 --> 顺带就可以检查目标进程是否存在
+                    若调用成功 --> 目标进程存在，可以发送信号
+                    否则errno=ESRCH --> 不存在
+                        errno=EPERM --> 存在,没有权限发送信号
+    内核会随着进程的生灭而循环使用pid --> pid存在，但可能想要寻找的进程已经die
+    
+  b.wait()系统调用 --> 监控调用者的子进程
+  
+  c.信号量和互斥文件锁 --> 进程A持续持有seamphore或file lock,并一直处于监控状态 
+                           若进程B成功获取seamphore或file lock ----> 进程A die
+
+  d./proc/N --> 该文件存在表明含有PID=N的进程,通过stat()进行检测
+
+6 信号的可打印说明
+  位于sys_siglist[]中
+  使用: #define _BSD_SOURCE
+        extern const char* const sys_siglist[]
+        sys_siglist[SIGXXX]
+  或者通过
+       #define _GNU_SOURCE
+       char* strsignal(int sig) 
+  来查看
+  strsignal比直接sys_siglist的优势
+  a.对sig参数进行边界检查
+  b.对本地设置敏感  ---> 显示信号说明时，采用本地语言
+
+  void psignal(int sig,const char* msg)
+  在stderr显示msg+sig的说明
+
+7 信号集 
+  多个信号可组成信号集，数据类型为 --> sigset_t
+  a.初始化
+    int sigfillset(sigset_t* set)  --> 包含所有信号
+    int sigemptyset(sigset_t* set) --> 不采用 将静态变量初始为0 的方式 --> 存在可移植性问题 --> 可能使用位掩码之外的数据结构来实现信号集合 --> 同样原因，也不要使用memset将信号集清0
+
+  b.增加或删除
+    int sigaddset(sigset_t* set, int sig)
+    int sigdelset(sigset_t* set, int sig)
+  
+  c.信号存在测试
+    int sigismember(sigset_t* set, int sig)
+    return 1 if sig is a member of set
+
+  d.补充，非标准函数
+    int sigandset(sigset_t* dest, sigset_t* left, sigset_t* right) --> left 交 right --->dest
+    int sigorset.......
+    inr sigisempty(const sigset_t* set)
+对于测试类函数，返回1表示ok
+一般情况下，函数返回不为0--->出错
+
+8 signal mask
+  内核为每个进程维护了一个signal mask ---> 一组信号，sigset_t 
+  将信号从掩码中移除 才能解除当前进程对该信号的阻塞
+  signal mask属于线程属性，线程可使用pthread_sigmask()检查和修改信号掩码
+
+  向信号掩码中添加信号的方法
+   a.调用signal handler时，将引发调用的signal自动添加到mask中 ---> 要根据sigaction在install signal handler时使用的标志
+   b.使用sigaction() install signal handler时，指定一组额外signals ---> 调用handler时，自动屏蔽这些signals
+   c.使用sigprocmask()
+  int sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
+  oldset为之前的signal mask --> 第二返回参数
+  how:
+   a.SIG_BLOCK   -->  将set中的signals添加到signal mask中 ---> set和mask求并集
+   b.SIG_UNBLOCK -->  将set中的signals从signal mask中移除 ---> 解除信号阻塞 ---> 该信号会立即送达给进程
+   c.SIG_SETMASK -->  将set中的signals赋值给signal mask 
+  若set为空，则忽略how --> 单纯地获取进程的 signal mask
+
+例子:暂时阻塞信号传递
+  sigset_t blcok;
+  //initialize a signal set to contain SIGINT
+  sigemptyset(&block);
+  sigaddset(&blcok,SIGINT);
+
+  //Block SIGINT and get previous mask
+  sigset_t preMask;
+  if(sigprocmask(SIG_BLOCK,&block,preMask) == -1)
+    errExit("sigprocmask1");
+
+  ...................
+
+  //restore previous signal mask and unblock SIGINT
+  if(sigprocmask(SIG_SETMASK,&preMask,NULL) == -1)
+    errExit("sigprocmask2");
+
+例子:阻塞除SIGKILL和SIGSTOP以外的所有信号
+  sigfillset(&block);
+  if(sigprocmask(SIG_SETMASK,&block,NULL) == -1)
+    ...
+
+9 pending signal set
+  内核为进程维护了pending signal set ---> 容纳被阻塞的信号 ---> 解除阻塞后，传递该信号
+  int sigpending(sigset_t* set)  ---> 获取进程的pending signal set  ---> 然后可以用sigismember()来检查sig是否pending
+  
+  pending signal set只能表明一个信号是否发生，无法记录其发生的次数
+
+10 设置信号diposition --> sigaction()
+   比signal更复杂也更灵活
+   int sigaction(int sig, const struct sigaction* act,struct sigaction* oldact);
+   
+   a.struct sigaction{
+     void (*sa_handler)(int);  
+     sigset_t sa_mask;           //Signals blocked during handler invocation --> 确保handler不会被某些signals中断
+     int sa_flags;               //Flags controlling handler invocation 
+     void (*sa_restorer)(int);   //Nor for application use --> 仅供内部使用，确保handler完成后，会调用sigreturn()
+     }                                                         来恢复进程上下文
+    sa_flags:
+     1)SA_NODEFER : 执行handler时,不会自动把sig添加到signal mask ---> sig可中断handler --> 默认会将其纳入signal mask
+     2)SA_RESETHAND:调用handler时,将信号handler置为默认值--->SIG_DFL ---> 执行handler时，对于相同信号的到来，进行默认处理
+     
+11 等待信号 pause
+   int pause(void)
+   暂停进程的执行，直到信号到达为止 ---> 即会调用handler --> 会中断pause --> 将errno置为EINTR

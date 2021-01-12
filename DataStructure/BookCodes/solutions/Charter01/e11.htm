@@ -1,0 +1,35 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 11<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+The new code
+is given below and in the file <code class=code>countWithException.cpp</code>.
+<br>
+<hr class=coderule>
+<pre class=code>
+template &lt;class T&gt;
+int count(T a[], int n, const T& value)
+{// Return number of occurrences of value in a[0:n-1].
+   if (n &lt; 1)
+      throw "n must be &gt;= 1";
+
+   int theCount = 0;
+   for (int i = 0; i &lt; n; i++)
+      if (a[i] == value)
+         theCount++;
+   return theCount;
+}
+<pre class=code>
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

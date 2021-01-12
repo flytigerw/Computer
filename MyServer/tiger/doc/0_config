@@ -1,0 +1,104 @@
+1.一个配置项就是一个三元组:name,value,description
+  比如:"system.port" 80 "web port"
+  其中name和description都是固定的字符串类型
+  而value则是可变类型 ----> 用模板实现
+  随意用ConfigItem来表示一个配置项
+  系统中有很多个ConfigItem ----> 需要用进行管理
+  若ConfigItem含有模板参数，则会因为类型不同而无法放入同一容器中 
+  解决:抽出ConfigItem中固定部分，形成基类:ConfigItemBase
+       在容器中存储ConfigItemBase::ptr
+
+2.通常，需要从配置文件中读取配置 ----> string类型
+  所以需要用string类型构建T类型的ConfigItem 
+  怎样确定T的类型呢?
+  在读取配置之前，先手动配置 ----> 指定三元组 ----> 确定T的类型
+  加载配置文件后，设置ConfigItem的value ----> 将string类型转为value的T类型，再设置value
+  每个ConfigItem都含有两个functor: fromString():将string转为value类型
+                                     toString():将value类型转为string
+  类型转换的functor可以用户提供
+
+  此处采用yaml配置文件
+  所以，首先需要读取yaml配置文件，解析出每个Node
+  比如:
+  system:
+   port: 9900
+   value: 15
+   int_vec: [10, 20]
+   int_list: [20, 30, 40]
+   int_set: [40, 50, 60] 
+   str_int_map:
+     k1: 30
+     k2: 40
+     k3: 10
+  期待的解析结果 ---> 均为字符串
+   system.port 900
+   system.value 15
+   system.int_vec [10, 20]
+   system.int_set [40, 50, 60]
+
+3.ConfigItem也有很多个，需要容器管理
+  于是设立ConfigManager类，维护map结构管理ConfigItems
+
+4.ConfigItem的变更通知机制
+  ConfigItem变更 ----> set_value()时，可以通过回调函数进行通知
+  每个ConfigItem存储着回调函数map<key,function>
+  用map的原因:function无法比较 ----> 所以用key标识
+
+5.Config与Log的整合
+  目标:从YAML文件中读取出log的配置
+  logs: 
+   - name: root 
+     formatter: "%d%T%m%n"
+     appender: 
+       - type: FileLogAppender 
+         file: log.txt 
+       - type: StdoutLogAppender
+   - name: system 
+     formatter: "%d%T%m%n"
+     appender: 
+         type: FileLogAppender 
+         file: log.txt 
+  a.何时读取配置?
+    应该在程序运行前 ----> 在静态变量的构造函数中进行初始化
+  b.读取后以怎样的结构保存?
+    若采用原始的，则有配置项: name root description
+                              formatter %d%T%m%n description 
+                              ......
+    各个配置项相互独立 ----> 并不是想要的结果
+    name,formatter,appender都是logger的组成部分,应该定义一个结构体将他们整合在一起
+    LogAppender也是如此
+  c.自定义结构体后，配置项为:LogDefine,root,description 
+    LogDefine是自定义类型 ----> 需要编写LogDefine<---->string的转换functor
+    
+  d.string ----> LogDefine
+    首先string是解析整体的YAML Node而得来的
+    先使用Load(str)将其还原YAML Node,再调用其中的函数，对各个标签进行解析
+    相关操作:
+      查看标签是否存在:   node[label].IsDefined()
+      提取标签对应的内容: node[label].as<std::string>()
+
+6.知识点:
+  1)对于类的静态变量成员，其初始化顺序不定,可能被其他静态成员依赖使用
+    若还没有初始化好就被使用--->行为未定义，最好使用静态方法进行显示创建获取 ---> 保证使用顺序
+  2)static函数只与类相关,没有this指针，无法调用成员函数以及成员变量
+  3)static函数不要使用默认参数
+  4)基类类指针可通过dynamic_cast_pointer转为具体的某个派生类指针
+    转换失败的情况:B,C继承A
+    容器中存储着A*
+    现在A*指向B,通过dynamic_cast_pointer将其转为C* ---> 失败
+    Ex: auto x = dynamic_cast_pointer<B>(A*) --> 注意是B而不是B*
+  5)typeid(T).name() ----> 获取类型
+  6)对于类模板，其函数定义就写在.h文件中，否则会链接不过
+  7)类型转换
+    对于基本类型，调用boost::lexical_cast<T>(expr)
+    对于复杂类型，比如string-->vector<T>
+                  在此情景中，string是通过解析YAML文件中的Node得到的,比如一个MapNode.
+                  我们可以先将其还原为Node,
+                  遍历Node中的子Node，
+                  将子Node通过stringstream序列化为string,再考察该string能否转为T类型。 
+                  有可能子Node其中还嵌有子Node ----> 以此形成递归，直到递归到基本类型
+
+                  再比如vector<T>-->string
+                  说明YAML Node也是数组类型 
+                  先将容器中的每个T转为string,还原出YAML Node
+                  再将Node通过stringstream 序列化

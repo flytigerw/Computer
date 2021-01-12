@@ -1,0 +1,58 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 21<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+Using the same reasoning as used in thext to derive Equation 10.6 from 10.5,
+we get
+<br>
+<code class=var>
+S<sub>n</sub>
+<br>
+approx =
+1/n(sum from 0 to n-1) (1/2[1 + 1/(1-(i-1)/b)<sup>2</sup>])
+<br>
+approx =
+1/n(sum from 0 to n-1) (1/2[1 + 1/(1-i/b)<sup>2</sup>])
+<br>
+approx =
+1/n(integral from 0 to n-1) (1/2[1 + 1/(1-i/b)<sup>2</sup>]) di
+<br>
+=
+1/n(from 0 to n-1) (1/2[i + b/(1-i/b)]) 
+<br>
+approx =
+1/n(from 0 to n) (1/2[i + b/(1-i/b)])
+<br>
+=
+1/(2n)(n + b/(1-n/b) - b)
+<br>
+= 1/2(1 + (1/alpha)(1/(1-alpha) - 1)))
+<br>
+= 1/2(1 + 1/(1-alpha))
+</code>
+
+<br><br>
+<dt>(b)
+<dd>
+This approach cannot be used directly to derive Equation 10.8 from Equation 10.7
+because the distance of an inserted element from the head of its chain
+changes as more insertions are done.
+Consequently, the text makes the assumption that identifiers are
+inserted in ascending order of key. With this assumption, the distance of
+elements from the head does not change as more insertions are made.
+Also, the final distance from the chain head is the same regardless
+of the insert order because the chains are sorted.
+</dl>
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,72 @@
+1 线程共享进程的全局内存区域
+  initalized data  uninitialized data  heap segment
+
+2 线程优势
+  a.通信方便 --> 直接通过全局内存区域通信，但需要synchronization techniques来保护共享变量
+                 进程之间则需要IPC
+  b.创建快速 --> fork创建进程会copy进程的诸多属性:page table,file-descriptor table...
+                 而线程很多属性是共享的，不需要单独创建
+
+3 线程数据类型
+  pthread_t            线程ID
+  pthread_mutex_t      mutex
+  pthread_mutexattr_t  具有互斥属性的对象
+  pthread_cond_t       条件变量
+  pthread_condattr_t   具有条件变量属性的对象
+  pthread_key_t        线程特有数据的key
+  pthread_once_t       一次性 initial control context
+  pthread_attr_t       线程的属性对象
+  Portable programs should treat them as opaque data ---> A program should avoid reliance on knowledge of the structure or the contents of a var of theses types. Ex: == is not allowed
+
+4 线程errno
+  传统errno为全局变量，若在多线程环境中使用，会造成race condition
+  故每个线程都有自己的errno --> 定义为宏，展开后为函数调用，返回一个可修改的左值
+
+5 Pthreads API 函数返回值: 0为成功，正值为失败
+  编译多线程程序加上编译选项: -pthread
+
+6 线程创建
+  int pthread_create(pthread_t* thread, const pthread_attr_t* attr
+                     void* (*start)(void*), void* arg)
+  a.thread  : 指向pthread_t类型的缓冲区
+              在pthread_create返回之前，在此保存 线程的唯一标识，供后续函数使用
+              新线程可以在thread_create()返回之前就开始运行
+  b.attr    : 指定新线程的各种属性    
+              若为NULL，则使用默认属性
+  c.arg     : 通常为全局或堆变量
+              通过struct来传递多个变量
+
+7 线程终止方法
+  a.thread start function执行return
+  b.调用pthread_cancle()
+  c.任意线程调用exit()或主线程执行了return --> 会导致所有线程立即终止
+  d.调用pthread_exit() ---> It can be called from any function that has been called by the thread start function 
+  void pthread_exit(void* retval)，且返回值可由另以一线程通过pthread_join()获取
+  retval指定了线程的返回值，不应分配于线程栈中 --> 线程终止，栈被重新分配
+
+8 线程ID
+  a.获取自身TID
+    pthread_t pthread_self();
+  b.比较是否相同
+    int pthread_equal(pthread_t t1, pthread_t t2)
+  pthread_t为opaque，可能为整型，也可能为struct，所以不能直接使用 = --> 不具有可移植性
+  用途:
+  a.Pthreads函数用TID来标识要操作的目标线程。比如:pthread_join,_detach...
+  b.可作为动态数据结构的标签 --> 可以识别某个数据结构的创建者 或者 属主线程
+                                 又可以确定随后对该数据结构执行操作的具体线程 
+
+9 join某要终止的线程  
+  int pthread_join(pthread_t thread_id, void** retval)
+  a.retval : 保存线程终止时返回值的拷贝  --> 返回值线程调用return或pthread_exit()所指定的值
+  b.线程必须detach或者join
+    否则会导致僵尸线程  ----> Aside from wasting system resources,if enough thread zombies accumlate,we won't be able to create additional threads
+    类似父进程调用waitxx()回收子进程终止状态
+    There is no way to a nonblocking join ----> 但是父进程可以非阻塞式地wait()子进程
+    但可以使用condition variable实现nonblocking join
+  c.同一线程被多次join会导致不可预期的行为
+
+10 detach - 对线程不管不问
+   默认情况下，线程是joinable  ---> 需要调用pthrad_join回收其返回其终止状态
+   但有时也希望系统在线程终止时能够自动清理并移除  ---> 程序员就对其不管不问
+   int pthread_detach(pthread_t thread)
+   一旦线程被detach,就不能再，join了

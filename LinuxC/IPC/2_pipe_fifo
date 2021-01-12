@@ -1,0 +1,251 @@
+1.Overivew
+  CMD: ls | wc -l
+  The shell creates two processes to execute ls and wc respectively
+  The writing process(ls) has its stdout(fd 1) joined to the write end of the pipe and the the reading process(wc) has its stdin(fd 0) joined to the read end of the pipe
+  In effect,these two processes are unware of the existence of pipe.They just read and write from the stdFd
+
+  A pipe is a byte stream which means there is no concept of message or message boundaries when using a pipe
+  The process can read blocks of data of any size regardless of the size of blocks written by the writting process
+  Data bytes passes through the pipe in exactly the order they are written 
+  It's not possible to access data in a pipe using lseek()
+  We can use message queue to implement the discreate messages
+
+read from pipe:
+  Attempts to read from the pipe that is currently will empty block until at least one byte has been written to the pipe
+  If the writen end of a pipe has been closed,then the process reading from the pipe will see end-of-file once it has read all remaining data 
+
+pipe is unbidirectional
+  Data can only travel in only one direction through the pipe
+  One end is used for writing and one end is used for reading
+  Bidirectional pipes are not specified in any UNIX standards
+  We can use UNIX domain stream socket pairs(socketpair()) which provide a standardized bidirectional communication mechanism that is semantically equivalent to stream pipes
+
+Write of up to PIPE_BUF bytes are guaranteed to be atomic
+  If multiple processes are writing to single pipe,then it's guaranteed that their data won't be intermingled if they write no more than PIPE_BUF bytes at a time
+
+  When writing blocks is larger than PIPE_BUF bytes,then the kernel transfers the data in smaller pieces and append  furthur data as the reader remove the bytes from the pipe
+  If there is a single writing process,this doesn't matter
+  But if there are multiple writing processes,then writes will be broken into segments of arbitrary size and interleaved with writes by other processes
+
+  A piple is simply a buffer maintained in kernel memory.
+  It has a maximum capacity
+  Once the pipe is full,then furthur writes to the pipe block until the reader removes some data from the pipe
+  We can use fcntl(fd,F_SETPIPE_SZ,size) to change the capacity of a pipe in the range from the system page size up to the value in /proc/sys/fs/pipe-max-size
+  When allocating space for the pipe,the kernel may round the size to some value conveinent for implementation
+
+  Each time the writer fills the pipe,then the kernel must perform a context switch to allow the reader to be scheduled so that it can empty some data from the pipe
+
+2.Creating and Using pipes
+  1)int pipe(int fileds[2])
+    a.It creates a new pipe and a successful call returns two open fd in array fileds
+      One for read end(fileds[1]) and the other for write end(fileds[0])
+
+    b.As with any fd,we can use write() and read() to perform I/O on the pipe
+      Once written to the write end of the pipe,the data is immediately avaliable to read from read end
+
+    c.We can also use stdio function(printf(),scanf()) with pipes by first using fdopen() to obtain a file stream corresponding to one of the fd in fileds 
+      When doing this,we must be aware of the buffering issues
+
+    c.Normally we use pipe to allow communication between two prcoesses
+      We can follow pipe() with fork() to connect two processes using pipe
+      The child inherits the parent's fds
+      Usually immediately after fork(),one process close its fd for write end and the other process close its fd for read end
+      Ex:Create a pipe to transfer data from parent to child
+      int fds[2];
+      if(pipe[fd] == -1)
+        errExit("pipe");
+        switch(fork()){
+          case -1:
+           errExit("fork");
+          case 0:
+           //close unsed write end
+           if(close(fd[1]) == -1)
+             errExit("close");
+           //child now can read from pipe
+           break;
+         default:
+          //close unsed read end
+          if(close(fd[0]) == -1)
+            errExit("close");
+          
+          //parent now writes to pipe
+        }
+
+    d.It's not usual to have both processes reading from a pipe
+      Because if two processes try to simultaneously read from a pipe,we can't ensure which process will be the first to succeed ---> Two processes race for data
+      Prevent such race requires the use of some synchronization mechanism
+      If we require bidirectional communication,there is a simpler way:Create two pipes
+      Then we may need to be wary of deadlocks that may occur if both processes block while trying to read from empty pipe or to write to full pipe
+      It's also usual to have single writer
+    
+    e.pipe2()
+      It additionally have flag argument
+      flag:O_CLOEXEC and O_NONBLOCK
+
+    f.Pipe can be used for communication between two related processes as long as the pipe was created by a common ancestor before the series fork() that leads to the existence of realted processes
+      A common scenario is that a pipe is used for communication between two siblings
+      The way to use pipe for communication between unrelated processes:Pass fd over UNIX domain socket
+    
+    g.Reasons for closing unused fd
+      1)Reader needs to close its write fd for the pipe
+        Normally,when the writer completes its output and close its fd,the reader sees end-of-file once it has read any outstanding data in the pipe
+        If the reader didn't close the write fd for the pipe,then when the writer closes its fd,the reader won't see the end-of file even it has read all data from the pipe
+        Instead,a read() will block waiting for data because the kernel knows that there is still at least one write fd for the pipe
+        In theory,the reader can still write to the pipe even it's blocked tring to read
+        Ex:read() may be interrupted by a signal which writes data to pipe
+      
+      2)Writer should close the read fd for pipe
+        When the writer writes to a pipe for which there is no process has an open fd,the kernel sends SIGPIPE to writer which kills a process by default
+        The writer can instead arrange to catch or ignore the SIGPIPE in which case the write() on the pipe fails with errno EPIPE
+        So if the writer did't close the read fd for the pipe,then when the reader close its read fd for the pipe,the writer can still write to the pipe.Eventually,the pipe will be full and furthur attempt to write will block indefinitely
+     
+     3)Only after all fds in all processes refer to the pipe are closed that the pipe is destroyed and its resource is released for reuse by other processes
+
+3.Use pipe as a method of process synchronization
+  See in pdf 898
+
+4.Filters:Programs that read from stdin and write to stdout
+  How can we use pipe to connect filters ?
+  Normally,the fd 0,1,2 are already in use for a process,so we need redirect stdout and stderr with dupxx()
+  1)int pfds[2];
+    pipe(pfds);               //It may allocate fd 3,4 for pipe
+    close(STDOUT_FILENO);     //free fd1(stdout)
+    dup(pfds[1]);             //Duplication uses the lowest fd --> 1
+   Above code depends on the assumption that fd 0,1,2 for a process are already open
+   If fd 0 was already closed,then pfds[1] will be duplicated on fd 0
+   To avoid this possibility,we can use dup2() which allows explicitly specify the fd to be bound to pipe end
+
+  2)dup2(pfds[1],STDOUT_FILENO);        
+    After duplicating pfds[1],we have two fds referring to the write end of the pipe: fd 1 and pfds[1]
+    We should close the ununsed pipe fd ---> close(pfd[1])
+
+  3)Probably the fd1 is closed previously and we needn't dup() and close() at all
+    Final code
+    if(pfds[1] != STDOUT_FILENO){
+      dup2(pfds[1],STDOUT_FILENO)'
+      close(pfds[1]);
+    }
+
+5.A common use for pipe is to execute a shell CMD and either read its output or send it some input
+  1)FILE* popen(const char* cmd,const char* mode)
+    a.It creates a pipe and then forks a child process that executes a shell which in turn creates a child process to execute the CMD 
+    b.mode
+      It determines whether the calling process will read from the pipe(r) or write to it(w) --> It determines whether the stdout of the executed CMD is connected to the write end for the pipe or its stdin is connected to the read end for the pipe
+    
+    c.On success,popen() return a file stream pointer that can be used with stdion libFuncs
+      After popen(),the calling process can use the pipe to read the output of the cmd or sent it some input
+      When reading from the pipe,the calling process encounters end-of-file once cmd has close its write end for the pipe
+      When writing to the pipe,it's sent SIGPIPE signal and gets EPIPE error once cmd has close its read end for the pipe
+ 
+ 2)int pclose(FILE* stream)
+   a.It closes the pipe and waits for child shell to terminates
+     The fclose() shouldn't be used since it doesn't wait for child
+   b.On success,it yields the termination status of the child shell --> It's the termination status of the last CMD that shell executed unless the shell was killed
+   c.As with system(),if a shell couldn't be execed,then pclose() returns a value as though the child shell has terminated with _exit(127)
+   d.One possible error is that the termination code couldn't be obtained
+   e.When performing a wait to obtain the status of the child shell,it requires pclose(),like system(),should automatically restart the internal call that it makes to waitpid() if the call is interrupted by a signal handler
+
+6.Since the calling process and the executed CMD are operating in parallel,it requires popen() shouldn't ignore SIGINT and SIGQUIT
+  If generated from keyboard,these signals are sent to both the calling process and the executed CMD since they reside in the same PGRP and terminal-generated signals are sent to all members of the FPGRP
+  
+  Since the calling process may create other child processes between popen() and pclose(),it requires that popen() shouldn't block SIGCHLD
+  But it means if the calling process performs a wait operation before pclose(),it may retrieve the status of the child created by popen() ---> This child process terminates earlier.
+  Then when pclose() is called,it will return -1 with error ECHILD indicating that pclose() couldn't retrieve the status of the child
+
+7.Pipes and stdio buffering
+  Since the file stream pointer returned by popen() doesn't refer to a terminal,the stdio library applies block buffering to file stream
+  It means when we call popen() with mode of w,by defualt,the output is sent to the child process at other end of the pipe only when the sdio buffer is filled or we close the pipe with pclose()
+  If we need to ensure that the child process receives the data on the pipe immediately,we can either periodically use fflush() or diable stdio buffering by using setbuf(fp,NULL)
+  This technique can be also used if we create a pipe using pipe() and then use pdopen() to obtain a stdio stream corresponding to the write end of the pipe
+
+8.FIFO
+  1)It's similar to pipe.
+    The principal difference is that FIFO has name within the file system and is opened in the same way as the regular file
+    So it allows FIFO to be used for communication between unrelated processes
+    It's known as named pipes
+    As with pipe,when all fds referring to a FIFO have been closed,any outstanding data is discarded
+ 
+ 2)Create a FIFO from shell CMD
+   mkfifo -m mode pathname
+   -m option specifies a permission mode in the same way as for the chmod CMD
+
+ 3)int mkfifo(const char* pathname,mode_t mode)
+   Once a FIFO has been created,any process can open it,subject to usual file permission checks
+   Generally,the sensible use of FIFO is to have reading process and writing process on each end
+   Opening a FIFO for reading blocks(O_RDONLY) until another process opens the FIFO for writing and vice versa
+   Avoid the use of O_RDWR flag when opening a FIFO is desireable because after such a open(),the calling process will never see the end-of-file when reading from FIFO since there will always be at least one fd open for writing to the FIFO
+
+ 4)The shell pipeline is linear:Each process reads data produced by its predecessor and sends data to successor
+   Using FIFOs,it's possible to create a fork in a pipeline,so that a duplicate copy of output of a process can be sent to another process in addition to its successor in pipeline
+   We use tee CMD to do this,which writes two copies of what it reads from stdin to: stdout and the file named in its CMD line argument
+   Ex:
+   mkfifo myFifo
+   wc -l < myfifo &  ----> wc opens FIFO for reading
+   ls -l | tee myFifo | sort -k5n  ----> Duplicate copy of the output of ls are sent to myFifo and sort by stdout
+                                         -k5n option causes the output of ls to be sorted in increasing numerical order on the fifth space-delimited field
+
+9.A client-server app using FIFO
+  1)All clients send their requests to server using a single server FIFO
+  
+  2)In client-server app,there is the concept of a well-known address or name used by server to make its service visiable to clients
+    well-known addres: client and server share a header file which defines the well-known address of the server so that the client knows how to contact a server
+    Another solution:Provide some kind of name server with which servers can register the names of their services
+                     Clients need to know where to know the name server which typically resides at a well-known address
+                     Each client then contact the name server to obtain the location of the services it desires
+                     This solution allows the location of servers to be flexiable with some extra programming effort
+  
+   3)It's not possible to use a single FIFO to send all responses to all requests,since multiple clients would race to read from the FIFO and possibly read each other's response message
+     Therefore,each client creates a FIFO that server uses for delivering response to that client
+     The server needs to know how to find each client's FIFO
+      a.Each client generates its FIFO pathname and then pass the pathname as part of its request message 
+      b.The client and server agree on some convention for constructing a client FIFO pathname,and as part of its request,the client can pass the server the information required to construct the FIFO pathname specific to this client
+    
+    4)Since data in pipe and FIFO,there are no boundaries between multiple messages
+      It means when multiple messages are being delivered to single process,then the sender and receiver must agree on some convention for separating the messages
+      a.Terminate each message with a delimiter character such as newline character 
+        In this case,either the delimiter character must be the one that never appears as part of the message or we must adopt some convention for escaping the delimiter if it does occur in the message
+      
+      b.Include a fixed-size header with a length field in each message specifying the number of bytes in the remaining variable-length component of the message
+        The reading process first reads the header from the FIFO and then use the header's length field to determine the number of bytes to read in the remaineder of the message
+        It has the advantage of efficiently allowing messages of arbitrary size 
+      
+      c.Use the fixed-length messages
+        It's simple but not flexible
+      
+      The total length of each message must be smaller than PIPE_BUF bytes in order to avoid the possibility of messages being broken up by kernel and interleaved with other messages from other writes
+
+10.Nonblocking IO
+   When a process opens one end of a FIFO,it blocks if the other end of the FIFO has not yet been opened
+   Sometimes,it's not desireable to block so we can use O_NONBLOCK flag when calling open()
+   fd = open("myfifo",O_RDONLY | O_NONBLOCK);
+   if(fd == -1)
+     errExit("open");
+
+   The O_NONBLOCK flag's effect depends on whether we are opening a FIFO for reading or writing
+   1)If the FIFO is being opened for reading and no process currently has the write end of the FIFO open
+     Then open() succeeds immediately  --> Any later attempt to read from FIFO simply returns no data
+   2)If the FIFO is being opened for writing and the other end of FIFO has not yet been opened for reading,
+     Then open() fails with errno ENXIO  --> Attempt to write to a FIFO for whcih there is no reader would reuslt in the generation of the SIGPIPE signal and EPIPE error from write()
+   
+   Using O_NONBLOCK flag when opening a FIFO serves two purposes:
+   1)It allows a single process to open both ends of a FIFO
+   2)It prevents deadlock between processes opening two FIFOs
+     EX:
+     Process X                           Process Y
+     Open FIFO A for reading(blocks)     Open FIFO B for reading(blocks)
+     Oepn FIFO B for writing             Open FIFO A for writing       ----------------- deadlock
+     So,no block no deadlock
+   
+   Sometimes we need to change the state of O_NONBLOCK flag for a FIFO that is already open
+   Scenarios where this may need arise include the following:
+   1)We opened a FIFO using O_NONBLOCK but we want subsequent read() and write() to operate in blocking mode
+   2)We want to set nonblocking status of fd that was obtained other than from a call to open() --> socket
+   3)For some app-specific purposes,we need to switch the setting of O_NONBLOCK of a fd on and off
+   We can use fcntl() to achieve the purposes:
+    int flags;
+    flags = fcntl(fd,F_GETFL);     
+    flags |= O_NONBLOCK;       Or---> flags &= ~O_NONBLCOK; ---> disable it
+    fcntl(fd,F_SETFL,flags);
+
+11.Semantics of read() and write() on pipes and FIFOs
+   See in pdf 918

@@ -1,0 +1,64 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 15<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+<dl compact>
+<dt> (a)
+<dd>
+The data member <code class=code>dollar</code> is of type
+<code class=code>long</code>.  The maximum value assignable to a variable
+of type
+<code class=code>unsigned long</code> is
+<code class=code>2^{32} - 1</code>.
+The maximum allowable value for
+<code class=code>cents</code> is 99.
+Therefore, when the representation of Program 1.13 is used,
+the maximum permissible currency value is
+<code class=code>2^{32} - 1</code> dollars and 99 cents.
+<BR>
+Since we store the sign seprately, the minimum currency value
+is just the negative of the maximum value.
+<BR><BR>
+<dt> (b)
+<dd>
+The maximum value assignable to a variable
+of type
+<code class=code>int</code> is
+<code class=code>2^{31} - 1</code>.
+The maximum allowable value for
+<code class=code>cents</code> is 99.
+When the data type of
+<code class=code>dollars</code> and
+<code class=code>cents</code> is changed to
+<code class=code>int</code>,
+the maximum permissible currency value is
+<code class=code>2^{31} - 1</code> dollars and 99 cents.
+<BR>
+Since we store the sign seprately, the minimum currency value
+is just the negative of the maximum value.
+<BR><BR>
+<dt> (c)
+<dd>
+To avoid an error in the conversion, the result
+(<code class=code>a1</code> and
+<code class=code>a2</code>) should not exceed
+<code class=code>MAX_VALUE = 2^{32}-1</code>.
+Therefore, the dollar amount should not exceed
+<code class=code>MAX_VALUE / 100</code>.
+Even though the dollar amount may not exceed
+<code class=code>MAX_VALUE / 100</code>, the method
+may not give the correct result.  To assure a correct result,
+the sum of the dollar amounts should not exceed
+<code class=code>MAX_VALUE / 100</code>.
+
+<BR>
+</FONT>
+</BODY>
+</HTML>

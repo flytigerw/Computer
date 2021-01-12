@@ -1,0 +1,70 @@
+1.An atomic instruction is fast when there is no contentions or it's accessed by one thread
+  Contentions happen when multiple threads access the same cacheline
+  For Intel E5-2620,each core has its own L1 and L2 cache and L3 cache is shared by all cores
+  It's fast for core to write data into L1 cache,but to make the data seen by other cores is not,because cacheline touched by the data need to be synchronized to other cores
+  The synchronization is atomic and transparent to software
+  App has to wait for the completion of cache coherence,which takes longer time than writing local cache
+  It involves a complicated hardware algorithm and therefore makes the atomic instructions slow under high contention 
+  Accesses to the memory frequently shared and modified by multiple threads are not fast generally
+  For ex:Even if a critical section looks small,the spinlock protecting it may still not perform well
+         Because the instruction used in spinlock such CAS need to wait for latest cachelines
+
+
+2.In order to improve performance,we need to avoid frequently synchronizing cachelines,which not only affects performance of the atomic instruction itself,but also overall performance of the program
+  The most effective solution:Avoid sharing as much as possible
+
+  MPMC queue(multiple-producer-multiple consumer queue) is hard to scale well on many CPU cores
+  Because throughput of the queue is limited by delays of cache coherence rather than the number of cores
+  It's better to use SPMC or MPSC queue
+
+  If all threads modify the same counter frequently,the performance would be poor because all cores are busy synchronizing the same cacheline 
+
+  False sharing:Accesses to read-only variables may be significantly slowed down because in the same cacheline there may be other variables that are frequently updated ---> It causes the cache coherence ---> read action needs to wait for cache coherence 
+
+
+3.Instruction reordering will change the order of read/wirte  and  causes instructions behind   to be reordered to to front if there were no dependicies
+
+4.The CPU wants to fill each cycle with as many as instructions and executes as many as possible instructions within given time
+  An instruction for loading shared memory may cost much due to cacheline synchronization 
+  An efficient solution is to synchronizing multiple cachelines and move them simultaneously rather than one by one
+  Thus modifications to multiple variables by one thread may be visiable to other threads in a different cores
+
+
+5.Memory Fence let programmers to decide the visibility order between instructions 
+  假如有原子变量 a
+  1)memory_order_consume
+    a.load(flag) 
+    在当前线程内，若此后有读写语句依赖于读取到的a的值,则该语句不能被重排到前面
+  2)memory_order_acquire
+    比consume更加严格
+    当前线程内的后面的所有语句都不能重排到 a.load(flag)前面
+  3)memory_order_release 
+    a.store(value,flag)
+    与acquire恰好相反，当前线程内的前面的所有语句都不能重排到 a.store(flag)后面
+  4)memory_order_acq_rel 
+    a.load(flag)
+    当前线程内的 内存读写操作 要与 a.load(flag) 保持相对位置  ---> 比如内存操作语句x之前位于a.load(flag)前面，那么重排后，它依旧应该位于a.load(flag)前面
+  5)memory_order_seq_cst 
+    顺序一致性
+
+  Ex:
+  thread1                                               thread2
+  p.init();                                           if(ready.load(std::memory_order_acquire))
+  read.store(true,std::memory_order_release);               p.process()
+  
+  易知:
+   p.init()无法重排到read.store()后面  
+   p.process()里面的某些语句不能重排到ready.load()前面
+   保证thread2运行到p.process()时，它已经看到了thread1的所有内存操作 ----> cache coherence
+
+If an algorithm is implemented by just one or two atomic instructions,it's probably faster than using mutex which needs more atomic instructions in total
+
+
+6.atomic_thread_fence也可以达到内存同步的效果
+  1)Release fence
+    可以防止 fence前的内存操作 重排到 fence后的 任意store之后       ---> 比atomic release的效果更强
+  2)Acquire fence
+    可以防止 fence后的内存操作 重排到 fence前的 任意load之前        ---> 比atomic acquire的效果更强
+  3)Full fence
+    比 atomic release_acquire 更强
+

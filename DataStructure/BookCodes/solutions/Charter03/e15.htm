@@ -1,0 +1,39 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 3, Exercise 15<BR>
+<BR>
+</H1>
+
+
+<dl compact>
+<dt> (E5)
+<dd>
+<em class=var>(sum from 1 to n)i<sup>k</sup> <= (sum from 1 to n)n<sup>k</sup>
+= n<sup>k+1</sup></em>.  Therefore,
+<em class=var>(sum from 1 to n)i<sup>k</sup> = O(n<sup>k+1</sup>)</em>.  Further,
+<em class=var>(sum from 1 to n)i<sup>k</sup> >= (sum from n/2 to n)(n/2)<sup>k</sup>
+= (n/2)<sup>k+1</sup></em>.  Therefore,
+<em class=var>(sum from 1 to n)i<sup>k</sup> = Omega(n<sup>k+1</sup>)</em>.
+(Note that <em class=var>2<sup>k+1</sup></em>
+is a constant as <em class=var>k</em>
+is a constant.)
+Consequently,
+<em class=var>(sum from 1 to n)i<sup>k</sup> = Theta(n<sup>k+1</sup>)</em>.
+<br><br>
+
+<dt> (E6)
+<dd>
+<em class=var>(sum from 1 to n)r<sup>i</sup> = (r<sup>n+1</sup>-1)/(r-1) - 1
+= Theta(r<sup>n</sup>)<em class=var>.
+From this it follows that
+<em class=var>(sum from 1 to n)r<sup>i</sup> = O(r<sup>n</sup>)</em> and
+<em class=var>(sum from 1 to n)r<sup>i</sup> = Omega(r<sup>n</sup>)</em>.
+</FONT>
+</BODY>
+</HTML>

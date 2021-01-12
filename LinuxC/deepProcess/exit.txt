@@ -1,0 +1,87 @@
+1 进程的两种终止方式
+  a.异常终止    --> 比如通过信号term+core
+  b.使用_exit()正常终止
+
+2 void _exit(int status)
+  为0表示功成身退
+  系统const: EXIT_SUCCESS(0),EXIT_FAILURE(1)
+  _exit总会成功终止程序，从不返回
+
+3 void exit(int status)
+  a.Call exit handlers  执行清理动作
+  b.Flush stdio buffer
+  c.Call _exit(stauts)
+
+  return n ---> exit(n)
+
+  但若在exit handler中要用到 main()中的局部变量，则不能使用return 
+
+4 进程终止时释放的资源
+  a.关闭所有 文件描述符，目录流，信息目录描述符，转换描述符
+  b.释放所有 文件锁
+  c.detach 任何已连接的 System V共享内存段，且各段的shm_nattch计数器值减1
+  d.若该进程为一个管理终端的 管理进程，则向前台进程组的每个进程发送 SIGHUP信号，然后终端与session脱离
+  f.关闭信号量
+  g.关闭消息队列
+  h.移除进程通过 mlock或mlockall 所建立的任何 内存锁
+  i.取消进程通过 mmap建立的内存映射
+
+5 exit handler
+  通过atexit注册
+  int atexit( void (*func)(void) )
+  可以注册多个，形成函数栈，逆序调用
+  其中一个调用出错，后续都gg
+  
+  通过sysconf(_SC_ATEXIT_MAX)可查看可注册上限
+
+  fork()创建的子进程会继承父进程的 exit handlers
+  调用exec()时则会清除所有~~~~   ---> 无法取消通过 atexit()或on_exit()注册的exit handlers。
+                                      可以再执行handler时检查 全局执行标志是否置位 来选择性执行
+  
+  atexit的限制
+   a.handler执行时，无法获知传给_exit的status  --> 有时候需要根据status来执行不同的清理动作
+   b.无法给handler指定参数
+
+  非标准版本:
+   int on_exit( void(*func)(int,void*), void* arg)
+   handler可以获取到status以及传递给on_exit的arg
+
+范例:
+int main(int argc,char* argv[]){
+  printf("Hello world\n");
+
+  write(STROUT_FILENO,"Ciao\n",5);
+
+  if(fork() == -1)
+   errExit("fork");
+  exit(EXIT_SUCCESS);
+}
+
+直接在终端下的输出:
+Hello world
+Ciao
+
+重定向到文件中的输出:
+Ciao
+Hello world
+Hello world
+
+问题和原因:
+ a.printf()的消息输出了两次
+   在用户内存空间中 维护其 stdioBuffer
+   输出端为终端时，缺省为 行缓冲 ---> 立即显示printf()中的字符串
+   输出端为文件时，缺省为 块缓冲 ---> 字符串会先保留在stdioBuffer中 ---> fork()出的子进程有着相同的stdioBuffer副本
+   子父进程都调用了exit() ---> 会刷新各自的buffer ---> 输出两次
+   解决办法:
+    1)调用fork()之前，fflush()先刷新buffer
+      或者setvbuf()/setbuf()关闭stdio流的缓冲功能
+    
+    2)子进程调用_exit()
+      父进程调用 exit()
+ 
+ b.write()输出并未出现两次 
+   write()会将数据传给 内核缓冲区  ---->  fork不会copy
+ 
+ c.write()先于printf()输出
+   printf()再等待exit()刷新buffer
+

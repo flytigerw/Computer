@@ -1,0 +1,40 @@
+
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 7, Exercise 39<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+We shall ignore the space overheads of the array of arrays representation
+used by C++ and consider only the space for the <code class=var>250000</code>
+elements in the <code class=var>500 x 500</code> array. At
+<code class=var>4</code> bytes per element, this works out to
+<code class=var>1000000</code> bytes.
+<br><br>
+When a <code class=code>sparseMatrix</code> is used,
+we need <code class=var>12</code> bytes for each nonzero element.
+So, the <code class=var>2000</code> nonzero element matrix takes
+<code class=var>24000</code> bytes.
+<br><br>
+<dt>(b)
+<dd>
+Using the same assumptions as in (a), <code class=var>4mn</code> bytes
+are taken by the two-dimensional array representation
+and <code class=var>12p</code> (<code class=var>p</code> is the number
+of nonzero terms) by the sparse matrix representation.
+The sparse matrix representation takes more space when
+<code class=var>p &gt; mn/3</code>.
+</dl>
+
+</FONT>
+</BODY>
+</HTML>

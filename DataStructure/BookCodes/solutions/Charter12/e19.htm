@@ -1,0 +1,209 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 12, Exercise 19<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+The first six calls to <code class=code>meld</code> create the
+following six max leftist trees.
+<br><pre class=figure>
+  5       7      20        9      15     30
+ /       /      /         /      /      /
+3       6      8         2      12     17
+</pre><br>
+The next three calls to <code class=code>meld</code> combine
+pairs of these trees to create the following three trees:
+<br><pre class=figure>
+       7                20             30
+     /   \            /   \           /   \
+    6     5          8     9        17     15
+         /                /                /
+        3                2                12
+</pre><br>
+Next, the first two trees are combined to get
+<br><pre class=figure>
+                    20
+                  /    \
+                 9      8
+               /   \
+              7     2
+            /  \
+           6    5
+               /
+              3
+<br></pre>
+Finally, we get:
+<br><pre class=figure>
+                      30
+                     /  \
+                    20   17
+                  /    \
+                 9      15
+               /   \    / \
+              7     2  12  8
+            /  \
+           6    5
+               /
+              3
+</pre><br>
+<br>
+<dt>(b)
+<dd>
+After inserting <code class=var>10</code>, we get:
+<br><pre class=figure>
+                        30
+                     /      \
+                    20       17
+                  /    \     /
+                 9      15  10
+               /   \    / \
+              7     2  12  8
+            /  \
+           6    5
+               /
+              3
+</pre><br>
+After inserting <code class=var>18</code>, we get:
+<br><pre class=figure>
+                        30
+                      /    \
+                     /       \
+                    /          \
+                  20            18
+                /    \          /
+               9      15       17
+             /   \    / \      /
+            7    2  12   8    10
+          /  \
+         6    5
+             /
+            3
+</pre><br>
+After inserting <code class=var>11</code>, we get:
+<br><pre class=figure>
+                        30
+                      /    \
+                     /       \
+                    /          \
+                  20            18
+                /    \          / \
+               9      15       17  11
+             /   \    / \      /
+            7    2  12   8    10
+          /  \
+         6    5
+             /
+            3
+</pre><br>
+After inserting <code class=var>4</code>, we get:
+<br><pre class=figure>
+                        30
+                      /    \
+                     /       \
+                    /          \
+                  20            18
+                /    \          / \
+               9      15       17  11
+             /   \    / \      /   /
+            7    2  12   8    10   4
+          /  \
+         6    5
+             /
+            3
+</pre><br>
+<br>
+<dt>(c)
+<dd>
+After removing the max element, we must meld the two subtrees:
+<br><pre class=figure>
+                  20               18
+                /    \             / \
+               9      15          17  11
+             /   \    / \         /   /
+            7    2  12   8       10   4
+          /  \
+         6    5
+             /
+            3
+</pre><br>
+<br>
+The result is:
+<br><pre class=figure>
+                  20      
+                /    \    
+              /        \
+            /            \
+           9              18 
+         /   \            / \
+        7    2          15   17
+      /  \           /  \   /
+     6    5         11  12  10
+         /         /  \
+        3         4    8
+</pre><br>
+When the max element is removed, we must meld the two subtrees
+<br><pre class=figure>
+           9              18 
+         /   \            / \
+        7    2          15   17
+      /  \             /  \   /
+     6    5           11  12  10
+         /           /  \
+        3           4    8
+</pre><br>
+The result is:
+<br><pre class=figure>
+                  18      
+                /    \    
+              /        \
+            /            \
+          15              17 
+         /   \            / \
+       11    12          9   10
+      /  \             /  \
+     4    8           7    2
+                    /  \ 
+                   6    5
+                       /
+                      3
+</pre><br>
+When the max element is removed, we must meld the two trees:
+<br><pre class=figure>
+          15              17 
+         /   \            / \
+       11    12          9   10
+      /  \             /  \
+     4    8           7    2
+                    /  \
+                   6    5
+                       /
+                      3
+</pre><br>
+The result is:
+<br><pre class=figure>
+                17 
+              /    \
+            /        \
+          /            \
+         9             15
+       /  \           /  \
+      7    2        11    12
+    /  \           /  \   /
+   6    5         4    8  10
+       /
+      3
+</pre><br>
+
+</FONT>
+</BODY>
+</HTML>

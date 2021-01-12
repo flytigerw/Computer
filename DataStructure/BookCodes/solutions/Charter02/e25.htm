@@ -1,0 +1,31 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 25<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+
+Let <code class=math>s(k,n)</code> be the number of swaps done when
+<code class=code>perm</code> is invoked
+as <code class=code>perm(a, k, n)</code>.  <code class=math>s(k,n) = 0</code>
+when <code class=math>k = n</code> and
+<code class=math>(n - k + 1)(2 + s(k+1, n))</code> when
+<code class=math>k &lt; n</code>.  Using repeated substitution,
+we get
+<br><br><code class=math>
+s(1,n) = 2n + 2n(n - 1) + 2n(n - 1)(n - 2) + ... +
+2n(n - 1)(n - 2) ...  2
+<br><br>
+= 2n!  [sum from (i=1) to (n-1) (1 / (i!))]
+
+</code>
+</FONT>
+</BODY>
+</HTML>

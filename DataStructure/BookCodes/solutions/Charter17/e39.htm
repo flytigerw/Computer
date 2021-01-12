@@ -1,0 +1,152 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 17, Exercise 39<BR>
+<BR>
+</H1>
+This solution is from the following article:
+<font color=blue>D. Paik, S. Reddy, and S. Sahni,
+Deleting vertices in dags to bound path lengths.
+<em class=title>IEEE Trans. on Computers</em>, 43, 9, 1994, 1091-1096.</font>
+
+<dl compact>
+<dt>(a)
+<dd>
+Our greedy algorithm traverses the tree in postorder.
+During this traversal we compute, for each node <code class=var>x</code>, the maximum delay,
+<code class=var>D(x)</code>, from <code class=var>x</code> to any other node in its subtree.
+If <code class=var>D(x)</code> exceeds <code class=var>d</code>,
+the node <code class=var>x</code> is deleted from <code class=var>T</code>.
+<br><br>
+Consider the example tree shown below as tree (a)
+and assume <code class=var>d = 3</code>.
+<br><br>
+<center>
+<img src = "delfig.gif">
+</center>
+<br><br>
+The delay, <code class=var>D(x)</code>, for <code class=var>x</code>
+a leaf node is <code class=var>0</code>.
+So, <code class=var>D(x) = 0</code> when <code class=var>x</code> is any one of the nodes
+<code class=var>{e, f, c, j, i}</code>.
+In postorder, a node is visited after its children have been visited.
+When a node <code class=var>x</code> is visited, its delay may be computed as:
+<br><br>
+<code class=var>D(x) = max<sub>y is a child of x</sub>{D(y) + w(x,y)}</code>
+<br><br>
+where <code class=var>w(x,y)</code> is the weight/length of the edge
+<code class=var>(x,y)</code>.
+So, <code class=var>D(b) = 4</code> and <code class=var>D(h) = 2</code>.
+Since <code class=var>D(b) &gt; d = 3</code>,  we delete node
+<code class=var>b</code> to get tree (b) of the above figure.
+Next, <code class=var>D(g) = 5</code>
+is computed and node <code class=var>g</code> is deleted resulting in
+tree (c).
+<code class=var>D(d) = 0</code> and <code class=var>D(a) = 3</code>.
+No more nodes are deleted.
+A high-level description of the greedy algorithm is given below.
+The algorithm assumes that <code class=var>S</code> has been initialized to the
+empty set.
+
+<HR class = coderule>
+<pre class=code>
+algorithm delete(t)
+{// delete nodes within the subtree with root t and compute D(t)
+   if (t != null)
+   {
+      // compute D(t)
+      D(t) = 0;
+      for (each child y of t)
+      {
+         delete(y);
+         if (y is not in S)
+            D(t) = max{D(t), D(y) + w(t,y)};
+      }
+
+      if (D(t) > d)
+         // delete t
+         add t to S;
+   }
+}
+<HR class = coderule>
+</pre>
+<br><br>
+
+<dt>(b)
+<dd>
+We may use induction to prove that the described
+greedy algorithm always finds a minimum cardinality set <code class=var>S</code>
+such that the removal of the vertices in <code class=var>S</code>
+from the tree <code class=code>T</code> leaves behind a forest in which
+no root-to-leaf path has a length that is more than <code class=var>d</code>.
+<br><br>
+The induction is on the number, <code class=var>n</code>, of nodes
+in the tree <code class=var>T</code>.
+If <code class=var>n = 0</code>, the claim is trivially valid.
+Assume the claim is valid for <code class=var>n &lt;= m</code>
+where <code class=var>m</code> is an arbitrary natural number.
+Let <code class=var>T</code> be a tree with <code class=var>n + 1</code> nodes.
+Let <code class=var>S</code> be the set of vertices deleted by our
+greedy algorithm, and
+let <code class=var>W</code> be a minimum cardinality vertex set such that
+the removal of the vertices in
+<code class=var>W</code> from the tree <code class=var>T</code>
+results in a forest in which there is no root-to-leaf path
+whose length exceeds <code class=var>d</code>.
+We need to show that <code class=var>|S| = |W|</code>.
+If <code class=var>|S| = 0</code>, this is trivially true.
+If <code class=var>|S| &gt; 0</code>, then let <code class=var>z</code>
+be the first vertex added to <code class=var>S</code> 
+by our greedy algorithm.
+Let <code class=var>T<sub>z</sub></code> be the subtree of
+<code class=var>T</code> rooted at <code class=var>z</code>.
+As <code class=var>z</code> is added to <code class=var>S</code> by
+our greedy algorithm, <code class=var>D(z) &gt; d</code>.
+Hence, <code class=var>W</code> must contain at least one
+vertex <code class=var>u</code> that is in <code class=var>T<sub>z</sub></code>.
+If <code class=var>W</code> contains more than one such
+<code class=var>u</code>, then <code class=var>W</code> cannot be of minimum 
+cardinality as <code class=var>Z = W - {all such u} + {z}</code>
+is such that
+the removal of the vertices in <code class=var>Z</code>
+from the tree <code class=var>T</code> leaves behind a forest
+in which there is no root-to-leaf path whose length exceeds
+<code class=var>d</code>.
+Hence, <code class=var>W</code> contains exactly one such <code class=var>u</code>.
+Let <code class=var>W' = W - {u}</code>.
+Let <code class=var>T' = T - T<sub>z</sub></code> be the tree that results from the 
+removal of <code class=var>T<sub>z</sub></code> from <code class=var>T</code>.
+If there is a <code class=var>W*</code> such that <code class=var>|W*| &lt; |W'|</code>
+and the forst that results from removing the vertices in
+<code class=var>W*</code> from <code class=var>T'</code> has no root-to-leaf
+path whose length exceeds <code class=var>d</code>,
+then since the forest that results when the vertices
+in <code class=var>W* + {z}</code> are removed from <code class=var>T</code>
+also has no root-to-leaf path whose length exceeds <code class=var>d</code>,
+<code class=var>W</code> is not a minimum
+cardinality deletion set for <code class=var>T</code>.
+So, <code class=var>W'</code> is a minimum cardinality vertex set.
+Also, <code class=var>S' = S - {z}</code> is such that 
+the rmoval of the vertices in <code class=var>S'</code>
+from
+<code class=var>T'</code> results in a forest in which there
+is no root-to-leaf path whose length exceeds
+<code class=var>d</code> and furthermore <code class=var>S'</code> is the
+answer produced by our greedy algorithm when started with <code class=var>T'</code>.
+Since the number of vertices in <code class=var>T'</code> is less than
+<code class=var>m + 1</code>,
+<code class=var>|S'| = |W'|</code>.
+Hence, <code class=var>|S| = |X'| + 1 = |W'| + 1 =
+|W|</code>.
+
+<br><br>
+The complexity of our greedy algorithm is easily seen to be <code class=var>O(n)</code> where
+<code class=var>n</code> is the number of vertices in <code class=var>T</code>.
+
+</FONT>
+</BODY>
+</HTML>

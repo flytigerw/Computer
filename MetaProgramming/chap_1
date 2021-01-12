@@ -1,0 +1,328 @@
+
+
+1.C++元编程是 典型的 函数式编程 --> 无副作用的映射或变换:对于相同的输入,多次调用同一个函数得到的结果是一致的
+  
+  若在函数中维护了外部状态变量
+  那么即使输入相同,但可能因为外部状态变量存在差异,而导致函数输出结果不同
+
+  元函数只在编译期被调用和执行
+  在编译期,编译器只能 构造常量 作为中间结果.  
+                 无法 构造并维护记录外界状态并随之改变的量
+
+  元函数例子:
+  constexpr   --> 表示函数可以在编译器被调用.若没有之,函数就只能用于运行期,即使其没有副作用
+    int fun(int a){return a+1;}
+  调用方式:fun(a)
+  
+  
+  C++14中的写法:
+  template <int a>
+    constexpr int fun = a + 1;    //参数模板化
+  调用方式:fun<3>
+
+  反例:
+  static int call_count = 3;
+  constexpr 
+    int fun(int a){return a+(call_count++);}
+  会编译错误
+  原因:函数内部的逻辑表明其并不是 无副作用的  --> 相同的输入会产生不同的输出
+       constexpr试图保持函数的无副作用特性  
+       所以会产生冲突
+
+2.类型元函数:将数据类型作为函数的输入与输出
+  template<typename T>
+    struct Fun_ {using type = T;};
+  //特例化
+  template<> 
+    struct Fun_<int> {using type = unsiged int;};
+  
+  template<> 
+    struct Fun_<long> {using type = unsiged long;};
+
+  Fun_<int>::type h = 3;
+
+  Fun_虽然不是函数,但其满足元函数的性质:
+  1)输入:类型T
+  2)输出:Fun_<T>::type
+  3)映射:通过模板特例化实现的转换逻辑
+         比如:输入为int时，输出为unsiged int
+  4)无副作用
+
+  用别名省略type:
+  template<typename T>
+    using Fun = typename Fun_<T>::type
+  Fun<T> h = 3;
+
+  C++14中的一种写法:
+
+
+3.type_traits库:类型操作(类型变换,判断,比较)函数库
+  例子:remove_reference_t<T&>
+
+4.以模板作为元函数的输入
+  template< template<typename> class T1,        输入1:模板  --> 本身可能也为元函数
+            typename T2>                        输入2:类型
+  struct Fun_{ 
+    using type = typename T1<T2>::type;         映射: 模板<类型>::type -> 某个元函数的输出?
+  }
+
+  template< template<typename> class T1,
+            typename T2>
+    using Fun = typename Fun_<T1,T2>::type
+  
+  Fun<remove_reference,int&> h = 3;
+
+  Fun为高阶函数:以函数作为输入参数的函数
+
+  对应的数学表达式:
+  Fun(T1,t2) = T1(t2)     --->  对底层函数原封不动的安装
+
+
+5.以模板作为元函数的输出
+  template<bool AddOrRemoveRef> struct Fun_;
+
+  template<>
+    struct Fun_<true>{ 
+      template<typename T>
+       输出: using type = std::add_lvalue_reference<T>;  
+    }
+
+  template<>
+    struct Fun_<false>{ 
+      template<typename T>
+       输出: using type = std::remove_reference<T>;      
+    }
+
+  通过偏特化完成函数的映射逻辑
+
+  template<typename T>            函数输出相关
+  template<bool AddOrRemoveRef>   函数输入
+    using Fun = typename Fun_<AddOrRemove>::template type<T>;
+
+  template<typename T>
+    using Res_ = Fun<false>;    --> Fun<false>函数的输出:模板元函数
+                                                         template<typename T> using type = std::remove_reference<T>
+
+  Res_<int&>::type h = 3;
+
+
+  数学表达式: Fun(AddOrRemoveRef) = T
+  函数功能:根据输入生成相应的元函数
+
+6.元函数的输入:元数据
+  元数据的基本类型:数值,类型,模板(元函数)
+  扩展类型:容器 ---> 基于可变参数模板variadic template实现
+  1)数值容器
+    template<int... Vals> struct IntContainer;
+  2)类型容器
+    template<typename... Types> struct TypeContainer;
+  3)模板容器
+    template<template <typename>class...T> struct TemplateContainer;    --> 每个模板(元函数)只有一个输入
+    template<template <typename...>class...T> struct TemplateContainer; --> 每个模板(元函数)可有多个输入
+      
+
+7.程序=数据结构+算法
+  元程序的数据结构: 以元数据类型为基础的数据结构.比如一维的容器,二维的矩阵..
+  算法则由基本的顺序,分支,循环组合而成
+
+  1)顺序
+    例子:
+    template<typename T>
+      struct RemoveReferenceConst_{
+        a.  using inter_type = typename std::remove_reference<T>::type;
+        b.  using type = typename std::remove_const<inter_type>::type;
+      }
+    编译器在首次前向扫描时,会先进行声明处理,收集所有已声明的符号的类型
+    若b在a前面,则扫描到b时,则会因为找不到符号inter_type的类型而报错
+
+    struct RunTimeExample{
+      //两条定义语句
+      static void fun1() {fun2();}
+      static void fun2() {cout << "hello" << endl;}
+    }
+    编译器在第一次扫描时收集到符号fun1和fun2的类型
+    在后续的扫描中才会关注到fun1中调用了fun2.此时编译器已经知晓符号fun2的类型,所以不会报错
+
+
+  2)分支:基于(偏)特化实现
+   (偏)特化本来就是用来引入差异的,因此,用其实现分支也是特别自然的
+    a.struct A; struct B;
+      //函数原型:默认输出
+      template<typename T>
+       struct Fun_{
+         constexpr static size_t value = 0;
+       }
+       
+      //完全特化:基于条件的分支输出
+      template<>
+       struct Fun_<A>{
+         constexpr static size_t value = 1;
+       }
+
+      template<>
+       struct Fun_<B>{
+         constexpr static size_t value = 2;
+       }
+       
+    b.若分支的结果是单一的数值,则可用C++14中的语法对上述代码简化:
+      template<typename T>
+       constexpr size_t Fun = 0;
+
+      template<typename T>
+       constexpr size_t Fun<A> = 1;
+
+      template<typename T>
+       constexpr size_t Fun<B> = 2;
+     
+    c.注意点:在非完全特化的类模板中 引入 完全特化的模板是非法的 --> 15页
+
+    d.std::conditonal   
+      实现二元分支逻辑: x = B ? T : F
+      //函数原型
+      template<bool B,typename T,typename F>
+       struct conditonal{
+         using type = T;     //函数输出
+       }
+      //偏特化:比原型具有优先选择权
+      template<bool B,typename T,typename F>
+       struct conditonal<false,T,F>{
+         using type = F;
+       }
+     
+      template<bool B,typename T,typename F>
+       using conditiona_t = typename conditonal<B,T,F>::type;
+
+    e.std::enable_if
+      实现01的选择: x = B ? T : void
+      //函数原型
+      template<bool B, typename T = void>
+        struct enable_if{};
+
+      tempate<class T>
+        struct enable_if{true,T} {using type = T;};
+
+      template<bool B,class T = void>
+        using enable_if_t = typename enable_if<B,T>::type;
+
+      使用场景:模板函数的重载. 
+      template<bool IsFeedbackOut,
+               typename T,
+               enable_if_t<IsFeedbackOut>* = nullptr>
+      auto FeedbackOut(T&&){/*....*/}           //非元函数
+
+      template<bool IsFeedbackOut,
+               typename T,
+               enable_if_t<!IsFeedbackOut>* = nullptr>
+      auto FeedbackOut(T&&){/*....*/}
+
+      只会有一个模板函数匹配成功,另一个则会匹配失败
+      C++秉持SFINAE的理念:Substitution Failure Is Not An Error --> 匹配失败不是错误 
+      在编译期,一个模板函数匹配失败是不会报错的
+
+      上述例子是编译期和运行期结合使用的典型例子:FeedbackOut中包含了运行期的逻辑
+                                                 而选择哪一个FeedbackOut则是通过编译期的分支实现的
+    
+    f.普通函数的return不允许返回多种类型
+      例子:
+      auto wrap1(bool flag){
+        if(flag)
+          return (int)0;
+        else
+          return (float)0;              有两种返回类型 --> 编译出错
+      }
+
+      通过模板函数的重载,实现多种返回类型的模板函数
+      template<bool Check,enable_if_t<Check>* = nullptr>
+        auto fun(){
+          return (int)0;
+        }
+      template<bool Check,enable_if_t<!Check>* = nullptr>
+        auto fun(){
+          return (float)0;
+        }
+
+      template<bool Check>
+        auto wrap(){
+          return fun<Check>();
+        }
+      编译不会出错.
+      模板函数warp有两种返回类型
+      具体返回一种则由模板参数决定 
+      模板参数需要在编译期指定:1)用户编写代码时显示指定
+                               2)编译器调用元函数生成
+
+      核心要义:在编译期选择正确的运行期代码 ----------
+
+      C++17提供if constexpr语法来简化上述代码:
+      template<bool Check>
+        auto fun(){
+          if constexpr (Check){
+            return (int)0;
+          }
+          else {
+            return (double)0;
+          }
+        }
+      编译器在解析时,只会选择if constexpr为true的语句,而忽略其他语句
+      去掉constexpr,分支的选择从编译期转向运行期
+
+  3)循环:通过分支控制递归代码来实现
+    例子:求无符号整数的二进制表示中,1的个数 --> 不断地移位,判断,统计  --> 正常情况下,移位用循环实现
+    递归包括递归体+递归边界 --> 二元分支 --> 用(偏)特化实现
+    //递归体
+    template<size_t Input>
+      constexpr size_t OnesCount = (Input & 1) + OnesCount<(Input >> 1)>;    //返回单个数值的元函数
+
+    //递归边界
+    template<>
+      constexpr size_t OnesCount<0> = 0;
+
+    constexpr size_t res = OnesCount<45>;
+
+    例2:对元数据容器中的数据进行累加求和
+    //递归边界
+    template<size_t..Inputs>                       --> 输入为数值容器
+      constexpr size_t Accumulate = 0;             --> 元函数.输出为0
+
+    //递归体
+    template<size_t CarInput,size_t...Inputs>      --> 可变参数模板的偏特化.可变参数不为空时,会优先选择此模板
+      constexpr size_t Accumulate<CarInput,Inputs...>
+       = CarInput + Accumulate<Inputs...>
+
+    使用:constexpr size_t res = Accumulate<1,2,3,4,5>
+
+    使用C++17中fold expression来简化代码:
+    template<size_t... values>
+      constexpr size_t fun(){return (0+...+values)};
+
+
+8.模板实例化的优化 --> 21页
+
+9.CRTP:Curiously Recurring Template Pattern
+  特点:派生类将自身作为 模板参数 传给基类
+  用于模拟虚函数 --> 要求子类实现某些模板函数或static 函数
+
+  template<typename D>
+  struct Base{
+    //在基类中定义函数fun,所有派生类都会继承之
+    //fun假定派生类会实现Impl函数
+    //正常情况下,将Impl函数声明为基类的虚函数即可
+    //但Impl函数为模板函数,无法声明为虚函数.
+    //所以需要用CRTP来要求派生类必须实现Impl函数,否则其不能调用fun函数 --> 不调用也还是可以编译通过的
+
+    template<typename T>
+      void fun(const T& input){
+        D* ptr = static_cast<D*>(this);     --->    基类调用派生类中模板函数
+        ptr->Impl(input);
+      }
+  }
+
+  struct Derive : public Base<Derive>{
+    template<typename T>
+      void Imp(const T& input){
+        cout << input << endl;
+      }
+  }
+
+  static函数也无法声明为虚函数
+  

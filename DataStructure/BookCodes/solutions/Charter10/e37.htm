@@ -1,0 +1,223 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 37<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+Different chains must have different head nodes because the head node
+of every nonempty chain must
+point to a different next node.
+<br><br>
+<dt>(b)
+<dd>
+The key field of a head node cannot be made to serve any useful purpose.
+Therefore, there is no point in setting it to any particular value.
+<br><br>
+<!--
+<dt>(c)
+<dd>
+The use of a head node simplifies the codes for the <code class=code>put</code>
+and <code class=code>remove</code> methods because we no longer need
+to handle insertion at or removal from the front of a chain as a special case.
+The code is
+given below.
+<br><br>
+<HR class = coderule>
+<pre class = code>
+public class HashChainsWithHeadsAndTail
+{
+   // top-level nested class
+   private static class HashNode
+   {
+      // data members
+      Comparable key;
+      Object element;
+      HashNode next;
+
+      // constructors
+      private HashNode() {}
+     
+      private HashNode(Comparable theKey, Object theElement)
+      {
+         key = theKey;
+         element = theElement;
+      }
+   }
+
+   // data members of HashChainsWithHeadsAndTailTail
+   private int divisor;               // hash function divisor
+   private HashNode [] table;         // hash table array
+   private HashNode tailNode;         // common tail node
+   private int size;                  // number of elements in table
+
+   // constructor
+   public HashChainsWithHeadsAndTail(int theDivisor)
+   {
+      divisor = theDivisor;
+      tailNode = new HashNode();
+      // size has default initial value 0
+   
+      // allocate hash table array
+      table = new HashNode [divisor];
+
+      // every chain has a head node and a tail node on it
+      for (int i = 0; i &lt; divisor; i++)
+      {
+         table[i] = new HashNode();   // head node for the chain
+         table[i].next = tailNode;    // common tail node
+      }
+   }
+   
+   // instance methods
+   /** @return true iff the hash table is empty */
+   public boolean isEmpty()
+      {return size == 0;}
+
+   /** @return current number of elements in the hash table */
+   public int size()
+      {return size;}
+
+   /** @return element with specified key
+     * @return null if no matching element */
+   public Object get(Object theKey)
+   {
+      int b = theKey.hashCode() % divisor;   // home bucket
+   
+      // search home bucket chain
+      // first put theKey into the tailnode
+      tailNode.key = (Comparable) theKey;
+      HashNode currentNode = table[b].next;
+      while (currentNode.key.compareTo(theKey) &lt; 0)
+         currentNode = currentNode.next;
+
+      // did we find a matching element?
+      if (!currentNode.key.equals(theKey) || currentNode == tailNode)
+         // no
+         return null;
+      else
+         // yes
+         return currentNode.element;
+   }
+   
+   /** insert an element with the specified key
+     * overwrite old element if there is already an
+     * element with the given key 
+     * @return old element (if any) with key = theKey */
+   public Object put(Object theKey, Object theElement)
+   {
+      int b = theKey.hashCode() % divisor;  // home bucket
+
+      // search home bucket chain
+      // first put theKey into the tailnode
+      tailNode.key = (Comparable) theKey;
+      HashNode currentNode = table[b].next,
+               previousNode = table[b];
+
+      while (currentNode.key.compareTo(theKey) &lt; 0)
+      {// move to next node on home bucket chain
+         previousNode = currentNode;
+         currentNode = currentNode.next;
+      }
+   
+      // check if element with theKey already in table
+      if (currentNode != tailNode &amp;&amp; currentNode.key.equals(theKey))
+      {// update the element
+         Object elementToReturn = currentNode.element;
+         currentNode.element = theElement;
+         return elementToReturn;
+      }
+   
+      // insert theElement after previousNode and before currentNode
+      HashNode newNode = new HashNode((Comparable) theKey, theElement);
+      newNode.next = currentNode;
+      previousNode.next = newNode;
+
+      size++;
+      return null;
+   }
+
+   /** @return matching element and remove it
+     * @return null if no matching element */
+   public Object remove(Object theKey)
+   {
+      int b = theKey.hashCode() % divisor;   // home bucket
+
+      // search the home bucket for matching element
+      // using a trailing pointer previousNode
+      // first put theKey into the tailnode
+      tailNode.key = (Comparable) theKey;
+      HashNode currentNode = table[b].next,
+               previousNode = table[b];
+
+      while (currentNode.key.compareTo(theKey) &lt; 0)
+      {// move to next node on home bucket chain
+         previousNode = currentNode;
+         currentNode = currentNode.next;
+      }
+   
+      // check if we have a match
+      if (!currentNode.key.equals(theKey) || currentNode == tailNode)
+         // no element with theKey in table
+         return null;
+   
+      // we have a match
+      previousNode.next = currentNode.next;
+      size--;
+      return currentNode.element;
+   }
+   
+   /** output the hash table */
+   public void output()
+   {
+      for (int i = 0; i &lt; divisor; i++)
+      {
+         // output the chain table[i]
+         HashNode currentNode = table[i].next;
+         System.out.print("[");
+         while(currentNode != tailNode)
+         {
+            if (currentNode != table[i].next)
+               // not first element
+               System.out.print(", ");
+            System.out.print(currentNode.element.toString());
+            currentNode = currentNode.next;
+         }
+         System.out.println("]");
+     }
+
+      System.out.println("Table size is " + size);
+   }
+}
+<hr class=coderule>
+</pre>
+
+The test program and output are in the files <code class=code>HashChainsWithHeadsAndTail.*</code>.
+--!>
+<br><br>
+<dt>(d)
+<dd>
+When we use only a common tail node, the space penalty is for just one
+node.  We expect a considerable saving in the run time because the
+loop conditionals are simplified.  Therefore, the use of a common tail
+is recommended. The number of head nodes required equals the number of buckets.
+Since hash tables are typically used with a low loading density, the
+total number of elements (i.e., the value of <code class=code>size</code>)
+is typically a small constant times the number of buckets, say up to ten
+times the number of buckets.  In this case the space overhead of the head nodes
+is <code class=var>10%</code> or more.  For applications that are not
+space/memory constrained, we might as well use the available space
+and reap the small savings in run time and programming complexity that
+the use of head nodes provides. For space constrained applications,
+the use of head nodes is not recommended; head nodes afford very little
+run time reduction and very little program simplification.
+
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,312 @@
+1 所有IO系统调用都以文件描述符来指代打开的文件
+  fd可以指代所有类型的已打开文件--pipe,fifo,socket等
+  shell程序始终打开的三种fd:stderr,stdin,stdout
+  由shell启动的进程会继承这三个fd
+  若命令行对输入/输出进行重定向操作，则shell会对fd做适当修改，然后再启动程序
+
+2 通用IO
+  系统调用 open,read,write,close可以对所有类型的文件执行IO操作，包括终端之类的IO设备
+  要实现通用IO，就要确保每一 文件系统 和 设备驱动程序 都实现相同的IO系统调用集
+
+3 open():可以打开，也可以创建文件
+  int open(const char* pathname, int flags, .../*mode_t mode*/)
+  
+  1)pathname:若为符号链接，则会进行解引用
+  2)...     :为掩码可变参数。用于创建新文件时，指定文件的权限
+  3)返回值  :fd。若open成功，则保证为 进程未用的fd数值中最小者--->用于 以特定fd打开某一文件
+    比如以stdin打开文件
+    if(close(STDIN_FILENO) == -1)    --->先close stdin
+       errExit("close")                  
+    fd = open(pathname,O_RDONLY);    --->stdin未使用，肯定使用stdin打开文件
+    if(fd == -1)
+      errExit("open")
+
+  4)flags:分为三组
+    a.访问模式标志。O_RDONLY,O_WRONLY,O_RDWR。不能同时使用
+    b.文件创建标志。
+      O_CREAT--->需要调用者提供额外的mode值，否则将文件权限设置为栈中的某个随机值
+      O_EXCL --->结合O_CREAT。表明若文件已经存在，则不会打开文件，且open调用失败，错误码EEXIST
+                 确保open的确是创建文件
+      O_CLOSEXEC :为创建的文件的fd启用close-on-exec标志
+                  好处:不用通过fcntl()来为文件添加该标志
+                       fcntl()添加该标志可能会导致race-condition
+                       比如:线程A:调用fcntl()设置标志
+                            线程B:调用fork()和exec() 
+                            线程B的调用在线程A的调用之前结束---->新进程拥有该打开的fd--->打开的fd可能就泄露给来不安全的程序
+     O_NOATIME   :不更新文件的最近访问时间
+                  好处:不用更新文件ionde的最近访问时间--->不用写回磁盘--->减少磁盘的活动量
+                  使用限制p62
+     O_NOFOLLOW  :不对符号链接解引用
+     O_NOCTTY    :若当前文件属于终端设备，可防止其成为控制终端
+     O_TRUNC     :截断
+    c.已打开文件的状态标志
+     O_APPEND
+     O_ASYNC     :打开一个文件，不一定能立马进行IO操作，比如socket文件。
+                  该标志用于:当可以对文件进行IO时，会向进程发送信号。--->信号驱动型IO
+     O_NONBLOCK  :非阻塞式打开文件
+     O_SYNC      :同步式打开文件
+
+   5)错误类型:
+     EACESS  :无法访问--->权限问题，文件不存在
+     EISDIR  :对目录进行写操作
+     EMFILE  :进程本身fd资源数已经耗尽
+     ENFILE  :系统的fd资源数已经耗尽
+     ENOENT  :文件不存在又没有O_CREATE标志
+     EROFS   :企图向只读文件中写入
+     ETXTBSY :指定的文件为可执行文件，且正在运行。系统不允许修改正在运行的程序
+
+4 read() unistd.h
+  ssize_t read(int fd, void* buffer, size_t count)
+  1)buffer:系统调用不会分配内存缓冲区以返回信息给调用者
+           所以，调用者必须自己提供缓冲区
+           但有些库函数会提供缓冲区
+  2)count :size_t为无符号整型。count表示想要读取的字节数
+    ret   :ssize_t为有符号整型。-1表示错误。表示实际读取的字节数
+    ret可能会小于count。
+    比如:从终端读取字符，默认遇到换行结束\n。--提前停止读取
+    代码: 
+     #define MAX_READ
+     char buffer [MAX_READ+1];
+     ssize_t numRead;
+
+     numRead = open(STDIN_FILENO,buffer,MAX_READ);
+     if(numRead == -1)
+       errExit("read");
+     buffer[numRead]='\0';
+     printf("The input data was:%s\n",buffer);
+     
+     注意点:由于从终端可能输入各种各样的数据，文本数据，二进制数等等
+            read无法区分这些数据，也就无法遵从C语言对字符串处理的约定--字符串尾部要有 标识字符串结束 的 空字符 '\0'
+            若要进行printf,则需要显示追加'\0'
+            所以缓冲区大小为MAX_READ+1
+
+5 write()
+  ssize_t write(int fd,void* buffer,size_t count)
+  ret<count,可能是因为文件满了，或者文件大小被限制了
+  write()调用成功不保证立马将数据写入磁盘------>内核会缓存磁盘IO操作---->减少磁盘活动量和加快write()系统调用
+
+6 close()
+  int close(int fd)
+  fd为有限的资源,使用完以后应该尽快释放归还
+  if(close(fd)==-1) --->出错情况:关闭未打开文件,多次关闭,捕获特定文件系统在关闭操作中诊断出的错误
+
+7 lseek()
+  文件偏移量:记录着上次read或者write后的下一字节位置
+  每次read和write都是从文件偏移量开始
+  lseek用于调整文件偏移量
+  off_t lseek(int fd, off_t offset, int whence)
+  1)whence为调准的基点
+    SEEK_SET:文件起始位置。0
+    SEEK_END:文件末尾的下一字节。size
+    SEEK_CUR:当前偏移量
+  2)offset:调整的大小。off_t为有符号整型。
+    若whence为SEEK_SET,offset必须>0
+  3)返回值:新的文件偏移量
+  例子: lseek(fd,0,SEEK_SET)
+        lseek(fd,-1,SEEK_END)
+  4)lseek只是修改了内核中与fd相关的文件偏移量记录，没有引起物理设备的访问
+  5)并不适用于所有文件。比如pipe,fifo,socket
+
+8 文件空洞
+  若文件偏移量跨越了文件结尾，再进行IO操作会如何?
+   read()返回0，表示文件结尾
+   write()则可以在文件结尾处的任何位置写入数据
+  从文件结尾到新写入数据的位置 的这段空间称为文件空洞
+  显然文件空洞中的数据都是0------->很好地构成稀疏文件
+  文件空间的分配都是以块为单位
+  若空洞边界位于块内，则会分配一个完整的磁盘块存储空洞外的数据,块中与文件空洞相关的部分则以0填充
+
+9 深究O_EXCL | O_CREAT --->检查文件是否存在,若不存在,则创建文件。否则open调用失败
+  其中: 检查文件的存在以及创建文件 同属同一原子操作----->可保证当前进程是文件的创建者.
+  检查文件存在，然后打开，这个文件就一定是自己创建的吗?
+
+10 向文件尾部追加数据:先定位，再写入
+  if(lseek(fd,0,SEEK_END) == -1)
+    errExit("lseek");
+  if(write(fd,buf,len) == -1)
+    fatal("write");
+  lseek和write都为原子操作,但不属于同一原子操作
+  race condition:进程A执行完lseek,定位到文件尾部。被切换。执行进程B
+                 进程B执行lseek和write。写完后,切回进程A
+                 此时进程根据之前的定位进行写入------>会覆盖进程B写入的数据
+  解决:将lseek和write绑定到同一原子操作----> O_APPEND | O_WRONLY
+
+11 文件系统底层结构
+  内核维护了三个数据结构
+  1.进程级 open file descriptor表
+    a.close-on-exec标志
+    b.打开文件句柄指针
+  2.系统级 open file description表
+    表中各条目称为:open file handle
+    a.当前文件偏移量
+    b.文件的状态flags
+    c.文件的访问flags
+    d.与信号驱动IO相关的设置
+    e.对inode的引用
+  3.内存inode表
+    a.文件类型
+    b.文件属性
+    c.指针,指向文件所持有的 锁的列表
+    d.block号
+
+不同进程的fd可指向相同open file handle---->其中一个进程对文件偏移量和文件状态的修改会使得其他进程也可见
+close-on-exec则为进程和文件描述符私有
+
+12 fcntl()----->对 打开的fd 执行控制操作
+  int fcntl(int fd, int cmd. ...)
+  1)获取文件的状态标志---->cmd为F_GETFL
+  例:int flags = fcntl(fd,F_GETFL);
+     if(flags == -1)
+       errExit("fcntl");
+   //判断文件是否是以同步方式打开
+     if(flags & O_SYNC)
+   //判断文件的访问模式--->O_RDONLY,O_WRONLY,O_RDWR三个常量并不与文件状态标志的单个比特位对应---->不能简单求&
+     需要先用掩码O_ACCMODE处理，再进一步判断
+     int accessMode = flags & O_ACCMODE
+     if(accessMode == O_WRONLY)
+  2)修改文件的状态标志---->cmd位F_SETFL
+    可以修改的标志:O_APPEND,O_NONBLOCK,O_NOATIME,O_ASYNC,O_DIRECT
+  例:int flags = fcntl(fd,F_GETFL)；
+     if(flags == -1)
+       errExit("fcntl");
+     //标志修改
+     flags |= O_APPEND;
+     if(fcntl(fd,F_SETFL,flags) == -1)
+       errExit("fcntl");
+    应用场景:一开始并没有控制文件的状态
+    a.文件并不是由调用程序打开--->不能使用open来控制文件的状态
+    b.fd的获取是有open之外的系统调用。比如pipe,socket
+
+13 fd的复制
+  1) 2>&1 :将fd2重定向到fd1---->stdout和stderr输出到同一文件
+     实现基础:copy fd1 to fd2---->二者指向同一open file handle
+     问题:二者不能共享文件偏移量指针--->否则会彼此覆盖数据
+          文件不一定是磁盘文件--->文件偏移量指针--->又改如何处理?
+  
+  2)fd复制的几种方式:dup(),dup2(),dup3(),fcntl()
+    
+  3)int dup(int oldfd)
+    copy oldfd and retrun newfd.二者指向同一onen file handle
+    系统保证newfd的编号值最低
+    例如:创建fd1的副本且希望返回fd2
+    close(2)
+    newfd = dup(1)
+
+  4)int dup2(int oldfd, int newfd)
+    close和dup的结合版
+    copy oldfd生成指定的newfd.return newfd
+    会忽略close(newfd)期间出现的错误
+    若oldfd无效，则返回错误EBADE
+    若oldfd=newfd-->donothing
+
+  5)newfd = fcntl(oldfd,F_DUPFD,started)
+    更加灵活的copy fd
+    让newfd位于特定区间范围内:[started  )
+    更加灵活一点
+    newfd = fcntl(oldfd,F_DUPFD_CLOEXEC,started)
+
+  6)int dup3(int oldfd,int newfd,int flags)
+    flags进行额外设置--->O_CLOEXEC---->设置close-on-exec
+
+14 pread()和pwrite()
+   特点:1可以指定位置进行读写，而非始于当前文件偏移量
+        2不改变当前文件偏移量
+   ssize_t pread(int fd,void* buf, size_t count, off_t offset)
+   相当于将以下操作纳入同一原子操作
+   //save current offset
+   off_t org = lseek(fd,0,SEEK_CUR);
+   //change the offset and read
+   lseek(fd,offset,SEEK_CUR);
+   s = read(fd,buf,len);
+   //restore offset
+   lseek(fd,org,SEEK_SET)
+   但性能是高于这些操作之和的----->若需要反复执行lseek和文件IO，pread()和pwrite()是有性能优势的
+
+   用于多线程应用。
+   多线程共享进程的open file descriptor表--->共享同一文件的文件偏移量--->若采用普通的read(),write()--->线程之间互相覆盖彼此操作的数据--->race condition
+
+15 Scatter-Gather IO: readv(),writev()
+   一次性对多个缓冲区进行原子性的读写操作
+   ssize_t readv(int fd, const struct iovec* iov, int iovcnt)
+   iov就为buffer group,iovcnt为buffer数量
+   struct iovec{
+     void* iov_base;     //start address of buffer
+     size_t iov_len;  
+   }
+   iovec数量限制: IOV_MAX--->定义于limits.h
+   glibc对于readv()和writev()的wrapper函数的额外处理:若系统调用因为iovcnt过大而失败，wrapper函数会临时分配一块缓冲区，其大小足以容纳所需要的所有缓冲区
+
+   1)实现分散输入:从文件读取的字节流将依次填满每个buffer,直到文件读取完毕。
+   2)实现集中输出:将所有缓冲区"拼接"起来，集中输出
+
+   readv()和writev()都为原子操作---->保证了操作的数据的连续性---->不会因为其他进程/线程修改了文件偏移量而造成数据断带
+
+   主要优势在于便捷---->相比于多次进行write输出buffer内容而言
+
+   升级版:preadv(),pwritev()------->可从指定的 文件偏移量 处开始IO
+   ssize_t preadv(int fd,const struct iovec* iov, int iovcnt, off_t offset)
+
+16 调整文件大小
+  int truncate(const char* pathname, off_t length)
+  length < filesize -->文件截断
+  lenght > fileszie -->尾部增加文件空洞
+  要对沿途的各目录有x权限，对顶层目录有w权限
+  若pathname为符号链接，则自动进行解引用
+
+  int ftruncate(int fd, off_t length)
+  需先打开文件获取fd，再修改文件大小
+  不会修改文件偏移量
+
+17 O_NONBLOCK标志作用
+  1)open调用未能立即打开文件---->返回错误---->而非陷入阻塞
+  2)open成功后,后续IO操作也是非阻塞的---->后续IO若未能立即完成，则返回EAGAIN或者EWOULDBLOCK错误
+  内核缓冲区保证普通文件不会阻塞---->O_NONBLOCK没有什么大作用
+  网络文件可不一定
+
+18 LF(Large File)
+   文件偏移量 数据类型: off_t --> signed long型 -->能打开文件大小限制: 2G
+   超大文件操作方式
+   1)使用LFS API
+     在编译时定义 _LARGEFILE64_SOURCE 功能测试宏 --> 然后就可以使用64位函数 ---> open64,lseek64....
+     新增数据类型: struct stat64, off64_t
+   2)定义宏 _FILE_OFFSET_BITS 的值为64
+     将open操作位数转为64位,off_t也转为64位
+     好处在于不用对已有程序重新编译就能实现对大文件的操作
+     但前提是编写规范的32位程序代码’
+   
+   向printf传递标准系统数据类型,比如pid_t,off_t --> 可移植的方法是将其转为 long型，并在printf使用%ld限定符
+   off64_t的大小超过了long，需要转为 long long型
+
+19 /dev/fd
+  该目录包含 /dev/fd/n 的文件 ---> n为进程打开的文件的fd --> /dev/fd/0对应于进程的stdin
+  打开/dev/fd/n等同于copy相应的fd --> fd=open("/dev/fd/1",O_WRONLY) 等同于 fd = dup(1)
+  open时,要保证访问flag与源文件的一致
+  
+  /dev/fd符号链接到/proc/self/fd
+
+  用于shell中，方便标识stdin,stdout或者其他文件
+  比如: ls | diff /dec/fd/0 oldfilelist
+  ls的stdout与diff的stdin连接起来
+
+  /dev/stdin /dev/stdout /dev/stderr 符号链接到 /dev/fd/0,1,2 ---> 更加方便一点
+
+20 创建临时文件
+  仅在运行期使用，程序终止后就删除
+
+  1 int mkstemp(char* template)
+  调用者先给出文件名模板: char tmeplate[]="/tmp/filexxxxxx"
+  最后6位一定是xxxxxx
+  mkstemp根据文件名模板生成唯一的文件名--->会修改template中的xxxxxx--->所以template不能为const
+  并打开该文件,返回一个可用于IO调用的fd
+
+  文件拥有者对mkstemp建立的临时文件具有读写权限，其他用户则没有任何权限
+  且打开文件时使用了O_EXCL标志,保证调用者确实是文件的创造者
+
+  临时文件使用完以后通过 unlink删除
+
+  2 FILE* tmpfil(void)
+    创建名称唯一的临时文件
+    返回一个文件流供stdio库函数使用。文件流关闭后,自动调用unlink删除文件
+
+    
+  

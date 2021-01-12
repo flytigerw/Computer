@@ -1,0 +1,104 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 54, Exercise 3<BR>
+<BR>
+</H1>
+
+Equation 54.5 may be used to compute the
+<code class=var>W<sub>i</sub></code>s in the order
+<code class=var>i = n</code>,
+<code class=var>n-1</code>,
+<code class=var>n-2</code>, ..., <code class=var>1</code>.
+For each
+<code class=var>i</code> we try values of
+<code class=var>k</code> in the order
+<code class=var>i</code>,
+<code class=var>i+1</code>, ...,
+<code class=var>n</code>.
+If <code class=var>hsum(i,k) &gt; H</code>
+for some
+<code class=var>k</code>,
+then we need not try the remaining
+values of
+<code class=var>k</code>.
+<br><br>
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+boolean variableWidthFolding(int h[], int r[], int w[], int n
+                             int theHeight, int theW[], int kay[])
+{// Fold components with heights h[1 .. n] and widths
+ // w[1 .. n] into a rectangle of height theHeight.
+ // r is array of space to be left at column ends.
+ // theW[i] is W_i.
+ // Values of theW[1..n+1] and kay[1..n] are computed
+ // by this method.
+ // Return true iff the folding is possible.
+   theW[n + 1] = 0;
+   // determine sum of widths
+   int widthSum = 0;
+   for (int i = 1; i &lt;= n; i++)
+      widthSum += w[i];
+
+   for (int i = n; i &gt; 0; i--)
+   {// compute theW[i] using Eq. 54.5
+      int hsum = 0,                   // hsum(i,k)
+          wmax = 0,                   // wmax(i,k)
+          minW = widthSum + 1;        // min value for W_i so far
+
+      for (int k = i; k &lt;= n; k++)
+      {
+         hsum += h[k];
+         if (hsum &gt; theHeight)
+            // infeasible
+            break;
+         if (w[k] &gt; wmax)
+            wmax = w[k]; 
+         if (hsum + r[i] + r[k + 1] &lt;= theHeight &amp;&amp;
+             wmax + theW[k + 1] &lt; minW)
+         {
+            minW = wmax + theW[k + 1];
+            kay[i] = k;
+         }
+      }
+      theW[i] = minW;
+   }
+
+   if (theW[1] == widthSum + 1)
+     // infeasible
+     return false;
+   else
+      return true;
+}
+
+void traceback(int kay[], int n)
+{// Output fold points.
+
+   if (kay[1] &gt;= n)
+      cout << "There are no fold points" << endl;
+   else
+   {// there is at least one fold point
+      int i = 1;
+       cout << "The fold points are " << endl;
+      while (kay[i] &lt; n)
+      {
+         i = kay[i] + 1;
+         cout << i + " ";
+      }
+      cout << endl;
+   }
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

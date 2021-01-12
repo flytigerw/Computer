@@ -1,0 +1,21 @@
+
+1.Bind a UNIX socket
+   //create a socket
+   int fd = socket(AF_UNIX,SOCK_STERAM,0);
+
+   //initialize the address structure
+   struct sockaddr_un addr;
+
+   //clear the strctrue so that it is full of terminate null bytes
+    memset(&addr,0,(sizeof(struct sockaddr_un)));
+
+    //specify the fields
+    addr.sa_family = AF_UNIX;
+    const char* pathname = "/tmp/mysock";
+    strncpy(addr.sun_path,pathname,sizeof(addr.sun_path)-1);        //要保证最后一个字符为'0'
+    //atstract name
+    strncpy(addr.sun_path[1],pathname,sizeof(addr.sun_path)-2);
+
+    //bind the socket
+    if(bind(fd,(struct sockaddr*)&addr),sizeof(struct sockaddr_un) == -1)
+      errExit("bind");

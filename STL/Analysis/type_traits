@@ -1,0 +1,14 @@
+
+
+
+
+1.类的四大组件
+  default ctor
+  copy ctor
+  dctor
+  copy =
+  若某一个不是自动合成的，而是自定义的，则成为non-trivial x
+  POD类型:四大组件都是trivial --> 自动合成的 --> 比如int a
+  如果是POD类型，进行拷贝时，可以直接调用 copy = 
+  如果不是，则要调用construct
+

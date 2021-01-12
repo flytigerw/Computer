@@ -1,0 +1,179 @@
+1 execve()
+  丢弃旧有程序，将新程序加载到进程的内存空间中
+  替换旧的堆栈，数据段
+  执行运行时启动代码以及程序的初始化代码，比如C++的静态构造函数
+  然后从main()函数开始运行
+
+  int execve(const char* pathname,char* const argv[], char* const evvp)
+  a.一般,argv[0]=pathname中的basename
+  b.若pathname所指定的 程序文件 设置了set-user-ID权限
+    则会将进程的 effective ID 设置为程序文件的属主(组)ID  ----> 程序运行程序时可以获得临时特权
+  b.雷打不动地返回-1
+  d.errno的情况
+    1)EACCES  -> 权限问题
+    2)ENOENT  -> 所指文件不存在
+    3)ENOEXEC -> 系统无法识别文件格式
+                 例如script文件没有指定 interpreter 的起始行
+    4)ETXTBSY -> 多个进程以写入方式打开了pathname指定的文件
+
+2 构建于execve()之上库函数
+  a.execlp()和execvp()允许程序提供filename而不是pathname
+    系统会在环境变量PATH所指定的目录下去寻找
+  b.execle(),execlp(),execl()的arg参数声明: const char* arg,...
+    即可使用字符串列表来代替char* []数组
+    必须以(char*)NULL结尾
+  c.execve()和execle()可以指定显示指定环境变量
+    其他exe()函数将继承调用者的环境
+
+3 PATH
+  对于login shell而言，其PATH值将由 系统级和特定用户的shell启动脚本 设置
+  由于子进程继承父进程的环境变量 ---> shell执行每个命令时所创建的进程 也就继承了shell的PATH
+
+  通常会将 当前工作目录 排除在root的PATH之外
+
+4 interpreter
+  能够读取并执行文本格式的命令 的程序
+  也可从script中读取和执行命令
+  script的要求
+   a.具有权限 x
+   b.文件的initial line必须指定运行 interpreter 的路径 #! interpreter-path[optional-arg]
+
+  用execve执行script
+   execve(script-path, argv, envp)
+  script的intial line为:
+   #! interpreter-path [optinal-arg]
+  
+  execve()检测到#!后会执行 interpreter程序
+  传递给interpreter参数列表为:interpreter-path [optinal-arg] script-path arg...
+  arg...通过argv传递，出去argv[0]
+  
+5 fd与exec()
+  默认:exec()的调用者所有打开的fd 在exec()执行时保持打开状态，且在新程序中依然有效 
+       新程序就 无需再去了解文件名或者重新打开
+   
+  shell命令: ls /tmp.txt > dir.txt  过程:
+  a.调用fork()创建子进程，子进程运行着shell的拷贝
+  b.子shell以 fd1(标准输出) 打开文件dir.txt
+    采用的方式
+    1)子shell关闭fd1(STDOUT_FILENO)后，open(dir.txt) --> open总是取最小的fd值 --> 故会选择fd1
+    2)shell open(dir.txt) --> 获取新的fd,然后在用dup2(newFd, STDOUT_FILENO)将标准输出更改为newFd
+      更加安全 --> 不依赖打开文件fd的低值取数原则
+  c.子shell执行(exe())ls程序，将结果输出到 STDOUT_FILENO --> 重定向到dir.txt
+  
+  shell内建命令:由shell直接运行，不调用fork()或者exec()
+
+  将命令实现为内建命令的目的:
+  a.效率
+    一些频繁使用的命令如(pwd,echo)逻辑简单，直接在shell中运行效率更高
+  b.修改shell本身属性
+    比如:更改shell所存储的信息，修改shell进程的属性等
+    例如cd会改变shell自身的工作目录，故不应在一个独立进程中执行
+
+6 close-on-execve标志FD_CLOEXEC
+  从安全角度，在加载新程序之前应关闭不必要的文件
+  可使用close(),但有局限性
+   a.某些fd可能是有库函数打开的
+     而库函数无法使主程序在执行 exec()之前关闭fd
+     基本原则:库函数总是为其 打开的文件 设置FD_CLOEXEC
+   b.若exec()调用失败，也希望fd保持打开状态
+     close()以后，将其重新打开且fd值不变基本不可能
+  
+  设置FD_CLOEXEC标志:成功执行exec()时会自动close fd
+                     调用失败会保持fd打开
+  
+  采用fcntl设置
+  int flags = fcntl(fd,F_GETFD);
+  if(flags == -1)
+    errExit("fcntl");
+  flags |= FD_CLOEXEC;
+  if(fcntl(fd,F_SETFD,flags) == -1)
+    errExit("fcntl");
+
+  使用dupxx为fd创建副本时，会清除FD_GETFD标志
+  
+7 信号与exec() 
+  exec()执行期间会丢弃进程的文本段 --> 调用进程创建的signal handler disappear --> 内核将其重置为SIG_DFL
+
+  对于SIGCHLD信号，其dipostion若为SIG_IGN，则可避免僵尸进程的产生
+  那么exec()时，是否会将SIGCHLD的dipostion重置为SIG_DFL呢？
+  平台不一，处置也不相同
+
+  老程序的数据，堆栈被毁 --> 通过sigaltstack()建立的备选信号也会丢失
+  在调用exec()期间不会保护备选信号栈 --> 将所有信号的SA_ONSTACK位清除
+                  但会保留进程signal mask以及pending signal 的设置 --> 新程序会继承
+
+8 执行shell命令: int system(const char* cmd)
+  fork生成子shell并exec()执行命令
+  优点:
+   a.会处理错误和信号
+   b.在执行cmd之前会进行常规的shell处理，替换和重定向操作
+  缺点:
+   低效率:会至少创建两个进程(子shell以及执行命令的进程)
+  返回值:
+   a.当cmd为NULL时，若shell可用则返回非0，否则返回0
+     系统可能没有shell或者在system()之前调用了chroot()使得shell无效
+   b.当cmd不为NULl时
+     1)无法创建子进程或者无法获取终止状态，返回-1
+     2)若调用成功，返回 执行cmd的子shell的终止状态
+     其判断方式类似 对waitpid()返回的status的判定
+  
+9 system的实现
+  1.简化版
+    比如命令: sh -c "ls | wc"
+    需要fork()创建子shell
+    并在其中调用 execl("/bin/sh","sh","-c".command,(char*)NULL)
+    用waitpid()收集子进程终止状态
+代码为:
+ int status; pid_t childPID;
+ switch(childPID = fork()){
+   case -1:
+    reutrn -1;
+   case 0 :
+    execl("/bin/sh","sh","-c".command,(char*)NULL);
+    _exit(127);
+   default:
+    if(waitpid(childPID,&status,0) == -1)
+      return -1;
+    else
+      return status;
+ }
+
+  2.考虑信号处理
+     若system()的调用者还直接创建了其他子进程B，SIGCHLD handler也调用了wait()
+     当system()创建的子进程退出并产生SIGCHLD信号时，可能在system()调用waitpid()捕获信号之前，主程序的handler就可能先捕获到SIGCHLD信号
+     这一race condition的不良后果
+      a.调用者可能误以为子进程B结束了
+      b.system()无法获取子进程的终止status
+     解决:
+      在system()执行期间，阻塞SIGCHLD信号
+
+   对于SIGINT和SIGQUIT信号:
+     system("sleep 20")
+     会有三个进程
+     a.调用者的进程
+     b.shell
+     c.shell创建的进程 --> sleep
+     三者构成进程组
+     都会一齐收到信号
+     子shell在等待子进程期间会忽略SIGINT和SIGQUIT
+     调用进程在执行命令期间 应该 忽略SIGINT和SIGQUIT
+     
+     子进程 就如同 调用进程调用了fork()和exec()一般
+     exec()会将dipostion为自定义handler 的信号的 dipostion 重置为SIG_DFL  ---> 若信号handler原本为SIG_IGN或者SIG_DFL，则不变
+     
+     system()调用fork()生成 临时子进程 --> 调用execl("/bin/bash")生成shell
+     execl生成的shell会继承 调用者进程(父进程)的信号掩码 --> 父进程阻塞SIGCHLD,但不希望shell也阻塞SIGCHLD --> 临时子进程应该恢复信号掩码
+  3.改进版考虑的点
+    a.当cmd为NULL时，若shell可用，则system()返回非0，否则返回0
+      得出这种结论的方法:尝试运行shell
+      做法:递归调用system()去运行shell命令:，并检查递归调用的返回状态是否为0
+           命令:为内建命令，无所作为却总是成功返回
+           不能仅仅通过access()来判断/bin/sh存在与否 或者 是否具有可执行权限 
+           具有局限性
+           在chroot()环境中，即使具有可执行权限的shell文件存在，若其动态链接库无效，依然无法执行shell
+    
+    b.只有父进程(system()调用者)才需要阻塞SIGCHLD,同时忽略SIGINT和SIGQUIT
+      在fork()执行之前完成
+    c.子进程若execl()失败，调用_exit()而非exit()退出 ---> 防止对子进程stdio buffer中的任何未写入数据刷新
+    d.调用程序可能创建了signal handler ---> 相关signal会打断system()的waitpid()的执行
+      那么，waitpid()必须重新等待      ---> 即若errno=EINTR则循环调用waitpid()

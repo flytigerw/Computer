@@ -1,0 +1,516 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Pairing Heaps<br>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<a href = "#intro">Introduction</a><br>
+<a href = "#definition">Definition and Operations</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#isEmpty">isEmpty, size, and getMax</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#meld">meld (compare-link)</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#put">put</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#increaseKey">increaseKey</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#removeMax">removeMax</a><br>
+&nbsp;&nbsp;&nbsp;<a href = "#remove">remove</a><br>
+<a href = "#consider">Implementation Considerations</a><br>
+<a href = "#complexity">Complexity and an Enhancement</a><br>
+<br><br>
+<a name = "intro"></a>
+<font color=blue><big><big>Introduction</big></big></font><br>
+In the text, we studied two data structures--heaps
+and leftist trees--for the representation of a
+priority queue.
+When a max heap is used to represent a max priority queue, the
+<code class=code>put</code> and <code class=code>removeMax</code>
+operations take <code class=var>O(log n)</code> time,
+where <code class=var>n</code> is the number of elements in the
+priority queue. The remaining priority queue
+operations--<code class=code>isEmpty</code>, <code class=code>size</code>,
+and <code class=code>getMax</code>--take <code class=var>O(1)</code> time
+each. Leftist trees provide the same asymptotic complexity as do heaps.
+Additionally, when a leftist tree is used, two priority queues can be melded
+in <code class=var>O(log n)</code> time.
+<br><br>
+In many applications, we are concerned more with the time it takes to perform
+a sequence of priority queue operations than we are with the time it takes
+to perform an individual operation. For example, when
+we sort using the heap sort method, we are concerned with the time
+it takes to complete the entire sort; not with the
+time it takes to remove the next element from the max heap.
+In these applications, it is adequate to use a data structure that
+has a good <A href="../c2/amortize.htm">amortized complexity</A>
+for each operation type. 
+Fibonacci heaps and pairing heaps are two of the more popular
+priority queue data structures for which the amortized complexity of
+priority queue operations is good.
+<br><br>
+When a max Fibonacci heap is used, the actual and amortized
+complexities of various operations on an <code class=var>n</code> element
+priority queue are
+<br><br>
+<hr class=figurerule>
+<pre class=figure>
+<font color=green>
+Operation        Actual Complexity         Amortized Complexity
+</font>
+isEmpty          O(1)                      O(1)
+size             O(1)                      O(1)
+getMax           O(1)                      O(1)
+put              O(1)                      O(1)
+removeMax        O(n)                      O(log n)
+meld             O(1)                      O(1)
+remove           O(n)                      O(log n)
+increaseKey      O(n)                      O(1)
+<hr class=figurerule>
+</pre>
+<br><br>
+The operation <code class=code>remove(theNode)</code> removes from the
+data structure an arbitrary node <code class=code>theNode</code>,
+and the operation <code class=code>increaseKey(newValue, theNode)</code>
+replaces the key (i.e., the priority)
+in the node <code class=code>theNode</code> by a larger
+value <code class=code>newValue</code> (for a min priority queue, the
+corresponding operation <code class=code>decreaseKey(newValue, theNode)</code>
+replaces the key in the node <code class=code>theNode</code> by a smaller
+value <code class=code>newValue</code>).
+
+<br><br>
+When an auxiliary two pass max pairing heap is used,
+the actual and amortized complexities for the above operations
+are as below.
+<br><br>
+<hr class=figurerule>
+<pre class=figure>
+<font color=green>
+Operation        Actual Complexity         Amortized Complexity
+</font>
+isEmpty          O(1)                      O(1)
+size             O(1)                      O(1)
+getMax           O(1)                      O(1)
+put              O(1)                      O(log n)
+removeMax        O(n)                      O(log n)
+meld             O(1)                      O(log n)
+remove           O(n)                      O(log n)
+increaseKey      O(1)                      O(log n)
+<hr class=figurerule>
+</pre>
+<br><br>
+Although the amortized complexities given above are not known to be
+tight (i.e., no one knows of an operation sequence whose
+run time actually grows logarithmically with the number of
+increase key operations (say)), it is known that
+the amortized complexity of the increase key operation
+is <code class=var>Omega(log log n)</code>. The papers
+<A href="http://www.acm.org/jacm/Upcoming.html">
+<em>On the efficiency of pairing heaps and related data
+structures</em></A>, by M. Fredman
+and
+<em>Information theoretic implications for pairing heaps</em>,
+by M. Fredman, 
+ACM Symposium on the Theory of Computing, 1998 provide an information theoretic
+proof of this lower bound on the amortized complexity of the
+increase key operation for pairing heaps.
+<br><br>
+Experimental studies indicate that pairing heaps actually outperform
+Fibonacci heaps. Therefore, we develop pairing heaps only.
+
+<br><br>
+<a name = "definition"></a>
+<font color=blue><big><big>Definition and Operations</big></big></font><br>
+Pairing heaps come in two varieties--min pairing heaps and max pairing heaps.
+Min pairing heaps are used when we wish to represent a min priority queue,
+and max pairing heaps are used for max priority queues.  In keeping with our
+discussion of heaps and leftist trees in the text, we explicitly discuss
+max pairing heaps here. Min pairing heaps are analogous.
+<br><br>
+A max pairing heap is simply a max tree (see Definition 9.1 of the text)
+in which the operations are performed in a manner to be specified later.
+Four max pairing heaps are shown below.
+Notice that a pairing heap need not be a binary tree.
+<center>
+<font color=blue>
+<img src=pairfig1.gif>
+</font>
+</center>
+<br><br>
+<a name = "isEmpty"></a>
+<font color=blue><big>isEmpty, size, and getMax</big></font><br>
+In a pairing heap, the <code class=code>isEmpty</code> and
+<code class=code>size</code> operations are done
+by maintaining a variable <code class=code>size</code> which gives the
+number of elements currently in the data structure.
+<br><br>
+Since the max element is in the root of the max tree, the
+<code class=code>getMax</code> operation is done
+by returning the element in the root.
+<br><br>
+<a name = "meld"></a>
+<font color=blue><big>meld (compare-link)</big></font><br>
+Two max pairing heaps may be melded into a single max pairing heap 
+by performing a <strong>compare-link</strong> operation.
+In a compare-link, the roots of the two max trees are compared and the
+max tree that has the smaller root is made the leftmost subtree of the
+other tree (ties are broken arbitrarily).
+<br><br>
+To meld the max trees (a) and (b), above, we compare the two roots.
+Since tree (a) has the smaller root, this tree becomes the leftmost subtree
+of tree (b). The resulting tree, tree (e), is shown below.
+<br>
+<center>
+<font color=blue>
+<img src=pairfig2.gif>
+</font>
+</center>
+<br>
+Tree (f) is the result of melding the trees (c) and (d).
+When we meld the trees (e) and (f), the result is the tree (g).
+<br>
+<center>
+<font color=blue>
+<img src=pairfig3.gif>
+</font>
+</center>
+<br><br>
+<a name = "put"></a>
+<font color=blue><big>put</big></font><br>
+To put an element <code class=code>theElement</code>
+into a pairing heap <code class=code>p</code>, we first create a pairing heap
+<code class=code>q</code>
+with the single element <code class=code>theElement</code>, and then meld
+the two pairing heaps <code class=code>p</code> and <code class=code>q</code>.
+<br><br>
+<a name = "increaseKey"></a>
+<font color=blue><big>increaseKey</big></font><br>
+Suppose we increase the key of the element in node <code class=code>theNode</code>.
+When <code class=code>theNode</code> is the root or when the new key in
+<code class=code>theNode</code> is less than or equal to that in its parent,
+no additional work is to be done. However, when the new key in
+<code class=code>theNode</code> is greater than that in its parent,
+the max tree property is violated and corrective action is to be taken.
+For example, if the key in the root of tree (c) is increased from
+<code class=var>7</code> to <code class=var>10</code>, or
+when the key in the leftmost child of the root of tree (c) is increased from
+<code class=var>4</code> to <code class=var>6</code> no additional work
+is necessary. However,
+when the key in the leftmost child of the root of tree (c) is increased from
+<code class=var>4</code> to <code class=var>9</code> the new value is larger
+than that in the root (see tree (h)) and corrective action is needed.
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig4.gif>
+</font>
+</center>
+<br>
+Since pairing heaps are normally not implemented with a parent pointer,
+it is difficult to determine whether or not corrective action is needed
+following the key increase. Therefore, corrective action is taken regardless
+of whether or not it is needed except when <code class=code>theNode</code>
+is the tree root. The corrective action consists of the following steps:
+<ol>
+<li>
+Remove the subtree with root <code class=code>theNode</code> from the
+tree. This results in two max trees.
+<li>
+Meld the two max trees together.
+</ol>
+<br><br>
+Figure (i) shows the two max trees following step 1, and tree (j)
+is the result of step 2.
+
+<br><br>
+<a name = "removeMax"></a>
+<font color=blue><big>removeMax</big></font><br>
+The max element is in the root of the tree. When the root is removed,
+we are left with zero or more max trees (i.e., the subtrees of
+the removed root). In <strong>two pass pairing heaps</strong>, these
+max trees are melded into a single max tree as follows:
+<ol>
+<li>
+Make a left to right pass over the trees, melding pairs of trees.
+<li>
+Start with the rightmost tree and meld the remaining trees (right to left)
+into this tree
+one at a time.
+</ol>
+<br><br>
+Consider the max tree (k). When the root is removed, we get the
+collection of <code class=var>6</code> max trees shown in Figure (l).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig5.gif>
+</font>
+</center>
+<br>
+In the left to right pass, we first meld the trees with roots
+<code class=var>9</code> and <code class=var>4</code>.
+Next, the trees with roots
+<code class=var>6</code> and <code class=var>5</code> are melded.
+Finally,
+the trees with roots
+<code class=var>7</code> and <code class=var>8</code> are melded.
+The three max trees that result are shown in Figure (m).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig6.gif>
+</font>
+</center>
+<br>
+In the second pass (which is a right to left pass), the two rightmost trees
+of Figure (m) are first melded to get the tree of Figure (n).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig7.gif>
+</font>
+</center>
+<br>
+Then the tree of Figure (m) with root <code class=var>9</code>
+is melded with the tree of Figure (n) to get the final max tree
+which is shown in Figure (o).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig8.gif>
+</font>
+</center>
+<br>
+Note that if the original pairing heap had <code class=var>8</code>
+subtrees, then following the left to right melding pass we would be left
+with <code class=var>4</code> max trees. In the right to left pass,
+we would first meld trees <code class=var>3</code> and <code class=var>4</code>
+to get tree <code class=var>5</code>. Then trees
+<code class=var>2</code> and <code class=var>5</code> would be melded
+to get tree <code class=var>6</code>. Finally, we would meld
+trees <code class=var>1</code> and <code class=var>6</code>.
+
+<br><br>
+In <strong>multi pass pairing heaps</strong>, the max trees that remain following
+the removal of the root
+are melded into a single max tree as follows:
+<ol>
+<li>
+Put the max trees onto a FIFO queue.
+<li>
+Extract two trees from the front of the queue,
+meld them and put the resulting tree at the end of the queue.
+Repeat this step until only one tree remains.
+</ol>
+<br><br>
+Consider the six trees of Figure (l) that result when the root of tree (k)
+is removed.
+First, we meld the trees with roots
+<code class=var>9</code> and <code class=var>4</code> and put the resulting
+max tree at the end of the queue.
+Next, the tree with roots
+<code class=var>6</code> and <code class=var>5</code> are melded and
+the resulting
+max tree is put at the end of the queue.
+And then, the tree with roots
+<code class=var>7</code> and <code class=var>8</code> are melded and the
+resulting max tree added to the queue end.
+The queue now contains the three max trees shown in Figure (m).
+Next, the max trees with roots
+<code class=var>9</code> and <code class=var>6</code> are melded and the
+result put at the end of the queue.
+We are now left with the two max trees shown in Figure (p).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfig9.gif>
+</font>
+</center>
+<br>
+Finally, the two max trees of Figure (p) are melded to get the max tree of
+Figure (q).
+
+<br>
+<center>
+<font color=blue>
+<img src=pairfiga.gif>
+</font>
+</center>
+<br>
+
+<br><br>
+<a name = "remove"></a>
+<font color=blue><big>remove</big></font><br>
+The operation <code class=code>remove(theNode)</code> is handled
+as a <code class=code>removeMax</code> operation when
+<code class=code>theNode</code> is the root of the pairing heap.
+When <code class=code>theNode</code> is not the tree root, the
+<code class=code>remove</code> operation is done as follows:
+<ol>
+<li>
+Detach
+the subtree with root <code class=code>theNode</code> from the tree.
+<li>
+Remove the node <code class=code>theNode</code> and meld its subtrees
+into a single max tree using the two pass scheme if we are implementing
+a two pass pairing heap or the multi pass scheme if we are implementing a
+multi pass pairing heap.
+<li>
+Meld the max trees from steps 1 and 2 into a single max tree.
+</ol>
+
+<br><br>
+<a name = "consider"></a>
+<font color=blue><big><big>Implementation Considerations</big></big></font><br>
+Although we can implement a pairing heap using nodes that have a variable
+number of children fields, such an implementation is expensive because
+of the need to dynamically increase the number of children fields as needed.
+An efficient implementation is possible by using the binary tree representation
+of a tree (see Figure 12.15 of the text).
+Siblings in the original max tree
+are linked together using a doubly linked list.
+Each node has the three pointer fields <code class=code>previous</code>,
+<code class=code>next</code>, and
+<code class=code>child</code>.
+The leftmost
+node in a doubly linked list of siblings uses its
+<code class=code>previous</code>
+pointer to point to its parent.  A leftmost child satisfies the property
+<code class=code>x.previous.child = x</code>.
+The doubly linked list makes it is possible
+to remove an arbitrary element (as is required by the
+<code class=code>remove</code> and <code class=code>increaseKey</code>
+operations) in <code class=code>O(1)</code> time.
+<br><br>
+<br><br>
+<a name = "complexity"></a>
+<font color=blue><big><big>Complexity and an Enhancement</big></big></font><br>
+You can verify that using the described binary tree representation,
+all pairing heap operations (other than <code class=code>removeMax</code>
+and <code class=code>remove</code>) can be done in <code class=var>O(1)</code>
+time. The complexity of the
+<code class=code>removeMax</code>
+and <code class=code>remove</code> operations is <code class=var>O(n)</code>,
+because the number of subtrees that have to be combined following
+the removal of a node is <code class=var>O(n)</code>.
+<br><br>
+The paper <em>The pairing heap: A new form of self-adjusting heap</em>,
+Algorithmica,
+1, March 1986, 111-129,
+by M. Fredman, R. Sedgewick, R. Sleator, and R. Tarjan,
+shows that the amortized complexity of the <code class=code>put</code>,
+<code class=code>meld</code>,
+<code class=code>removeMax</code>,
+<code class=code>remove</code>,
+and <code class=code>increaseKey</code> operations is <code class=var>O(log n)</code>,
+and that of the remaining operations is <code class=var>O(1)</code>.
+<br><br>
+Experimental studies conducted by Stasko and Vitter reported in their paper
+<em>Pairing heaps: Experiments and analysis</em>, Communications of the ACM,
+30, 3, 1987, 234-249 establish the
+superiority of two pass pairing heaps
+over
+multipass pairing heaps.
+<br><br>
+The above paper by Stasko and Vitter also proposes a variant
+of pairing heaps
+(called <strong>auxiliary two pass pairing heaps</strong>)
+that performs better than two pass pairing heaps.
+In an auxiliary two pass pairing heap we maintain a main max tree
+<code class=code>mainTree</code>, an
+auxiliary list <code class=var>auxList</code> of max trees, and a pointer
+<code class=code>maxElement</code> to the max tree that has the
+largest root. Initially,
+the tree <code class=code>mainTree</code>, the list
+<code class=code>auxList</code>, and the pointer
+<code class=code>maxElement</code> are all <code class=code>null</code>.
+The <code class=var>isEmpty</code>,
+<code class=var>size</code>, and
+<code class=var>getMax</code> operations are performed exactly as they are
+in an ordinary two pass pairing heap. 
+A <code class=code>put</code> is done by adding a single-node max tree to
+the end of the list <code class=code>auxList</code> and updating the pointer
+<code class=code>maxElement</code> if necessary.
+An <code class=code>increaseKey(newValue, theNode)</code> is done by detaching
+the tree with root <code class=code>theNode</code> from its parent,
+changing the key in <code class=code>theNode</code> to
+<code class=code>theValue</code>, updating <code class=code>maxElement</code>
+if necessary, and adding the tree with root <code class=code>theNode</code>
+to the end of the list <code class=code>auxList</code>.
+<br><br>
+The <code class=code>removeMax</code> operation of an auxiliary two pass
+pairing heap is done as follows:
+<ol>
+<li>
+Meld the max trees in <code class=code>auxList</code> using the multi pass
+scheme. That is, put the trees in <code clas=code>auxList</code> onto a
+FIFO queue and pairwise meld from the front of this queue until only one tree
+remains in the queue. Note that the result of each meld is added to the
+end of the queue.
+<li>
+Meld the main tree and the tree that results from the pairwise melding of
+Step 1.
+<li>
+The root of the single max tree that remains is the max element.
+This root is removed and the subtrees are melded into a single max tree
+using the two pass scheme.
+</ol>
+<br><br>
+The steps for the <code class=code>remove(theNode)</code> operation are:
+<ol>
+<li>
+If <code class=code>theNode = maxElement</code>, then a
+<code class=code>removeMax</code> (as described above for the auxiliary
+two pass pairing heap) is done.
+<li>
+If <code class=code>theNode</code> is the root of a max tree
+<code class=code>T</code>, then a
+<code class=code>removeMax</code> (as described for a two pass pairing heap)
+is done on <code clas=code>T</code>.
+<li>
+Otherwise,
+<dl compact>
+<dt> (a)
+<dd>
+Detach
+the subtree with root <code class=code>theNode</code> from its tree
+<code class=code>U</code>.
+<dt> (b)
+<dd>
+Remove the node <code class=code>theNode</code> and meld its subtrees
+into a single max tree using the two pass scheme.
+<dt> (c)
+<dd>
+Meld the max trees from steps (a) and (b) into a single max tree.
+<dt> (d)
+<dd>
+Leave the resulting tree in <code>auxList</code> if the tree
+<code class=code>U</code> was initially there.
+</dl>
+</ol>
+<br><br>
+To meld two auxiliary two pass pairing heaps, we do the following
+<ol>
+<li>
+Concatenate the auxialiary lists of the two pairing heaps.
+<li>
+Add one of the two main trees to the end of the auxiliary list created
+in step 1.
+<li>
+The other main tree becomes the main tree for the result.
+<li>
+<code class=code>maxElement</code> for the result is the larger of the
+max elements of the two pairing heaps being melded.
+</ol>
+<br><br>
+Although an auxiliary multi pass pairing heap is also defined by
+Stasko and Vitter, this version performs worse than the basic
+multi pass pairing heap.
+</HTML>

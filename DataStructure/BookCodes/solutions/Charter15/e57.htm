@@ -1,0 +1,142 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 57<BR>
+<BR>
+</H1>
+
+
+The first two insertions yield the 2-3 trees shown below.
+<br><pre class=figure>
+[20]        [20, 40]
+</pre>
+The next insert requires us to split the root. We get the following tree.
+<br><pre class=figure>
+        [30]
+       /    \
+    [20]    [40]
+</pre>
+Inserting <code class=var>10</code> results in the tree
+<br><pre class=figure>
+        [30]
+       /    \
+ [10, 20]    [40]
+</pre>
+When <code class=var>25</code> is inserted, a node splits and we
+get the following tree.
+<br><pre class=figure>
+        [20, 30]
+       /   |    \
+    [10]  [25]  [40]
+</pre>
+The tree following the insertion of <code class=var>28</code> is
+<br><pre class=figure>
+        [20, 30]
+      /    |     \
+  [10] [25, 28]   [40]
+</pre>
+The insertion of <code class=var>27</code> results in two node splits.
+The resulting tree is
+<br><pre class=figure>
+               [27]
+              /     \
+            /         \
+        [20]           [30]
+       /    \         /    \
+    [10]  [25]     [28]  [40]
+</pre>
+When <code class=var>32</code> is inserted, we get the following tree.
+<br><pre class=figure>
+               [27]
+              /     \
+            /         \
+        [20]           [30]
+       /    \         /    \
+    [10]  [25]     [28]  [32, 40]
+</pre>
+When <code class=var>36</code> is inserted a node splits,
+and we get the following tree.
+<br><pre class=figure>
+               [27]
+              /     \
+            /         \
+        [20]           [30, 36]
+       /    \         /    |   \
+    [10]  [25]     [28]  [32]   [40]
+</pre>
+When <code class=var>34</code> is inserted, 
+we get the following tree.
+<br><pre class=figure>
+               [27]
+              /     \
+            /         \
+        [20]           [30, 36]
+       /    \         /    |   \
+    [10]  [25]    [28] [32, 34] [40]
+</pre>
+Two nodes split when <code class=var>35</code> is inserted.
+The resulting tree is shown below.
+<br><pre class=figure>
+                    [27, 34]
+                /       |      \
+              /         |        \
+            /           |          \
+        [20]           [30]        [36]
+       /    \         /    \      /    \
+    [10]  [25]    [28]    [32]   [35] [40]
+</pre>
+The insertion of <code class=var>8</code> gives the following tree.
+<br><pre class=figure>
+                    [27, 34]
+                /       |      \
+              /         |        \
+            /           |          \
+        [20]           [30]        [36]
+       /    \         /    \      /    \
+ [8, 10]  [25]    [28]    [32]   [35] [40]
+</pre>
+When <code class=var>6</code> is inserted a node splits
+and we get the following tree.
+<br><pre class=figure>
+                    [27, 34]
+                /       |      \
+              /         |        \
+            /           |          \
+     [8, 20]           [30]        [36]
+    /  |    \         /    \      /    \
+ [6] [10]  [25]    [28]    [32]   [35] [40]
+</pre>
+When <code class=var>2</code> is inserted
+we get the following tree.
+<br><pre class=figure>
+                        [27, 34]
+                    /       |      \
+                  /         |        \
+                /           |          \
+         [8, 20]           [30]        [36]
+        /  |    \         /    \      /    \
+  [2, 6] [10]  [25]    [28]    [32]   [35] [40]
+</pre>
+When <code class=var>3</code> is inserted three nodes split and
+we get the following tree.
+<br><pre class=figure>
+                    [27]
+                  /      \
+                /          \
+              /              \
+            /                  \
+         [8]                    [34]
+        /   \                 /       \
+     [3]    [20]           [30]      [36]
+    /   \  /    \         /    \    /    \
+  [2]  [6] [10]  [25]    [28] [32] [35] [40]
+</pre>
+
+</FONT>
+</BODY>
+</HTML>

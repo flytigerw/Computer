@@ -1,0 +1,57 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 3, Exercise 9<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+<dl compact>
+<dt> (a)
+<dd>
+<em class=math>5n<sup>2</sup> - 6n &lt; 5n<sup>2</sup><em> for
+<em class=math>n &gt;= 1</em>.  So, <em class=math>5n<sup>2</sup> - 6n =
+O(n<sup>2</sup>)</em>.  Also, <em class=math>5n<sup>2</sup> - 6n &gt;=
+5n<sup>2</sup> - n<sup>2</sup> =
+4 n<sup>2</sup></em> for <em class=math>n &gt;= 6</em>.
+So, <em class=math>5n<sup>2</sup> - 6n = Omega(n<sup>2</sup>)</em>.
+Consequently, <em class=math>5n<sup>2</sup> - 6n = Theta(n<sup>2</sup>)</em>.
+<br><br>
+<dt> (c)
+<dd>
+<em class=math>f(n) = 2n<sup>2</sup>2<sup>n</sup> + n log n &lt;
+2n<sup>2</sup>2<sup>n</sup> + n<sup>2</sup> &lt;
+3n<sup>2</sup>2<sup>n</sup></em> for <em class=math>n &gt;= 1</em>.
+So, <em class=math>f(n) = O(n<sup>2</sup>2<sup>n</sup>)</em>.
+Also, <em class=math>f(n) &gt;= 2n<sup>2</sup>2<sup>n</sup></em> for
+<em class=math>n &gt;= 1</em>.  So, <em cass=math>f(n) =
+Omega(n<sup>2</sup>2<sup>n</sup>)</em>.  Therefore, <em class=math>f(n) =
+Theta(n<sup>2</sup>2<sup>n</sup>)</em>.
+<br><br>
+<dt> (e)
+<dd>
+<em class=math>f(n) = sum from (i=0) to n i<sup>3</sup> &lt;=
+sum from (i=1) to n n<sup>3</sup> = n<sup>4</sup></em>
+for <em class=math>n &gt;= 1</em>.  So, <em class=math>f(n) =
+O(n<sup>4</sup>)</em>.
+Also, <em class=math>f(n) &gt;= sum from (i=ceil(n/2)) to n i<sup>3</sup>
+&gt;= sum from (i=ceil(n/2)) to n (n/2)<sup>3</sup>
+= (n - ceil(n/2) + 1)(n/2)<sup>3</sup> &gt;= n<sup>4</sup>/16</em>
+for <em class=math>n &gt;= 1</em>.
+So, <em class=math>f(n) = Omega(n<sup>4</sup>)</em>.  As a result,
+<em class=math>f(n) = Theta(n<sup>4</sup>)</em>.
+<br><br>
+<dt> (g)
+<dd>
+<em class=math>f(n) = n<sup>3</sup> + 10<sup>6</sup>n<sup>2</sup>
+&lt;= n<sup>3</sup> + n<sup>3</sup>
+= 2 n<sup>3</sup></em> for <em class=math>n &gt;= 10<sup>6</sup></em>.
+Also, <em class=math>f(n) &lt; n<sup>3</sup></em> for <em class=math>n &gt; 0</em>.
+So, <em class=math>f(n) = Theta(n<sup>3</sup>)</em>.
+
+</FONT>
+</BODY>
+</HTML>

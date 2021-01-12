@@ -1,0 +1,323 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data StructureAlgorithm& Applications in C++<BR>
+Chapter 15 Exercise 47<BR>
+<BR>
+</H1>
+
+
+The initial configuration is:
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /  \            /    \
+         /    \          /      \
+        /      \        /        \
+       2       6       10        14
+     /  \    /   \    /  \      /  \
+    1   3    5   7   9   11   13   15
+</pre>
+The tree following the
+the deletion of <code class=var>6</code> is shown below.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /  \            /    \
+         /    \          /      \
+        /      \        /        \
+       2       5       10        14
+     /  \       \     /  \      /  \
+    1   3        7   9   11   13   15
+</pre>
+<code class=var>5</code>
+becomes the splay node
+<code class=var>q</code>, and
+<code class=var>p = 4</code> and <code class=var>gp = 8</code>. An LR
+rotation is done and the splay node becomes the root.
+We get the following tree:
+<br><pre class=figure>
+                    5
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               8
+          /               /    \
+         /               /      \
+        /               /        \
+       2               7         12
+     /  \                       /   \
+    1   3                     10    14
+                             /  \   / \
+                            9   11 13 15
+</pre>
+The deletion of <code class=var>7</code> results in the following tree.
+<br><pre class=figure>
+                    5
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4                8
+          /                    \
+         /                      \
+        /                        \
+       2                         12
+     /  \                       /   \
+    1   3                     10    14
+                             /  \   / \
+                            9   11 13 15
+</pre>
+The splay node is <code class=var>8</code>, and a type R rotation is done
+to get the following tree.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            5               12
+          /               /    \
+         /               /      \
+        /               /        \
+       4               10        14
+     /                /  \      /  \
+    2                9   11   13   15
+   / \
+  1   3
+</pre>
+<br><br>
+When <code class=var>5</code> is deleted we get the following tree.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /               /    \
+         /               /      \
+        /               /        \
+       2               10        14
+     /  \             /  \      /  \
+    1    3           9   11   13   15
+</pre>
+<code class=var>8</code> is the splay node. Since the splay node is already
+the root, no rotation is done. The deletion of <code class=var>10</code>
+results in the following tree.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /               /    \
+         /               /      \
+        /               /        \
+       2               9         14
+     /  \                \      /  \
+    1    3               11   13   15
+</pre>
+The splay node is <code class=var>9</code>, and an RL
+rotation is done to get the following tree.
+<br><pre class=figure>
+                    9
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            8               12
+          /               /    \
+         /               /      \
+        /               /        \
+       4               11        14
+     /                          /  \
+    2                         13   15
+   / \
+  1  3
+</pre>
+The deletion of <code class=var>9</code> gives us the following tree.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /               /    \
+         /               /      \
+        /               /        \
+       2               11        14
+     /  \                       /  \
+    1    3                    13   15
+</pre>
+No rotation is done because the splay node, <code class=var>8</code>,
+is already the root.
+<br><br>
+When <code class=var>11</code> is deleted we get the following tree.
+<br><pre class=figure>
+                    8
+                  /    \
+                 /      \
+                /        \
+               /          \
+              /            \
+             /              \
+            4               12
+          /                    \
+         /                      \
+        /                        \
+       2                         14
+     /  \                       /  \
+    1    3                    13   15
+</pre>
+The splay node is <code class=var>12</code>, and
+a type R rotation is done to get the following tree.
+<br><pre class=figure>
+                  12
+                 /  \
+                /    \
+               /      \
+              8       14
+             /       /  \
+            4       13  15
+           /      
+          2      
+        /  \    
+       1    3  
+</pre>
+The tree following the deletion of <code class=var>15</code> is shown below.
+<br><pre class=figure>
+                  12
+                 /  \
+                /    \
+               /      \
+              8       14
+             /       /
+            4       13 
+           /      
+          2      
+        /  \    
+       1    3  
+</pre>
+<code class=var>14</code> is the splay node, and a type R rotation
+is done to get the following tree.
+<br><pre class=figure>
+                   14
+                   /
+                  12   
+                 /  \
+                /    \
+               /      \
+              8       13
+             /       
+            4    
+           /      
+          2      
+        /  \    
+       1    3  
+</pre>
+When <code class=var>12</code> is deleted, the following tree results.
+<br><pre class=figure>
+                   14
+                   /
+                  8   
+                 /  \
+                /    \
+               /      \
+              4       13
+             /       
+            2    
+           / \
+          1  3  
+</pre>
+<code class=var>8</code> is the splay node and a tye L rotation
+is done to get the tree that is shown
+below.
+<br><pre class=figure>
+                  8   
+                 /  \
+                /    \
+               /      \
+              4       14
+             /       /
+            2       13
+           / \
+          1  3  
+</pre>
+The tree following the deletion of <code class=var>13</code> is shown
+below.
+<br><pre class=figure>
+                  8   
+                 /  \
+                /    \
+               /      \
+              4       14
+             /
+            2
+           / \
+          1  3  
+</pre>
+<code class=var>14</code> is the splay node and a type R rotation
+is done to get the following tree.
+<br><pre class=figure>
+                 14
+                 /
+                8   
+               /
+              4
+             /
+            2
+           / \
+          1  3  
+</pre>
+When <code class=var>14</code> is deleted we get the following tree.
+<br><pre class=figure>
+                 14
+                 /
+                8   
+               /
+              4
+             /
+            2
+           / \
+          1  3  
+</pre>
+This time, there is no rotation.
+
+
+</FONT>
+</BODY>
+</HTML>

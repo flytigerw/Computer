@@ -1,0 +1,111 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 16, Exercise 21<BR>
+<BR>
+</H1>
+
+Let
+<code class=code>a[n][n + 1]</code> be the two-dimensional array used
+to store the adjacency matrix
+<code class=var>A</code> of an <code class=code>n</code> vertex graph.
+The diagonal entries of
+<code class=var>A</code> are not stored in
+<code class=code>a</code>.  However, all diagonal elements
+of <code class=code>A</code> are required to be zero.
+Elements <code class=var>A(i,j)</code> with <code class=var>i &lt; j</code>
+are in the upper triangle of <code class=var>A</code> and are stored
+in <code class=code>a[i-1][j-1]</code>.
+Elements <code class=var>A(i,j)</code> with <code class=var>i &gt; j</code>
+are in the lower triangle of <code class=var>A</code> and are stored
+in <code class=code>a[i-2][j-1]</code>.
+<!--
+With these observations, the code for <code class=code>set</code>
+and <code class=code>get</code> takes the form given below.
+A test program and output
+appear
+in the files <code class=code>GraphAdjacencyMatrix.*</code>.
+
+<HR class = coderule>
+<pre class = code>
+public class GraphAdjacencyMatrix
+{
+   // data members
+   boolean [][] a;   // adjacency array
+
+   // constructor
+   public GraphAdjacencyMatrix(int theVertices)
+   {
+      // validate theVertices
+      if (theVertices &lt; 0)
+         throw new IllegalArgumentException
+                   ("number of vertices must be >= 0");
+   
+      a = new boolean [theVertices][theVertices + 1];
+   }
+   
+   // methods
+   /** throws IndexOutOfBoundsException when
+     * either i or j is not between 1 and a.length */
+   void checkIndex(int i, int j)
+   {
+      if (i &lt; 1 || j &lt; 1 || i &gt;  a.length || j &gt;  a.length)
+         throw new IndexOutOfBoundsException
+             ("i = " + i + "  j = " + j + " vertices = "
+              + a.length);
+   }
+
+   /** return A(i,j) */
+   public int get(int i, int j)
+   {
+      checkIndex(i, j);
+
+      // diagonal entry is always zero
+      if (i == j)
+         return 0;
+   
+      // not a diagonal entry
+      if (i &lt; j)
+         // upper triangle
+         return (a[i-1][j-1]) ? 1 : 0;
+      else
+         // lower triangle
+         return (a[i-2][j-1]) ? 1 : 0;
+   }
+   
+   /** set A(i,j) = newValue */
+   public void set(int i, int j, int newValue)
+   {
+      checkIndex(i, j);
+
+      // validate newValue
+      if (newValue &lt; 0 || newValue &gt; 1)
+         throw new IllegalArgumentException
+                   ("new value must be 0 or 1");
+   
+      // store newValue
+      if (i &lt; j)
+         // upper triangle
+         a[i-1][j-1] = (newValue == 1) ? true : false;
+      else
+         if (i &gt; j)
+            // lower triangle
+            a[i-2][j-1] = (newValue == 1) ? true : false;
+           else
+              // diagonal entry
+              if (newValue == 1)
+                 throw new IllegalArgumentException
+                           ("diagonal value must be 0");
+   }
+}
+<hr class=coderule>
+</pre>
+--!>
+
+</FONT>
+</BODY>
+</HTML>

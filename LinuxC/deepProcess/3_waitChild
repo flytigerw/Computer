@@ -1,0 +1,113 @@
+父进程通过waitxx()监控子进程的终止情况
+
+1 pid_t wait(int* status)
+  a.若调用之前 没有子进程终止
+    则会一直阻塞到某个子进程终止
+  b.status反映了子进程如何终止的
+  c.返回终止子进程的PID
+
+  d.出错时返回-1,errno=ECHILD
+    可能是因为 调用进程并没有  子进程了
+
+  等待所有的子进程退出:
+    while( childPid=wait(NULL) != -1 )
+      continue;
+    if(errno != ECHILD)
+      errExit("wait");            //unexpected error
+  
+  wait的局限与不足
+   a.若父进程有多个子进程，无法使用wait等待 特定子进程
+   b.wait()阻塞等待，有时也希望非阻塞等待
+   c.若子进程收到(SIGSTOP,SIGTTIN)而暂停时，或者收到SIGCONT而恢复时，wait不能识别
+  
+2 pid_t waitpid(pid_t pid, int *status, int options)
+  a.pid意义
+    1)>0   -> 等待指定子进程
+    2)=0   -> 等待子进程: GID=调用者的GID
+    3)<-1  -> 子进程的GID=-pid
+    4)=1   -> 等待任意子进程
+  
+  b.options: bit mask
+    1)WUNTRACED  -> 暂停和终止的子进程的信息都可以返回
+    2)WCONTINUED -> 返回因收到SIGCONT而恢复的子进程的信息
+    3)WNOHANG    -> 若pid指定的子进程并未发生改变，则不会发生阻塞等待，而是立即返回0
+
+3 从status判断子进程的状态
+  采用系统宏判断
+  WIFEXITED(status)    -> 子进程正常终止时，返回true ---> WEXITSTATUS(status)返回退出状态
+  WIFSIGNALED(status)  -> 信号kill    --->WTERMSIG(status)返回term信号编号
+  WIFSTOPPED(status)   -> 暂停        --->WSTOPSIG(status)返回stop信号编号
+  WIFCONTINUED(status) -> 恢复        
+
+4 在signal handler中终止进程
+  默认情况下 有些信号会终止进程
+  但终止前希望做一些清理工作
+  于是设置handler,捕获signal
+  先执行清理工作，再将signal的处理恢复为默认，最后给自己发信号
+  void handler(int sig){
+    //perform some cleanups
+    signal(sig,SIG_DFL);
+    raise(sig);
+  }
+
+5 int waitid(idtype_t idtype, id_t id, siginfo_t* info, int options)
+  idtype和id组合，更为精确地指定子进程
+  a.idtype
+    1)P_ALL  :  可以等待任何子进程，同时忽略id
+    2)P_PID  :  等待PID=id的子进程
+    3)P_PGID :  等待GID=id的所有子进组   若id=getpgrp()   ---->  调用者所在的进程组
+  b.options:
+    1)WEXITED   :  等待已终止的子进程，无论是否正常返回
+    2)WSTOPPED  :  等待因信号而暂停的子进程
+    3)WCONTINUED:  因信号而恢复
+    4)WNOHANG   :  不阻塞等待
+  c.siginfo_t的字段 p456
+  
+  若指定了NOHANG,waitid()返回0(成功)的情况:
+   a.有子进程的状态已经改变，信息写入siginfo_t中
+   b.没有子进程的状态改变 ----> 有些系统会将siginfo_t内容清0，有些则保持原样  ----> siginfo_t中si_pid该怎么判断呢?
+  编写可移植程序的办法:先将siginfo_t清0
+  siginfo_t info;
+  xxxxxxxxxxxxxx
+  memeset(&info,0,sizeof(siginfo_t));
+  if(waitid(idtype,id,&info, options|NOHANG) == -1)
+    errExit("waitid");
+    if(info.si_pid){
+      //No children changed state
+    }else{
+      //A child changed state; details are provided in info
+    }
+
+6 wait3和wait4 p457
+  未纳入标准，看看就行
+
+7 孤儿和僵尸进程
+  父，子进程之间的生命周期互有长短
+  若父进程先die ---> 子进程变为孤儿进程 ---> init()进程接管孤儿进程  ---> 子进程getppid()=1
+  若子进程先die ---> 内核将释放子进程的大部分资源，但保留内核进程表的一条记录，包含了子进程ID，终止状态，资源使用数据
+                     以确保父进程调用wait()时，能够获取子进程的终止状态信息
+                     此时子进程即为 僵尸进程  ---> 无法通过信号SIGKILL kill
+                     父进程调用waitxxx()后，内核剔除僵尸进程
+  若父进程未调用waitxx()就die,那么init()进程会接管僵尸进程并自动调用waitxxx()
+  
+  若父进程就是不调用waitxx() ---> 可能会存在大量僵尸进程，填满内核进程表 ---> 阻碍新进程的创建  ---> 由于僵尸进程无法通过信号kill ---> 只能通过信号kill父进程，然后由init进程接管，自动调用wait(),清理僵尸
+  
+8 子进程的终止为异步事件   ---> 终止时间 也还 依赖于子进程在何时使用CPU
+  父进程无法预知
+  父进程应该及时调用wait()防止僵尸进程的累积
+  两种策略:
+   a.父进程调用不带 WNOHANG标志的waitxx(),阻塞等待      ----> 但有时希望非阻塞等待
+   b.周期性调用带有 WNOHANG标志的~~~,针对已终止子进程进行非阻塞式轮询 ---> 反复调用非阻塞式查询浪费CPU
+  
+  利用SIGCHILD的handler
+   无论子进程何时终止，内核都会向父进程发送SIGCHILD信号，默认操作为 忽略
+   可以为SIGCHILD install handler 来收拾僵尸
+   注意点:
+   a.调用handler时，默认会阻塞引发调用的信号,除非使用sigaction时指明NO_DEFFER -> 调用handler时，又有子进程死掉怎么办?
+   b.SIGCHILD为标准信号，不会对其到来进行 排队处理 -> 调用handler时，有多个子进程死掉怎么办?
+   解决:
+   在handler中以 WNOHANG调用waitpid()(while),收拾掉所有的僵尸 -> 调用handler之前死掉的子进程以及调用handler时死掉的子进程
+   由于waitpid()可能会 修改全局变量errno，所以应该先保存errno
+
+9 使用signal()显示将SIGCHLD dipositon 置为SIG_IGN  ---> 后续子进程终止时会立即被删除，不会转为僵尸进程 ---> 对子进程的状态不管不问 --->  wait()也就不会返回子进程的任何信息
+

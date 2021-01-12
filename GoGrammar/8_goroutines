@@ -1,0 +1,173 @@
+
+1.使用goroutine创建协程   ---> 运行指定函数，相当于一个任务单元
+  创建多个任务单元并发地执行
+  
+  若goroutine需要执行一个阻塞的系统调用，线程和goroutine会从processor上分离
+  线程会阻塞，等待系统调用的返回
+  同时会创建一个新线程，绑定到processor上，继续处理goroutine运行队列
+  阻塞系统调用返回以后，将goroutine放回运行队列中，将之前的线程放回线程池
+
+2.指定调用的CPU核数
+  var coreNums = flag.Int("n",2,"CPU核心数")    //两个核
+  in main()  
+  flag.Pars()
+  runtime.GOMAXPROCS(*coreNums)      
+  GOMAXPROCES:调度器可创建的处理器数量(每个处理器对应一个线程)
+
+3.每个线程都有一个主协程
+  主协程结束 ---> 线程运行结束 ----> 子协程也会消亡
+
+4.并行查找
+  将大数组分为若干不重复的切片
+  然后给每个切片启动一个协程进行查找
+
+5.协程创建
+  go function(args)
+  在function中可使用runtime.Gosched()进行协程切换
+
+6.并发通信模型
+  1)共享数据
+    需要加锁保护
+    例子:
+	  var c int = 0     //共享的数据
+	  func increment(lock *sync.Mutex){     //写者任务
+		  lock.Lock()
+		  c++
+		  lock.Unlock()
+	  }
+	
+	  func main(){
+	  	m := &sync.Mutex{}
+		  for i:=0;i<10;i++{
+			  go increment(m)              //创建10个协程 ---> 10个写者
+		  }
+		  for{      //主协程作为读者，读取变量者
+			  m.Lock()
+			  c := counter
+			  m.Unlock()
+			  runtime.Gosched()       //协程切换 
+			  if c >= 10{
+			  	break
+			  }
+		  }
+	  }
+	
+	2)通信机制
+	  每个并发单元都是独立的个体，有自己的变量 ----> 不共享
+	  并发单元之间通过channel通信，以此来共享彼此的数据
+	
+	不使用共享内存来通信，而是用通信来共享数据
+
+7.channel
+  1)类型相关
+    一个channel只能传递一种类型的值
+  2)使用例子
+    func increment(c chan int){
+			c <- 1      //将1送入到channel中,并且会阻塞到有fiber从其中读取数据
+	  }
+	  func main(){
+		  chs := make(chan[],int,10)    //10个channel
+		  for i:=0; i<10;i++{
+			  chs[i] = make(chan int)   //创建channel
+			  go increment(chs[i])      //为每个协程分配一个channel
+		  }
+	  	for _,ch := range chs{
+		    	<- ch                     //逐个获取channel中的数据
+			             						  //若channel为空，则阻塞
+		  }
+   }
+  3)基本语法例子
+    var m map[string] chan int   ---> 管理一堆channel,为每个channel命名
+    ch <- value : 写入，阻塞式
+	  value <- ch : 读取，阻塞式 
+   
+  4)select 
+    用于监控 多个channel的读写操作  ---> 若检测其中一个channel的IO可以执行，则执行之
+	  select{
+	   case <-chan1:                 //read
+		 case chan2 <- 2:			  //write 
+		 default:
+	  }
+	  只要一个case完成，就会跳出select
+   
+  5)当需要持续传输大量数据时，就需要为channel加上缓冲(设置容量)，从而到达消息队列的效果
+    c := make(chan int,1024)
+	  write可以在向channel一直写，在缓冲区被填满之前都不会阻塞
+   
+  6)为通道操作添加定时机制
+    若操作阻塞到超时，则进行相应的处理
+	  借助select实现定时机制:
+	  timechan := make(chan bool,1)
+	  go func(){
+	  	time.sleep(1e9)
+		  timechan <- true
+	  }()                             //两个协程:计时协程+任务协程
+		                							 //若任务超时，则select会命中timechan
+	  select{
+		 case <- ch:
+		 case <- timechan:
+	  }
+	
+	7)单向channel
+	  var ch1 chan int              ---> 双向channel
+	  var ch2 chan <- float64       ---> 单向，只能向其中写入float64数据
+	  var ch3 <-chan int            ---> 单向，只能从其中读出int数据
+	  但一般是先声明一个双向channel，将channel两端转型为单向的读写channel
+	  ch1 := make(chan int)
+	  ch2 := <-chan int(ch1)
+	  ch3 := chan<-int (ch1)
+  8)channel关闭
+     close(ch)
+	 判断是否关闭:  //看能否读取到数据
+	 x,open := <-ch 
+利用channel实现pipe
+假设pipe传递整形数
+
+type PipeData struct{    
+	value int 
+	handler func(int) int            //将数据处理好以后送入到channel中 
+	c chan int 
+}
+
+func handle(queue chan *PipeData){
+	for data := range queue{           //通过range遍历channel中的数据,而且可以检测到通道是否关闭
+		data.c <- data.handler(data.value)
+	}
+}
+
+
+并行计算例子: n个整数的相加
+假设有m个CPU核，则创建m个协程，每个协程完成 n/m 个数的相加
+
+func(v Vector)DoPart(i,n,u vector,c chan int){   //i为下标起点，n为终点
+	for ;i<n;i++ 
+	 v[i] += u.Op(v[i])
+	c <- 1     //通知我已经完成任务
+}
+const NCPU = 8
+func(v Vector) DoAll(u Vector){
+	c := make([]chan int,NCPU)
+	for i:=0;i<NCPU;i++{
+		go v.DoPart(i*len(v)/NCPU,(i+1)*len(v)/NCPU,u,c)
+	}
+	//等待所有协程完成任务
+	for i:=0;i<NCPU;i++{
+		<-c  
+	}
+}
+		
+
+func server(workchan <-chan *Work){  //任务队列
+	for work := range workchan{
+		go DoWork(work)             //分配协程执行任务
+	}
+}		
+
+func DoWork(work *Work){
+	defer func{
+		if err:= recover(); err != nil{    //捕捉异常，打印日志
+			log.Printf(xxxxx)
+		}
+	}()
+	do(work)         //里面可能发生panic ---> 协程挂掉 ----> 但不影响其他协程
+}

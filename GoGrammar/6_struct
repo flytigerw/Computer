@@ -1,0 +1,83 @@
+
+
+1.结构体
+ 1)定义
+  type name struct{
+	  field1 type1
+	  field2 type2
+  }
+ 2)创建
+   通常使用new为其分配内存
+   var t *m_struct
+   t = new(m_struct)
+   又或者: t := &m_struct(args)  --> 其也会调用new
+   对象声明: var t m_struct
+ 3)成员访问
+   指针和普通对象均使用 . 访问struct的内部成员
+ 
+ 4)字段有可选的标签
+   比如
+   type m_struct struct{
+		field1 bool "是否有存货"
+   }
+   标签可通过反射获取
+   a.reflect.TypeOf()可以获取变量的类型 --> var_type
+   b.若变量类型为struct,则可通过var_type.Field(idx)取得指定索引的字段 ---> m_field
+   c.m_field.Tag ---> 标签内容
+
+ 5)匿名字段
+   比如:
+   type m_struct struct{
+	   int
+   }
+	 可直接 m_struct.int进行访问 ----> 匿名字段的类型必须唯一
+
+ 	 通常可内嵌匿名结构体(通过组合实现继承) 
+	 type out struct{
+	    in 
+	 }
+	 out可直接访问in的方法
+
+   也可以内嵌多个匿名结构体来实现多继承
+	 type Camera struct{}
+	 func (c *Camera) TakePhoto(){}
+	
+	 type Phone struct{}
+	 func (p *Phone) Ring(){}
+	
+	 type CameraPhone struct{
+	  	Camera
+	 	  Phone
+	 }
+	 CameraPhone可以调用Camera和Phone的方法
+	
+2.方法
+  1)类似函数，但含有receiver ---> 只有receiver类型的对象才可调用该方法  ---> 在方法中就可以访问对象的成员 ---> 类似this
+    receiver不能是interface
+    对于自定义struct,receiver通常为 *struct ---> 性能开销小，而且可以改变源数据
+  
+  2)方法支持重载 ----> receiver可以不同
+  
+  3)接口的实现:只需要实现该接口要求的所有方法即可
+  
+  4)为内置类型定义别名，然后再为其添加方法，使得内置类型可以像普通struct一样使用
+    type Integer int 
+	  func (a Integer) Less(b Integer) bool{
+		  return a < b 
+	  }
+	  var a Integer = 1
+	  a.Less(2)
+
+3.为私有struct定义工厂函数 ---> 不用new产生struct
+  type file struct{     //私有struct,不能在其他包中new
+	  fd int 
+	  name string 
+  }
+  func NewFile(fd int,name string) *File{   //强制调用者使用该工厂函数
+	  if fd < 0{
+	  	return nil
+	  }
+	  return &File{fd,name}
+  }
+  
+  

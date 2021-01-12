@@ -1,0 +1,39 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 7<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+The nonrecursive function is in the file <code class=code>iterativeFactorial.cpp</code> .
+The code is given below.
+
+<BR>
+</P>
+<HR class = coderule>
+<PRE class = code>
+int factorial(int n)
+{// Return n!.
+   if (n &lt;= 1)
+      return 1;
+   int fact = 2;
+   for (int i = 3; i &lt;= n; i++)
+      fact *= i;
+   return fact;
+}
+<HR class = coderule>
+</pre>
+<br><br>
+For this nonrecursive function, <code class=var>S<sub>factorial</sub>(n) = 0</code>
+while the
+space requirements of the recursive version are <code class=var>8 * max{n, 1}</code> (see Example 2.5).
+The nonrecursive version
+uses less space than its recursive counterpart.
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,174 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 14, Exercise 21<BR>
+<BR>
+</H1>
+<dl compact>
+<dt>(a)
+<dd>
+The complete binary tree is (node format is <code class=var>[leftSize, key]</code>):
+<br><pre class=figure>
+                               [7, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [3, d]                    [1, j]
+               /      \                  /      \
+         [1, b]       [1, f]         [0, i]     [0, k]
+        /      \     /      \
+   [0, a]  [0, c] [0, e]   [0, g]
+</pre>
+<br><br>
+<dt>(b)
+<dd>
+The tree after <code class=code>insert(4, m)</code> is:
+<br><pre class=figure>
+                               [8, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [3, d]                    [1, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [0, i]     [0, k]
+        /      \     /      \
+   [0, a]  [0, c] [1, e]   [0, g]
+                  /
+               [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>insert(9, n)</code> is:
+<br><pre class=figure>
+                               [8, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [3, d]                    [2, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [1, i]     [0, k]
+        /      \     /      \          /
+   [0, a]  [0, c] [1, e]   [0, g]    [0, n]
+                  /
+               [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>insert(0, p)</code> is:
+<br><pre class=figure>
+                               [9, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [4, d]                    [2, j]
+               /      \                  /      \
+         [2, b]       [2, f]         [1, i]     [0, k]
+        /      \     /      \          /
+   [1, a]  [0, c] [1, e]   [0, g]    [0, n]
+     /             /
+   [0, p]        [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>insert(14, q)</code> is:
+<br><pre class=figure>
+                               [9, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [4, d]                    [2, j]
+               /      \                  /      \
+         [2, b]       [2, f]         [1, i]     [0, k]
+        /      \     /      \          /            \
+   [1, a]  [0, c] [1, e]   [0, g]    [0, n]       [0, q]
+     /             /
+   [0, p]        [0, m]
+</pre>
+<br><br>
+<dt>(c)
+<dd>
+The tree after <code class=code>erase(0)</code> is:
+<br><pre class=figure>
+                               [8, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [3, d]                    [2, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [1, i]     [0, k]
+        /      \     /      \          /            \
+   [0, a]  [0, c] [1, e]   [0, g]    [0, n]       [0, q]
+                   /
+                 [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>erase(3)</code> is:
+<br><pre class=figure>
+                               [7, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [2, c]                    [2, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [1, i]     [0, k]
+        /            /      \          /            \
+   [0, a]         [1, e]   [0, g]    [0, n]       [0, q]
+                   /
+                 [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>erase(8)</code> is:
+<br><pre class=figure>
+                               [7, h]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [2, c]                    [1, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [0, i]     [0, k]
+        /            /      \                       \
+   [0, a]         [1, e]   [0, g]                 [0, q]
+                   /
+                 [0, m]
+</pre>
+<br><br>
+The tree after <code class=code>erase(7)</code> is:
+<br><pre class=figure>
+                               [6, g]
+                              /      \
+                            /         \
+                          /            \
+                        /               \
+                      /                  \
+                [2, c]                    [1, j]
+               /      \                  /      \
+         [1, b]       [2, f]         [0, i]     [0, k]
+        /            /                              \
+   [0, a]         [1, e]                          [0, q]
+                   /
+                 [0, m]
+</pre>
+
+
+</FONT>
+</BODY>
+</HTML>

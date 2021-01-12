@@ -1,0 +1,97 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 54, Exercise 1<BR>
+<BR>
+</H1>
+
+Equation 54.2 may be used to compute the
+<code class=var>W<sub>i</sub></code>s in the order
+<code class=var>i = n</code>,
+<code class=var>n-1</code>,
+<code class=var>n-2</code>, ..., <code class=var>1</code>.
+For each
+<code class=var>i</code> we try values of
+<code class=var>k</code> in the order
+<code class=var>i</code>,
+<code class=var>i+1</code>, ...,
+<code class=var>n</code>.
+If <code class=var>hsum(i,k) &gt; H</code>
+for some
+<code class=var>k</code>,
+then we need not try the remaining
+values of
+<code class=var>k</code>.
+<br><br>
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+boolean equalWidthFolding(int h[], int r[], int w, int n,
+                          int theHeight, int theW[], int kay[])
+{// Fold components with heights h[1 .. n] into a
+ // rectangle of height theHeight.
+ // w is width of each component
+ // r is array of space to be left at column ends
+ // theW[i] is W_i
+ // Values of theW[1..n+1] and kay[1..n] are computed
+ // by this method.
+ // Return true iff the folding is possible.
+   theW[n + 1] = 0;
+   for (int i = n; i &gt; 0; i--)
+   {// compute theW[i] using Eq. 54.2
+      int hsum = 0,              // hsum(i,k)
+          minW = w * n + 1;      // min W_i so far
+
+      for (int k = i; k &lt;= n; k++)
+      {
+         hsum += h[k];
+         if (hsum &gt; theHeight)
+            // infeasible
+            break;
+         if (hsum + r[i] + r[k + 1] &lt;= theHeight &amp;&amp; theW[k + 1] &lt; minW)
+         {
+            minW = theW[k + 1];
+            kay[i] = k;
+         }
+      }
+
+      theW[i] = w + minW;
+   }
+
+   if (theW[1] &gt; w * n)
+     // infeasible
+     return false;
+   else
+      return true;
+}
+
+/** output fold points */
+void traceback(int kay[], int n)
+{// Output fold points.
+
+   if (kay[1] &gt;= n)
+      cout << "There are no fold points" << endl;
+   else
+   {// there is at least one fold point
+      int i = 1;
+      cout << "The fold points are " << endl;
+      while (kay[i] &lt; n)
+      {
+         i = kay[i] + 1;
+         cout << i + " ";
+      }
+     cout << endl; 
+   }
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

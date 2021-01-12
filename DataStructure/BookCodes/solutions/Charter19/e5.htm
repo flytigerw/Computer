@@ -1,0 +1,138 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 19, Exercise 5<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt> (a)
+<dd>
+Equation 20.1 becomes
+<code class=var>f(n,y) = 0</code> for
+<code class=var>0 <= y < w<sub>n</sub></code>,
+<code class=var>f(n,y) = p<sub>n</sub></code> for
+<code class=var>w<sub>n</sub> <= y < 2w<sub>n</sub></code>,
+and
+<code class=var>f(n,y) = 2p<sub>n</sub></code> for
+<code class=var>y >= 2w<sub>n</sub></code>.
+<br><br>
+Equation 20.2 becomes
+<code class=var>f(i,y) = f(i+1,y)</code> for
+<code class=var>0 <= y < w<sub>i</sub></code>,
+<code class=var>f(i,y) = max{f(i+1,y), f(i+1,y-w<sub>i</sub>) + p<sub>i</sub>}</code> for
+<code class=var>w<sub>i</sub> <= y < 2w<sub>i</sub></code>,
+and
+<code class=var>f(i,y) = max{f(i+1,y), f(i+1,y-w<sub>i</sub>) + p<sub>i</sub>,
+f(i+1,y-2w<sub>i</sub>) + 2p<sub>i</sub>}</code> for
+<code class=var>y >= 2w<sub>i</sub></code>.
+<br><br>
+
+<!--
+<dt> (b)
+<dd>
+The new program incorporates the changes made to Equations 20.1 and 20.2
+into Program 20.2.  The traceback code now needs an additional parameter
+<code class=code>p</code> which is the profit array.
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+public class IterativeDPKnapsack2
+{
+   /** iterative method to solve dynamic programming recurrence
+     * x values may be 0, 1, or 2
+     * computes f[1][c] and f[i][y], 2 &lt;= i &lt;= n, 0 &lt;= y &lt;= c
+     * @param p[1:p.length - 1] gives object profits
+     * @param w[1:w.length-1] gives object weights
+     * @param c is the knapsack capacity */
+   public static void knapsack(int [] p, int [] w, int c, int [][] f)
+   {
+      int n = p.length - 1;   // number of objects
+
+      // initialize f[n][]
+      int yMax = Math.min(w[n] - 1, c);
+      for (int y = 0; y &lt;= yMax; y++)
+         // x[n] = 0
+         f[n][y] = 0;
+      yMax = Math.min(2 * w[n] - 1, c);
+      for (int y = w[n]; y &lt;= yMax; y++)
+         // x[n] = 1
+         f[n][y] = p[n];
+      for (int y = 2 * w[n]; y &lt;= c; y++)
+         // x[n] = 2
+         f[n][y] = 2 * p[n];
+      
+      // compute f[i][y], 1 &lt; i &lt; n
+      for (int i = n - 1; i &gt; 1; i--)
+      {
+         yMax = Math.min(w[i] - 1, c);
+         for (int y = 0; y &lt;= yMax; y++)
+            f[i][y] = f[i + 1][y];
+         for (int y = w[i]; y &lt;= c; y++)
+            f[i][y] = Math.max(f[i + 1][y],
+                          f[i + 1][y - w[i]] + p[i]);
+         for (int y = 2 * w[i]; y &lt;= c; y++)
+            f[i][y] = Math.max(f[i][y],
+                          f[i + 1][y - 2 * w[i]] + 2 * p[i]);
+      }
+      // compute f[1][c]
+      f[1][c] = f[2][c];
+      if (c &gt;= w[1])
+         f[1][c] = Math.max(f[1][c], f[2][c-w[1]] + p[1]);
+      if (c &gt;= 2 * w[1])
+         f[1][c] = Math.max(f[1][c], f[2][c - 2 * w[1]] + 2 * p[1]);
+   }
+   
+   /** compute solution vector x */
+   public static void traceback(int [][] f, int [] p, int [] w, int c, int [] x)
+   {
+      int n = w.length - 1;   // number of objects
+
+      for (int i = 1; i &lt; n; i++)
+         if (f[i][c] == f[i+1][c])
+            x[i] = 0;
+         else
+            if (f[i][c] == f[i + 1][c - w[i]] + p[i])
+            {
+               x[i] = 1;
+               c -= w[i];
+            }
+            else
+            {
+               x[i] = 2;
+               c -= 2 * w[i];
+            }
+   
+      // compute x[n]
+      if (c &lt; w[n])
+         x[n] = 0;
+      else
+         if (c &lt; 2 * w[n])
+            x[n] = 1;
+          else
+             x[n] = 2;
+   }
+}
+<hr class=coderule>
+</pre>
+<br><br>
+<dt> (c)
+<dd>
+It takes <code class=code>O(c)</code> time to compute each
+<code class=code>f[i][*]</code>, <code class=code>1 < i <= n</code>.
+Therefore, the complexity of <code class=code>knapsack</code>
+is <code class=code>O(nc)</code>.
+<br><br>
+The traceback method computes each <code class=code>x[i]</code>
+in <code class=var>O(1)</code> time.  Therefore,
+its complexity is <code class=code>O(n)</code>.
+--!>
+
+</FONT>
+</BODY>
+</HTML>

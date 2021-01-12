@@ -1,0 +1,39 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 7<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithOverloadIndex.h</code>. Test code is
+included in <code class=code>arrayListWithOverloadIndex.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithOverloadIndex : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithOverloadIndex(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      T& operator[](int);
+};
+
+template&lt;class T&gt;
+T& arrayListWithOverloadIndex&lt;T&gt;::operator[](int theIndex)
+{// Return a reference to position theIndex of the list.
+
+    checkIndex(theIndex);
+    return element[theIndex];
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

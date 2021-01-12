@@ -1,0 +1,292 @@
+
+
+形参推导模式:
+ template<class T>
+  void func(ParamType param)
+ 调用:func(expr)
+ 目标:根据expr的类型推到出T和ParamType的类型
+
+ 1)ParamType为指针和引用:T& ---> expr的引用被忽略
+   int x = 27;
+   const int cx = x;
+   const int& rx = x;
+   有:
+   func(x)    -->   T = int
+   func(cx)   -->   T = const int 
+   func(rx)   -->   T = const int ---> 引用被忽略
+ 
+ 2)ParamType为万能引用 T&& 
+   若expr为左值 ---> T与ParamType被推导为左值引用  ---> T被推到为左值引用的唯一情形
+   若expr为右值 ---> 正常推导
+   func(x)  --> x为左值  --> T = int&, ParamType = T&
+   func(20) --> 20为右值 --> T = int,ParamType = int
+   func(cx) --> 传入左值引用 --> T = const int&
+ 
+ 3)ParamType为非指针和引用:T
+   那么param一定是实参的副本  ---> 副本独立于原本，可以被修改---> 实参的底层const(决定本身能否修改)和ref属性会被忽略
+   func(rx) ---> T = int  
+
+2.数组实参
+  函数名和数组名可以退化为指向首元素的指针
+  没有任何函数的形参是数组类型
+  void f(int [])  <--->  void f(int*)
+  const char* name = "hello world\0"; 
+  template<class T>
+   void func(T param);
+  func(name);       ---> name为const char*类型 ---> 含有顶层const ----> 不能修改所指之物
+  推导为:const char*
+
+  形参可以声明为数组的引用
+  void func(T& param)
+  func(name);       ---> T&(paramtype) -> const char(&)[size]  ---> 可以推导出尺寸信息 ---> T=const char
+  Ex:推导出数组的元素个数
+  template<class T,size_t N>
+  constexpr size_t array_size (T (&)[N]) noexcept{
+    return N;
+  }
+  
+3.auto推导 ---> 类似模板推导
+  autoxx     v    =   m;
+  ParamType  形参     实参
+  int x = 27;
+  auto&& rx = 27;   ---> rx类型为int
+  auto&& rx = x;    ---> x类型为int&
+  
+  auto x = {1,2,3};
+  auto将{}推导为initializer_list<T> 再将T推导为int  ----> 发生两次推导
+  auto x = {1,2,3.1}  ---> 第二次推导会失败
+  模板推导则不能将{}推导为initializer_list<T>
+  void f(param);
+  f({1,2,3}) ----> error
+  void f(initializer_list<T>);
+  f({1,2,3}) ----> correct
+
+  decltype ---> 可以推导出expr的类型
+  
+  trailing return type syntax:适用于返回类型依赖于形参类型
+  template<class Container,class Indext)
+  auto F(Container c,Indext idx) -> decltype(c[idx]){
+    return c[idx];
+  }
+  或者
+  decltype(auto) F(Container c,Indext idx){
+    return c[idx];
+  }
+  若只使用auto ---> 指针和引用被忽略 ---> 加上decltype,保证原汁原味
+  添加万能引用和forward
+  decltype(auto) F(Container&& c,Index idx){
+    return forward<Container>(c)[idx];
+  }
+
+  在lambda中使用auto
+  auto x = [](const auto& a,const auto& b){
+    return *a<*b;
+  }               可以应用于任何重载了*和<之物
+
+  function变量:存储闭包。变量指向一个可调用对象
+  function<bool(const int,const int)> y = [](const int* p1,const int* p2){return *p1<*p2;}
+  x调用比y快，且y是function的一个实例 ---> 尺寸固定 ---> 可能不够
+  所以优先使用auto存储闭包
+
+  T x = expr
+  auto x = expr
+  代理型别 ---> 隐形转换为想要的类型
+  vector<bool> --> operator[] 返回 vector<bool>::reference ---> 代理型别 ---> 隐形转为bool
+  Ex:
+  vector feature(const Widget& w);
+  bool fly = feature(x)[5];
+  process(x,fly);
+
+  auto fly = feature(x)[5];   ---- fly 为vector<bool>::reference 类型
+
+  修正:auto fly = static_cast<bool> feature(x)[5];
+
+
+4.Uniform initialization:{}
+  vector x {1,2,3};
+  int x{1};   ----> 非静态成员的初始值
+  atomic<int> x{10} ---> 不可copy的对象
+
+  可以克服Most vexing parse:任何能够解析为声明都要解析为声明
+  widget x(20) -----> 对象
+  widget y()   -----> 优先解释为函数声明
+  widget z{}   -----> 对象  ---> 没有实参 ---> 调用默认构造函数 ---> 并非空的initializer_list 
+  widget m({}) -----> 调用initializer_list构造函数
+
+  int x{1.0}   ----> 禁止内建性别的窄式转换
+
+5.NULL = 0 ---> int类型，并非指针类型
+  a.void f(void*)
+  b.void f(int)
+  f(NULL) ---> f(0) ---> 调用b
+  nullptr ---> 类型为nullptr_t ---> 可以转型为所有裸指针性别
+  f(nullptr) ---> 调用a
+
+6.用using表达函数指针
+  using p_func = void(*) (int);
+  using可以模板化
+  
+  定义一个链表类型，用自己的分配器
+  tydef版本
+  template<class T>
+  struct my_list{
+    typedef list<T,my_alloc<T>> type;
+  }
+  有了类型，才能定义变量
+  my_list<widget>::type x;
+  using 版本:
+  template<class T>
+  using my_list = list<T,my_alloc<T>>;
+  my_list<widget> x;
+
+  template<class T>
+   using remove_const_t = typename remove_const<T>::type;
+  使用using可以减少typename前缀的使用
+
+7.形参为左值，即使类型为右值引用
+  void F(widget&& x);
+
+  move与forward仅仅执行类型的强制转换
+
+  move ---> 无条件地将类型转为右值引用类型 ----> 但并不保证其可移动
+  template<class T>
+  decltype(auto) move(T&& param){  //万能引用，可接受左右值
+      using return_type = remove_referrence_t<T>&&;    //去除T中的引用，比如传入左值，T推导为int& ，再添加&&
+      return static_cast<return_type> param;  //类型转换
+  }
+  可见move可以保留param的const属性
+  移动ctor不接受const对象 ---> 因为其会改变对象的某些状态
+  但copy ctor可接受const对象
+
+  forward ---> 有条件的将类型转为右值引用类型
+  搭配万能应用实现完美转发
+  template<class T>
+  void func(T&& param){
+    func_impl(forward<T>(param));
+  }
+  func_impl(arg)应该根据arg为左值还是右值进行重载
+  但param始终为左值
+  forward的作用:若传入的实参为右值，则将param转为右值引用
+
+8.万能引用:可以绑定到左右值,const等一切事物 ----> 一定涉及到类型推导
+  Ex:T&&, auto&&
+  const T&& -----> 不是万能引用 ----> 而是右值引用
+
+  优先使用基于万能引用的函数模板，而非基于左右值得函数重载
+  例如:
+  基于左右值得函数重载
+  void set_name(const string& name);
+  void set_name(string&& name);
+
+  基于万能引用的函数模板
+  template<class T>
+  void set_name(T&& name){
+    ///xxxx
+    other(forward<T>(name));
+  }
+  当有多个参数时，采用模板的函数包
+  template<class Arg...>
+  void set_name(Arg&&... names){
+    other(forward<Arg>(names...));
+  }
+
+
+9.为Matrix重载+
+Matrix operator+(Matrix&& lhs,const Matrix& rhs){
+  lhs += rhs;
+  return move(lhs);
+}
+ 若没有move,由于lhs为左值,return时会进行拷贝构造Matrix
+ 若有move,若Matrix支持移动构造,则会进行移动构造
+ 
+ RVO(return value optimazaiton)
+  widget make_widget(){
+    Widget w;     //临时对象，和返回值一样 ----> 编译器的优化:在返回值内存上构造该对象 ---> return时不再拷贝或者移动
+    ////
+    return w;
+  }
+ 若最后为return move(w) ---> 返回右值引用 ---> 并不会有RVO
+
+ 故没有必要再要返回的临时(局部对象)上添加move
+
+10.vector<T> names.
+   void func(T&& name){
+     names.emplace(forward<T>(name));
+   }
+   func.(Name);            传入左值 ---> copy到names中
+   func.(string("xx"))     传入右值 ---> 移动到names中
+   func.("hello")          传入右值 ---> 该右值用作构造name的原料
+   重载版本
+   string name_from_idx(int idx);
+   void func(short idx){
+     names.emplace(name_from_idx(idx));
+   }
+   func(10);      //10为int类型, T可以推导为int类型进行精确匹配,但int和short并不为精确匹配 ---> 优先选择精确匹配 ---> 但在此题中会导致错误
+   形参为万能引用的函数时贪婪的
+
+   class person{
+     private:
+       string name;
+     public:
+       //万能构造
+       template<class T>
+        explicit person(T&& x) : name(forward<T>(x)){}
+       //拷贝和移动构造
+       person(const person&);
+       person(person&&);
+   }
+    
+   auto clone(p);  --> 传递const左值 --> 万能引用可推导为const左值引用 ---> 和拷贝构造一样为精确匹配 ---> 选择非模板版本
+  
+
+11.标签分派
+   template<class T>
+   void func(T&& param){
+     func_impl(forward<T>param,is_integral<T>());  //根据是否为整数进行dispatch
+   }
+   template<class T>   //参数泛化版本
+   void func_impl(T&& name,false_type){   //一直进行完美转发,保持最初的实参的左右值属型
+     names.emplace(forward<T>(name));
+   }  
+   //参数特化版本.二者通过标签进行分派
+   void func_impl(int idx,true_type){
+     names.emplace(name_from_idx(idx));
+   }
+   
+   enable_if
+   让函数模板在特定条件下才可以使用
+   比如person:先要求对于.左值对象构造person时,调用copy ctor而禁止万能构造
+   template<typename T,
+              typename = typename enable_if<!is_same<person,
+                                                     typename decay<T>::type
+                                                    >::value
+                                           >::type
+   person(T&& p)
+   若参数为非const左值person ---> T&&推导为person&
+   若参数为const左值person --->   T&&推导为const person&
+   decay用于去掉修饰符
+   当去掉修饰符的类型不等有person时才采用万能构造 ---> 传入其他的万能参数则转交给string处理
+
+   考虑继承问题:
+   class special_person : public person{
+     public:
+        special_person (const special_person& s):person(s)... 
+        在完成基类部分的构造时，由于special_person与person型别不一致 ---> 不精确匹配 ---> 而万能引用精确匹配 --> 调用万能引用
+        修改:将is_same改为is_base_of ----> is_base_of兼容is_same ----> 在此处，只有传入的实参不是由person派上的对象(包括person)，那么模板才会启用
+   }
+   
+   static_assert(is_constructable<string,T>::value,"parameterxxx");
+   若无法用T构造string,则在此处通过static_assert发出编译错误信息
+
+12.引用折叠
+   "引用的引用" 若任一引用为左值引用，则折叠结果为左值引用.否则折叠结果为右值引用
+    int  x = 10;
+    auto&& y = x;
+    auto推导为int& ---> 最后折叠为int&
+    auto&& y = 10;
+    auto推导为int ---> 最后折叠为int&&
+    
+    template<typename T>
+    T&& forward(remove_referrence_t<T>& param){
+      return static_cast<T&&>(param);
+    }

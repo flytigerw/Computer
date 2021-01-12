@@ -1,0 +1,169 @@
+
+
+
+1.Go提供数据库驱动的接口,开发者可根据定义的接口来开发数据库驱动
+  1)sql.Register
+    注册数据库驱动 ----> 在init()中进行注册  ---> 注册数据库名称 + 对应的driver实现 ---> 存储于map中
+	比如sqlite的注册
+	func init(){               //包引入的时候会自动调用包的init函数已完成对包的初始化
+		sql.Register("sqlite3",&SQLiteDriver{})
+	}
+	
+	var drivers = make(map[string]driver.Driver)
+	drives[name] = driver 
+	
+	可见可以注册多种数据库驱动
+  
+  2)driver.Driver  
+    数据库驱动的接口。
+	type Driver interface{
+		Open(name string) (Conn,err)
+	}
+	返回的Conn只能进行一次goroutine操作
+	go goroutineA(conn)          //执行查询
+	go goroutineB(conn)          //执行插入  ----> 混乱而出错
+  
+  3)driver.Conn 
+    数据库连接的接口定义
+	type Conn interface{
+		Prepare(query string) (Stmt,error)         //填入sql语句(可以含有预留参数)，返回Stmt ---> 通过stmt进行查询，更新等操作
+		Close() error 							   //关闭连接，释放资源
+		Begin() (Tx,error)						   //返回一个代表事务处理的Tx,通过它可以进行查询，更新等操作
+	}
+   
+  4)driver.Stmt 
+    准备好的状态，和Conn相关联 ---> 只能用于一个goroutine中
+	type Stmt interface{
+		Close() error 
+		NumInput() int                       //返回当前预留参数的个数
+		Exec(args []Value) (Result,error)    //执行Conn中Preapre的sql语句，传入参数执行Update/Insert,返回Result数据
+		Query(args []Value) (Rows,error)     //执行select操作,返回rows结果集
+	}
+   
+   5)driver.Tx 
+     事务
+	 type Tx interface{
+		Commit() error 
+		Rollback() error 
+	 }
+   6)driver.Result 
+     type Result interface{
+		LastInsertId()(int64,error)    //返回由数据库执行插入操作得到的自增ID 
+		RowsAffected()(int64,error)    //返回影响的元祖数 
+	 }
+   7)driver.Rows 
+     查询返回的结果集
+	 type Rows interface{
+		Columns() []string           //查询的字段
+		Close() error                //关闭迭代器 
+		Next(dest []Value)error      //迭代下一条数据，赋给dest -->不能string ---> string数据会转为[]byte .
+									   若没有数据，则返回io.EOF 
+	 }
+   8)driver.Value 
+     type Value interface{}  ---> 空接口，可以容纳任意数据 
+	 必须驱动能够操作的值:
+	  nil,int64,float63,bool,[]byte,string,time.Time 
+	
+   9)driver.ValueConverter
+     将一个普通的值转为driver.Value
+	 type ValueConverter{
+		ConvertValue (v interface{}) (Value,error) 
+	 }
+	 比如:
+	 1)将driver.value转为数据库对应的字段. int64 ---> uint16
+	 2)将数据库查询结果转为driver.Value值 
+	 3)在scan函数将driver.Value转为用户定义的值
+   10)drive.Valuer 
+     type Valuer interface{
+		Value()(Value,error)
+	 }
+	 自定义类型可实现该方法来转为Value类型的值
+	 
+	 
+mysql例子:
+
+/*
+	database:test
+    table:userinfo,userdetail
+
+create table userinfo(
+	uid int not null auto_increment,
+    username varchar(64) null default null,
+    departname varchar(64) null default null
+    created date null default null,
+    primary key (uid)
+)
+
+create table userdetail(
+	uid int not null default 0,
+    intro text null,
+    profile text null,
+    primary key (uid)
+)
+*/
+
+func checkErr(err error){
+	if err != nil{
+		panic(err)
+	}
+}
+func main()  {
+	//打开驱动，建立连接
+	db,err := sql.Open("mysql","user:password@tcp(localhost:5555)/database?charset=utf8")
+	checkErr(err)
+	//prepare sql语句
+	// ? 占位符 ----> 预留的参数
+	stmt,err := db.Prepare("INSERT userinfo SET username=?,departname=?,created=?")
+	checkErr(err)
+	
+	//执行insert语句
+	res,err := stmt.Exec("张三","研发部门","2017-09-09")
+	checkErr(err)
+	//插入数据，id自增长
+	id,err := res.LastInsertId()
+	checkErr(err)
+	
+	fmt.Println(id)
+	
+	//prepare sql语句
+	stmt,err = db.Prepare("UPDATE userinfo set username= ? where uid=?")
+	checkErr(err)
+	
+	res,err = stmt.Exec("zuolanupdate",id)
+	checkErr(err)
+	
+	//影响的元组数
+	afffect,err := res.RowsAffected()
+	checkErr(err)
+	fmt.Println(afffect)
+	
+	//执行select语句
+	rows,err := db.Query("SELECT * FROM userinfo")
+	checkErr(err)
+	
+	//迭代所有数据
+	for rows.Next(){
+		var uid int 
+		var username string 
+		var department string 
+		var created string 
+		err = rows.Scan(&uid,&username,&department,&created)
+		checkErr(err)
+		fmt.Println(uid,username,department,created)
+	}
+	
+	//prepare sql语句
+	stmt,err = db.Prepare("delete from userinfo where uid = ?")
+	checkErr(err)
+	
+	res,err = stmt.Exec(id)
+	checkErr(err)
+	
+	afffect,err = res.RowsAffected()
+	checkErr(err)
+	fmt.Println(afffect)
+	
+	//释放连接
+	db.Close()
+	
+}

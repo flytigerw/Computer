@@ -1,0 +1,80 @@
+2.libgo学习
+  1)processer
+    负责协程调度
+    在协程阻塞时，切出上下文，并切入一个就绪fiber的上下文继续处理，当没有可执行的fiber时，processor会阻塞等待新的任务
+  2)scheduler
+    每个processor都是一个单独的线程
+    scheduler的主要工作在于:平衡各个processer中的fiber数量，防止饥饿效应 --> 部分processer过忙，部分processer没有task执行
+    如果某个processor卡住，scheduler也会将其中的可运行fiber取出，放到负载最低的processor上 
+
+
+3.libgo使用
+  1)使用关键字go创建fiber
+     go + 函数指针void(*)(), 无参的lambada,functor
+
+  2)fiber创建后，暂存至可执行列表中，等待scheduler调度
+    默认scheduler:co_sched
+    当只有一个线程进行fiber调度时，fiber的执行会严格地按照其创建顺序
+
+  3)co_sched.Start() 
+    co_sched.Start(0) ---> 使用等同于cpu核数量的processer(包括主线程)
+    不想卡主主线程，额外开启线程运行scheduler:
+     thread t([]{co_sched.Start();});
+     t.detach();
+
+  4)自行创建scheduler 
+    co::Scheduler* sched = co::Scheduler::Create();
+    thread t([sched]{sched->Start(4);});
+    //在scheduler上创建一个fiber
+    go co_scheduler(sched) []{.....};
+
+  5)fiber中使用co_yield ----> 让出执行权
+    scheduler选择其他fiber进行调度
+
+  6)多个fiber之间传递数据 ---> 使用channel
+    channel是一个模板类
+    co_chan<int> ch_0; ---->无缓冲区。用于传递整数
+    
+    channel是引用计数语义，在协程间共享直接copy
+    使用:
+    go [=]{   //创建一个fiber，向ch_0中写入1
+              //拷贝捕获channel
+              //由于ch_0没有buffer ----> 会阻塞当前fiber,直到有人从ch_0中读取数据
+      ch_0 << 1;
+    }
+
+   go[=]{
+      int i;
+      ch_0 >> i;
+   }
+
+   带缓冲区的channel 
+   co_chan<std::shared_ptr<int>> ch_1(1); ---> buffer大小为1，传递智能指针
+   go [=]{
+     std::shared_ptr<int> p1(new int(1));
+     //写入一个数据，由于ch_1含有一个缓冲区空位 ---> 可以直接写入而不会阻塞当前协程
+     ch_1 << p1;
+
+    //再次写入 ---> buffer已满 ---> 阻塞当前fiber
+     ch_1 << p1;
+   }
+
+  go[=]{
+     std::shared_ptr<int> ptr;
+     //可以立即完成
+     ch_1 >> ptr;
+     //由于buffer已空 ---> 阻塞当前fiber,等待第一个协程写入数据
+     ch_1 >> ptr;
+  }
+
+  非阻塞模式:
+  co_chan.TryPop(val):读出数据
+  co_chan.TryPush(val):写入数据
+
+  超时机制的支持
+  co_chan.TimedPush(time);
+  co_chan.TimedPop(time);
+
+  channel线程安全 ---> 含有读写锁
+  channel可以跨越多个scheduler
+

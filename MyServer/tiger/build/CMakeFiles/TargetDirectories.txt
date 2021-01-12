@@ -1,0 +1,4 @@
+/root/MyServer/tiger/build/CMakeFiles/rebuild_cache.dir
+/root/MyServer/tiger/build/CMakeFiles/edit_cache.dir
+/root/MyServer/tiger/build/CMakeFiles/tiger.dir
+/root/MyServer/tiger/build/CMakeFiles/test_context.dir

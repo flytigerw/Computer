@@ -1,0 +1,122 @@
+
+1.Some apps need to be able to monitor files or dirs in order to determin whther events have occured for the monitored objects
+  Ex:A daemon may monitor its configuration file in order to know if the file has been changed 
+
+2.The key steps to use inotify API:
+  1)Use inotify_init() to create an inotify instance 
+    It returns a fd that refers to the inotify instance 
+  2)Inform the kernel about which files are of interest by using inotify_add_watch() to add items to watch list of the inotify instance 
+    Each watch item consists of a pathname and an associated bit mask
+    The bit mask specifies the set of events to be monitored for the pathname
+    This func returns a watch desriptor
+    inotify_rm_watch() performs the converse task
+  3)Use read() on the inotify instance to obtain the event notifications
+    Each successful read() returns inotify_event structure,each containing information about an event that occured on one of the pathnames being watched
+  4)When the app has finished monitoring,it closes the inotify fd
+    This automatically removes all watch items associated with inotify instance
+
+2.int inotify_init(void)
+  It creates an inotify instance
+  It returns a fd that is the handle used to refer to the inotify instance in subsequent operations
+
+  int inotify_init1(int flag)
+  It performs the same task as inotify_init() but provides an additional flag --> IN_CLOEXEC,IN_NONBLOCK
+  We can use fcntl() to achieve the same result
+
+  int inotify_add_watch(int fd,const char* pathname,uint32_t mask);
+  It either adds a new watch item or modifies an existing watch item in the watch list for the inotify instance
+  1)pathanme
+    The caller must have read permission on this file
+    As long as the watch item continues to exist,the caller will continue to receive event notifications even if the file permissions are later changed so that the caller no longer has read permission on the file
+  
+  2)If the pathname has not previously been added to watch list for fd,then it creates a new watch item in the list and returns a new unique watch descriptor which is used to refer to the watch item in later operations
+    Other wise,it modifies the mask of an existing watch item.
+  
+  3)mask
+    It specifies the events to be motified for pathname
+    They can be seen in pdf 378
+    Some details:
+     a.IN_ATTRB
+       It occurs when file metadata(stored in inode) such as permissions,ownership,link count,extended attr,UID,GID is changed
+     b.IN_DELETE_SELF
+       It occurs when the object(file or dir) that is being monitored is deleted
+       IN_DELETE
+       It occurs when the monitored object is a dir and one of the files it contains is deleted
+
+    c.IN_MOVE_SELF
+      It occurs when the object that is being monitored is renamed
+      IN_MOVE_FROM and IN_MOVED_TO
+      They occur when one object within the monitored dir is renamed(mv)
+      The former event occured for the dir containing the oldname and the latter event occured for the dir containing the newname
+
+    d.If we perform inotify_add_watch() that specifies the pathname that has been monitored via this inotify fd,then by default,the given mask will replace the current mask for this watch item
+      Using IN_MASK_ADD,then the current mask is modified by ORing the given mask
+    e.IN_ONLYDIR
+      If the pathname to be monitored is not a dir,then inotify_add_watch() fails with error ENODIR
+    
+
+  int inotify_rm_watch(int fd,uint32_t wd);
+  It removes the watch item specified by wd from the inotify instance referred to by fd
+  Removing a watch item causes an IN_IGNORED event to be generated for this watch descriptor
+
+3.Haing registered watch items in the watch list,an app can determine which evevts have occured by read() to read events from the inotify fd 
+  If no events have occured,then by default,the read() will block unless O_NONBLOCK flag has been set for that fd in which case the read() immediately fails with error EAGAIN
+
+  After the events have occured,each read() returns a buffer containing the one or more of the following strcture:
+  struct inotify_event{
+    int       wd;              //wd on which event occured 
+    uint32_t  mask;            //Bits descrbling the event that occured
+    uint32_t  cookie;          //Cookie for related events
+    uint32_t  len;             //size of 'name' field
+    char      name[];          //optional null-terminated filename
+  }
+  1)wd
+    It's useful when the app is monitoring multiple files or dirs using the same inotify fd
+    The app can maintain a bookkeep data structure that relates wd to pathnames so that the app can determine the file or dir for which the event has occured
+   
+  2)mask
+    Some details:
+    a.An IN_IGNORED is generated when the watch an watch item is removed
+      It occur for two reasons:
+      1.The app use inotify_rm_watch() to explicitly remove the watch item
+      2.The watch item is implicitly removed by the kernel because the monitored object was deleted or the FS it resides was unmounted
+      An IN_IGNORED event won't be generated when a watch that is established with IN_ONESHOT is automatically removed because an event is triggered
+    b.If the subject of the event if a dir,then IN_ISDIR bit will be set in the mask
+
+  3)cookie
+    It's used to tie related events together
+    Currently,it's used only when the file is renamed(mv)
+    IN_MOVRED_FROM or IN_MOVED_TO events may be generated
+    If a file is given a new name within the same dir,then both events occur for the same dir
+    These two events have the same unique value in their cookie filed,thus allowing the app to associated them
+
+  4)When an event occured for a file within the monitored dir,then then name filed returns a null-terminated string identifies the file
+    If the event occured for the monitored object itself,then the name field is unsed and len filed will be set to 0
+
+  5)There may be padding bytes between the end of the name field and the start of the next inotify_event structure contained in the buffer returned by read()
+    The length of an indvidual inotify event is sizeof(struct inotify_event) + len;
+  
+  6)If the buffer is too small to hold the next inotify_event structure,then the read() fails with the error EINVAL
+    Typically,the buffer should be at least (sizeof(struct inotify_event) + NAME_MAX + 1) 
+
+  7)A successful read() from an inotify fd will return the minimum between the number of the bytes of the events that avaliable and the number of the bytes of events that fit in the supplied buffer
+
+4.An example can be seen in pdf 382
+
+5.Occured events forms a queue in the kernel memory
+  The kernel will coalesce the two events if they have the same values for wd,mask,cookie and name
+  This is done because many apps don't need to know about repeated instances of the same event,and dropping the excess same events reduces the amount of kenel memory required for the event queue
+  It means we can't use inotify to determine how many times or how often a recurrent event occurs
+
+  The kernel places various limits on the operation of inotify mechanism
+  The superuser can configure these limits via three files in the dir /proc/sys/fs/inotify 
+  1)max_queued_events
+    It sets an upper limit on the number of events that can be queued on the new inotify instance
+    If the limit is reached,then an IN_Q_OVERFLOW event is generated and excess events are discarded
+    The wd for the overflow event is -1
+
+  2)max_user_instances
+    It sets a limit on the number of inotify instances that can be created per user ID
+
+  3)max_user_watches
+    It sets a limit on the number of watch items that can be created per user ID

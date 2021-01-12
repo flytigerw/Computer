@@ -1,0 +1,50 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 3, Exercise 10<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+<em class=math>(5n<sup>2</sup> - 6n) / n<sup>2</sup> = 5 - 6 / n</em>
+which is <em class=math>&lt;= 5</em>.
+<em class=math>n<sup>2</sup> / (5n<sup>2</sup> - 6n) = n / (5n - 6) = 1 / (5 - 6 / n)</em>
+which, in the limit, is <em class=math>&lt;= 1 / 4</em>.  So, the
+function is <em class=math>Theta(n<sup>2</sup>)</em>.
+<br><br>
+<dt> (c)
+<dd>
+<em class=math>f(n) / g(n) = 2 + (log n) / (n 2<sup>n</sup>) &lt; 3</em>.
+<em class=math>g(n) / f(n) = 1 / (2 + (log n / (n 2<sup>n</sup>)) &lt;= 0.5</em>.
+So, <em class=math>f(n) = Theta(g(n))</em>.
+<br><br>
+<dt> (e)
+<dd>
+<em class=math>f(n) / g(n) = [sum from (i=0) to n i<sup>3</sup>] / n<sup>4</sup>
+&lt;= [sum from (i=1) to n n<sup>3</sup>] / n<sup>4</sup>
+= n<sup>4</sup> / n<sup>4</sup> = 1</em>.
+Consider the case when <em class=math>n</em> is even.
+<em class=math>g(n) / f(n) &lt;= n<sup>4</sup> / (sum from (i = n / 2 + 1) to n
+i<sup>3</sup>)
+&lt; n<sup>4</sup> / (sum from (i = n / 2 + 1) to n (n / 2)<sup>3</sup>) 
+= n<sup>4</sup> / (n<sup>4</sup> / 16) = 16</em>.
+The proof that <em class=math>g(n) / f(n) &lt;= c</em> when
+<em class=math>n</em> is odd is similar.
+So, <em class=math>f(n) = Theta(g(n))</em>.
+<br><br>
+<dt>(g)
+<dd>
+<em class=math>f(n) / g(n) = 1 + 10<sup>6</sup> / n &lt;= 10<sup>6</sup> + 1</em>
+and
+<em class=math>g(n) / f(n) &lt;= 1</em>.  Hence, <em class=math>f(n) = Theta(g(n))</em>.
+</dl>
+</FONT>
+</BODY>
+</HTML>

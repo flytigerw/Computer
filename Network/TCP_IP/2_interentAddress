@@ -1,0 +1,236 @@
+
+1.Every device connected to the network based on TCP/IP at least has one IP address
+  The forwarding procedure implemented by IP routers use IP address to identify where the traffic is going
+  IP address also indicates where the traffic has come from
+  The IP addresses are often shielded from the user's view by the Internet's DNS
+  Users are confront with manipulating IP addresses when they are required to set up networks themselves when the DNS has failed for some reason
+  Groups of IP addresses are allocated to users or organization
+  The recipients of the allocated addresses then assign addresses to devices
+
+  The individual users typically receive address allocations from ISP(Internet Service Providers) that provide both the addresses and the promise of routing traffic in exchange for a fee
+
+2.IPv6 address is a series of four hexadecimal numbers called blocks or fields separated by colons
+  It contains 8 blocks
+  Ex:5f05:2000:80ad:5800:0058:0800:2023:1d71
+  Agreed-upon simplifications for IPv6 addresses can be seen in pdf33
+  
+3.IPv4 has 2^32 possible addresses in its address space
+  Because of the large number of addresses space,it's convenient to divide the address space into chunks
+  IP addresses are grouped by type and size
+  Most IPv4 address chunks are eventuallty subdivided down to a single address and used to identify a single network interface of a computer ---> These addresses are called unicast addresses
+  Multicast address,Broadcast address,Anycast address,They all refer to more than one network interface
+
+4.Every unicast IP address has two portions
+  1)network portion:Identify the network on which the interface using the IP address is to be found --> net number
+  2)host portion   :Identify the host on the network given in the network portion --> host number
+
+  With the realization that different networks may have different number of hosts and that each host requires an unique IP address,a partitioning is devised wherein different-size allocation units of IP address space could be given out to different sites based on their current and projected number of hosts;
+  The partitioning of address space involves 5 classes:ABCDE ---> More can be seen in pdf 35
+  
+  The partitioning is used to have a way of allocating unicast address blocks of different sizes to users
+
+5.One of the earliest diffculities encountered when the Internet began to grow was the inconvenience of having to allocate a new network number for any new network segument that was to be attached to the Internet ---> assign class A nd B network numbers tend to waste too many host numbers whereas class C network numbers couldn't provide host numbers to many sites
+ To address this problem,a site that attached to Internet could be allocated a network number centrally that could be subdivided locally by site administrators
+ This idea requires the ability to alter the line between the network portion and the host portions of an IP address,but only for local purposes at a site
+
+ Subnet addressing:A site is allocated a A,B,or C network number,leaving some number of remaining host bits to be furthur allocated and assigned within a site
+ The site may furthur divide the host portion of its base address allocation into subnetwork number and a host number Essentially,subnet addressing adds one additional field to IP address structure but without adding any bits to its length
+ 
+ In exchange for the additional flexibility provided by subnet addressing,a new cost is imposed
+ Because the definition of subnet and host is site-specific(not dictated by the class of the network number),all routers and hosts at a site require a new way to determine where the subnet and the host of the address are allocated within the address
+ Before subnets,this informaion can be derived directly by knowing whether a network number is from A,B,or C
+ En example can be seen in pdf 38
+
+6.Subnet Masks
+  It's an assignment of bits used by a host or router to determine how the network and subnetwork information is partitioned from the host information in a corresponding IP address
+  It's the same length as the IP address --> 32
+  It's typically configured into a host or a router in the same way as IP address --> either statically(typically for routers) or using Dynamic Host Configuration Protocol(DHCP)
+  The shorthand format for expressing masks simply gives the number of contiguous 1 bits in the IP address(starting from the left) ----> prefix length
+  A bit set to 1 in the subnet mask means the corresponding bit position in an IP address should be considered part of a combined network/subnetwork portion of an address.
+  A bit set to 0 in the subnet mask means the corresponding bit position in an IP address should be considered part of the host portion
+  An Ex can be seen in pdf 40
+
+  Routers outside the site make decisions based only on the network number portion of an IP address and not the combined network/subnetwork or host portions
+  Consequently,subnet masks are purely a local matter at the site
+
+7.Variable Length Subnet Masks(VLSM)
+  It's possible to use different-length subnet masks applied to the same network number in different portions of the same site
+  Although it complicates address configuration management,it adds flexibility to subnet structrue because subnetworks may set up with different numbers of hosts
+  An Ex can be seen in pdf 41
+  The number of host is constrained by the the number of bits remaining in the IP address that are not used by network/subnet number
+  /24 ---> 2^(32-24) = 256 
+  /25 ---> half of 256 ---> 128
+  /26 ---> half furthur --> 64
+  
+  There is a common case where a subnetwork contains only two hosts
+  When two routers are connected together by a point-to-point link requiring an IP address in each end,it typically use a /31 subnet mask
+
+8.Broadcast addresses
+  Subnet broadcast address is formed by setting the network/subnetwork portion of an IPv4 address to the appropriate value and all the bits in Host to 1
+  Ex:128.32.1.14 /24 ----> 128.32.1.255
+  A datagram using this type of address as its destination has also been known as a directed broadcast 
+  Such a broadcast can theoretically be routed through the Internet as a single datagram until reaching the target subnetwork,at which point it becomes a collection of broadcast datagrams that are delivered to all hosts on the subnetwork 
+  Directed broadcasts are found be such a big problem from the point of security view that they are effectively disabled on the Internet today
+
+  255.255.255.255 --> local net broadcast ---> limited broadcast which is never forwarded by routers
+  Such broadcasts don't require action by a router
+  Link-layer broadcast mechanism ,if available,is used for supporting them
+  
+  Broadcast addresses are typically used with protocols such as UDP/IP,ICMP because they don't involve two-party conversations as TCP
+  IPv6 lacks any broadcast addresses
+
+9.Issues that requires attention in 1990s
+  1)By 1994,over half of class B address has been allocated
+  2)The 32-bit IPv4 address was though to be inadquate to handle the size of the Internet 
+  3)The number of entries in global routing talbe,about 65000 in 1995 was growing
+    As more and more class A,B and C routing entries appeared,routing performance would suffer
+
+  One of the short-term solutions was to effectively remove the class breakdown of IP addresses and promote the ability to aggregate hierarchically assigned IP address  
+  In order to relieve the pressure on the availability of IPv4 addresses,the classful addressing scheme was generalized using a scheme similarto VLSM and the Internet routing system was extended to support Classless Inter-Domain Routing(CIDR)
+  It provided a way to conveniently allocate contiguous address ranges that contained more than 255 hosts but less than 65535
+  This is something other than single Class B or multiple Class C network numbers that could be allocated to sites
+  Using CIDR,any address range is not predefined as part of Class but instead requires a mask similar to a subnet masl --> CIDR mask
+  CIDR masks are not limited in a site but are instead visible to global routing system
+  Thus core router must be able to interpret and process the mask in addtion to network numbers
+  This combination of numbers is called a network prefix
+  Mode details can be seen in pdf 47
+  Eliminating the predefined separation of netwokr number and host number within an IP address makes finer-grain allocation of IP address range possible
+  Ex:
+  Prefix                        Address Range
+  128.0.0.0/24                  128.0.0.0-128.0.0.255
+  198.128.128.192/27            198.128.128.192-192.128.128.223
+
+  Aggregation:    
+  It helps reduce the number of routing table entries
+  A routing table entry tells a router where to send a traffic
+  The router inspects the destination IP address in an arriving datagram,finds a matching entry,and extracts the "netx hop" for the datagram
+  Few techniques were known to dramatically reduce the number of routing table entires while maintaining shortest-path routes to all destinations in the Internet
+  Ex:hierarchical routing 
+     It observed that if the network topology is arranged as a tree and addresses are assigned in a way similar to this topology
+     More can be seen in pdf 48
+
+  route aggregation
+  It joins multiple numeracially adjacent IP prefixes into a signle shorter prefix that covers more address space
+  Ex:It can be seen in pdf 50
+
+10.Special-Use address
+   Both IPv4 and IPv6 address space include a few address ranges that are used for special-purposes and are therefore not used in assigning unicast addresses
+   The Table can be seen in pdf 51
+   The private networks are used with NAT which rewrites IP addresses inside IP datagrams as they enter the Internet
+
+11.Multicast Addresses
+   It identifies a group of host interfaces rather than a single one
+   The group can span the entire Internet
+   The portion of the network that the group covers is known as the group's scope,including node-local(same computer),link-local(same subnet),site-local(same site),global(entire Internet) and administrative
+   Administrative scoped addresses may be used in an area of the netwrok that has been manually configured into routers
+   A site administrator may configure routers as admin-scoped boundaries,meanning that multicast traffic of the associated group is not forwared past the router
+   site-local and administrative scopes are used only with multicast addresssing
+
+   An Internet host is able to join or leave a group
+   When a host sends something to group,it creates a datagram using one of its own(unicast) IP addresses as the source address and a multicast IP address as the destination 
+   All hosts in the scope that have joined the group should receive datagrams sent to the group
+   The sender is not generally aware of the hosts receiving the datagram unless they explicitly reply
+
+   Multicast service models
+    1)ASM(Any-source multicast)
+      Any sender may send to any group
+      A host joins the group by specifying only the group address
+    2)SSM(Source-specific multicast)
+      Only a single sender per group
+      When joining a group,a host specifies the address of a channel which comprises both a group address and a source IP address
+
+13.IPv4 Multicast address
+   Class D space(224.0.0.0 ~ 239.255.255.255) has been reserved to support multicast 
+   With 28 bits free,it provides 2^28 host groups
+   This address space is devided into major sections based on the way they are allocated and handled with respect to routing
+   They are presented in pdf55
+   
+   Important blocks
+    1)GLOP
+      Multicast addresses are based on the autonomous system number of the host on which the application allocating the the address resides
+      AS numbers are used by Internet-wide routing protocols among ISPs in order to aggregate routes and apply routing polices
+      GLOP addresses are generated by placing 16-bit AS number in the second and third bytes of the IPv4 multicast address,leaving room for 1 byte to represent possible multicast addresses 
+      Ex:AS   : 11
+         GLOP : 233.0.11.x
+      Thus it is possible to map back and forth between a 16-bit AS number and GLOP multicast address 
+
+    2)UBM(unicast-prefix-based)
+      It's the most recent of IPv4 multicast address allocation mechanism that associates a number of multicast address with an IPv4 unicast address prefix
+      The UBM IPv4 address range is 234.0.0.0 through 234.255.255.255
+      The UBM multicast addresses constructed as a concatenation of 234/8 prefix,the allocated unicast prefix,and the multicast group IP
+      Ex:unicast IPv4 address prefix: 192.0.2.0/24
+         UBM : 234.192.0.2
+         We can determine the owner of the multicast address by left-shifting the multicast address by 8 positions
+    
+    3)The administratively scoped block
+      It's used to limit the distribution of multicast traffic to a particular collection of routers and hosts
+      There are multicast analogs of private unicast IP addresses
+      Such addresses should not be used for distributing multicast into Internet,as most of them are blocked at enterprise boundaries
+
+14.Anycast address
+   It identifies different hosts depending on where it is used in the network
+   It's accomplished by configuring Internet routers to advertise the same unicast routes from multiple locations in the Internet
+   Thus,an anycast address refers not to a single host in Internet,but to the most appropriate and closest single host that is responding to the anycast address
+   Ex:a datagram sent to an anycast address could be used to find a DNS server
+
+15.Allocation 
+   IP address is allocated usually in large chunks by a collection of hierarchical organized authorities to various owners(IPSs,smaller authorities)
+   The top hierarchy is IANA
+   Authorities are often involved in allocating portions of global unicast address space
+
+   1)Unicast allocation 
+     IANA delegates much of unicast allocation authority to a few RIRS(Regional Internet registers) -- See in pdf 63
+     The RIRS cooperate each other through NRO(Number resource organization)
+     RIRS allocate address space to smaller register operating in countries and to large ISPs who later provide address space to customers and themselves
+     When users sign up for Internet services,they are ordinarily allocated a fraction of their ISP's address space in the form of an address prefix
+     These address ranges are owned and managed by customers's ISP and are called provider-aggregatable aadress because they consist one or more prefixes that can be aggregated with other prefixes that the ISP owns
+     Switching provider typically require custmers to change the IP prefixes on all computers and routers they have that attached to the Internet ------> renumbering
+
+     Another type of address space --> PI(provider independent)
+     Addresses allocated from PI space are allocated to user directly and may be used with any ISP
+     Because addresses are owned by customer,they are not adjacent to ISP's own addresses and are therefore not aggregatable
+     An ISP being asked to provide routing for a customer's PI address may require additional payment for service or simply not aggre to such configuration
+     Many sites prefer PI address and might be willing to pay extra cost for them because it avoids the need to renumber when switching ISPs
+
+   2)Multicast addresses
+     They can be described based on their scope,the way they are determinded(statically,dynamically by aggrement or algorithmically) and whether they are used for ASM or SSM
+     The groups that are not of global scope can be reused in various parts of the Internet and are configured by a network administrator out of an administratively scoped address block or selected automaticallt by end hosts
+     Globally scoped addresses that are statically allocated are fixed and may be hard-coded into applications
+
+16.Unicast address assignment
+   Once a site has been allocated a range of unicast IP addresses,typically from ISP,the site or the networl administrator how to assgin addresses in the address range to each network interface and how to set up subnet structure
+   If the site has only a single physical netwrok segment(private homes),the process is relatively straghtforward
+   But for large enterprises,especially those receiving service from multiple ISPs and use multiple physical network segments distributed over a large area,this process can be complicated
+
+   The simpliest type of Internet service that can be obtained today is to receieve a single IP address from an ISP to be used with a single computer
+   For services such as DSL,the address may be assigned as the end of a point-to-point link and might be temporary
+   Ex:If a user's commputer connects to Internet over DSL,it might be assgined the address 63.204.134.177 on a particular day 
+      Any running program on the computer may send or receive Internet traffic and any traffic will carry source IPv4 address 63.204.134.177
+      Even hos this simple has other active IP addresses as well
+      loopback address --> 127.0.0.1
+      multicast addresses:All Hosts multicast address(224.0.0.1)
+      An Ex to see a host's active address can be seen pdf 66
+
+    Many users who have more than one computer find that having only a single computer attached to Internet is not an ideal situation
+    As a result,they a home LAN or WLAN network and use either a router or computer acting as a router to provide connectivity to Internet
+    The router not only forwards packets from home network to ISPs but also performs NAT by rewriting IP address being exchanged with the customer's ISP
+    From the ISP's point of view,only one IP address is used
+    Today,much of activity is automated,so the need for mannual address configuration is minimal
+    The routers provide automatic address assignment to clients by using DHCP
+
+    Organizations intending run servers (Web sites) generally wish to have an IP address that doesn't change over time
+    These sites also have multiple LANs
+    Some are internal : separated from the Internet by firewalls and NAT devices
+    some are external : providing services to Internet
+    An Ex can be senn in pdf 67
+
+    Some organizations that depend on Internet access for cpntinuous operations attach to Internet more than one ISP
+    Because of CIDR,organizations with single ISP tend to have a PA IP address associated with that ISP
+    If they obtain a second ISP, the question arises as to what IP address should be used in each of the hosts
+    An Ex can be seen in pdf 69
+
+    Today,IP addresses serve both as identifiers(a form of name) and locators(an address understood by routing system) for a network interface attached to the Internet
+    Providing a separation between them would allow networl protocol implemention to function even if the underlying IP address changes
+    Protocols provide such separation are called identifier/locator separating or id/loc split protocols 
+
+    In many circumstances,IP addresses are temporary and are reassigned to different users at different times

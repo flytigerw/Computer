@@ -1,0 +1,3 @@
+/root/yamltest/build/CMakeFiles/rebuild_cache.dir
+/root/yamltest/build/CMakeFiles/yamltest.dir
+/root/yamltest/build/CMakeFiles/edit_cache.dir

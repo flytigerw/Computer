@@ -1,0 +1,39 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 17, Exercise 21<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt> (a)
+<dd>
+The algorithm of Figure 17.7 keeps selecting vertices from
+<code class=var>A</code>
+until we either have a cover or all vertices of
+<code class=var>A</code> have been included in the cover
+<code class=var>A'</code> that is being constructed.
+Therefore, when the algorithm terminates without a cover,
+<code class=var>A' =
+A</code> and
+<code class=var>A</code> does not cover all vertices of
+<code class=var>B</code>.  So the given bipartite graph
+has no cover.
+<br><br>
+<dt> (b)
+<dd>
+Consider the <code class=var>9</code> vertex bipartite graph with
+<code class=var>A = {1, 2, 3}</code>;
+<code class=var>B = {4, 5, 6, 7, 8, 9}</code>;
+and edges <code class=var>{(1,4), (1,5), (1,6), (1,7), (2,6), (2,7), (2,8), (3,4), (3,5),
+(3,9)}</code>.  The cover constructed by the greedy algorithm of Figure 13.7
+is <code class=var>{1, 2, 3}</code>.  The minimum cover is <code class=var>{2, 3}</code>.
+
+
+</FONT>
+</BODY>
+</HTML>

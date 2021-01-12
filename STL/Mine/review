@@ -1,0 +1,42 @@
+
+
+
+hash_table调整大小
+
+void resize(size_type hint){
+  if(hint > buckets.size()){    //负载系数过高，的确需要调整
+    size_type new_size = next_size();  //选择下一个质数
+    size_type old_size = buckets.size();
+    //新建buckets
+    vector<node*> tmp(new_size);
+    //元素重新散列
+    node* x;
+    size_type new_bucket_num;
+    for(size_type i=0; i<old_size; i++){
+      if(x=buckets[i]){   //桶中含有元素
+        while(x){
+          new_bucket_num = get_key(x->val);   //重新散列
+          buckets[i] = x->next;              //从原bucket中拿出，放入新的bucket
+          x->next = tmp[new_bucket_num];     //每次插入在最前面
+          tmp[new_bucket_num] = x;     
+          x = buckets[i];
+        }
+      }
+    }
+    buckets.swap(tmp);
+  }
+}
+
+std::pair<iterator,bool> insert_unique_noresize(const T& val){
+        //计算其位于哪一个bucket
+        const size_type n = bucket_num(val);
+        for(auto cur = buckers[n];cur;cur=cur->next)
+          if(equals(get_key(cur->val),get_key(val)))
+            return std::make_pair(iterator(cur,this),false);
+        //插入在最前端
+        node* x = new_node(val);
+        x->next =buckets[i];
+        buckets[i]=x;
+        ++elements_num;
+        return std::make_pair(iterator(x,this),true);
+}

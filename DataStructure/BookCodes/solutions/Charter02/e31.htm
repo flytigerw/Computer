@@ -1,0 +1,67 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 31<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+The function with the step count incrementing statements added
+is given below.
+<HR class = coderule>
+<PRE class = code>
+template&lt;class T&gt;
+void transpose(T **a, int rows)
+{
+   for (int i = 0; i &lt; rows; i++)
+   {
+      stepCount++;                            // for the for i statement
+      for (int j = i+1; j &lt; rows; j++)
+      {
+         stepCount++;                         // for the for j statement
+         swap(a[i][j], a[j][i]);
+         stepCount++;
+      }  
+      stepCount++;                            // last time of for j
+   }
+   stepCount++;                               // last time of for i
+}
+</pre>
+<HR class=coderule><BR>
+<br><br>
+The simplified code
+is given below.
+<HR class = coderule>
+<PRE class = code>
+template&lt;class T&gt;
+void transpose(T **a, int rows)
+{
+   for (int i = 0; i &lt; rows; i++)
+   {
+      stepCount++;                            // for the for i statement
+      for (int j = i+1; j &lt; rows; j++)
+         stepCount += 2;
+      stepCount++;                            // last time of for j
+   }
+   stepCount++;                               // last time of for i
+}
+</pre>
+<HR class=coderule><BR>
+<br><br>
+The inner <code class=code>for</code> loop causes <code class=code>stepCount</code> to increase
+by <code class=code>2(rows - i - 1)</code>. So, in iteration
+<code class=code>i</code> of the outer loop,
+the value of <code class=code>stepCount</code> increases by
+<code class=code>2(rows - i)</code>. The overall increase
+is therefore <code class=code>sum from (i=0) to (rows-1) [2(rows - i)] + 1 =
+2 sum from (q=1) to (rows) q + 1
+= rows(rows + 1) + 1
+= rows<sup>2</sup> + rows + 1</code>.
+</FONT>
+</BODY>
+</HTML>

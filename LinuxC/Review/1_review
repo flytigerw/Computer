@@ -1,0 +1,22 @@
+1.以stdin打开文件 ---> 返回的fd为stdin
+  1)先关闭stdin
+    if(close(STDINFO) == -1)
+      errExit("close");
+  2)再open() ---> 保证分配最小的fd
+    if(fd = open(pathname,O_RDONLY)  == -1)
+      errExit("open");
+
+2.从终端读取文件
+   1)准备buffer
+     #define BUF_SIZE 1024 
+      char buf[BUF_SIZE+1];
+   2)调用read
+     int fd  = open(STDIN_FILENO,buf,MAX_READ);
+   3)调用后的检验
+     if(fd == -1)
+       errExit("open");
+   4)增加字符串尾后结束符
+      buf[BUF_SIZE] = '\0';
+      
+     printf("The input data is %s\n",buf);
+      

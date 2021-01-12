@@ -1,0 +1,45 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 9<BR>
+<BR>
+</H1>
+
+In the induction base we show <code class=var>N<sub>h</sub> =
+F<sub>h+2</sub> - 1</code> for <code class=var>h = 0</code> and <code class=var>1</code>.
+When <code class=var>h = 0</code>, the left side is
+<code class=var>N<sub>0</sub> = 0</code> and the right side is
+<code class=var>F<sub>2</sub> - 1 = 1 - 1 = 0</code>.
+When <code class=var>h = 1</code>, the left side is
+<code class=var>N<sub>1</sub> = 1</code> and the right side is
+<code class=var>F<sub>3</sub> - 1 = 2 - 1 = 1</code>.
+<br><br>
+For the induction hypothesis, assume that
+<code class=var>N<sub>h</sub> =
+F<sub>h+2</sub> - 1</code> for <code class=var>h &lt; m</code>
+where <code class=var>m</code> is an arbitrary integer <code class=var>&gt; 1</code>.
+<br><br>
+In the induction step, we must show that
+<code class=var>N<sub>h</sub> =
+F<sub>h+2</sub> - 1</code> for <code class=var>h = m</code>.
+The left side is
+<code class=var>N<sub>m</sub> =
+N<sub>m-1</sub> +
+N<sub>m-2</sub> + 1</code>.
+From the induction hypothesis, we obtain
+<code class=var>N<sub>m-1</sub> = F<sub>m+1</sub> - 1</code> and
+<code class=var>N<sub>m-2</sub> = F<sub>m</sub> - 1</code>. Therefore,
+<code class=var>N<sub>m</sub> =
+F<sub>m+1</sub> - 1 +
+F<sub>m</sub> - 1 + 1 = F<sub>m+2</sub> + 1</code>.
+
+
+</FONT>
+</BODY>
+</HTML>

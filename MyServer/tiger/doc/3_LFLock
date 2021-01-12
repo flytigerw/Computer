@@ -1,0 +1,67 @@
+基于CAS思想的lock
+
+1.CAS(Compare And Swap)
+  bool CAS(int* addr,int expected,int new){
+    atomically{              //原子性的测试某个内存单元的值，若不符合预期，则用新值代替
+      if(*addr == expected){
+        *addr = new;
+        return true;
+      }
+    }
+    else
+      return false;
+  }
+  CAS是最基本的RWM操作，其他RWM操作都可以通过CAS实现
+  FAA(Fetch And Add)
+  int FAA(int* addr,int incr){   //获取某个内存单元的值，并为其add incur
+    int n = *addr;
+    do{}
+    while(!CAS(addr,n,n+incr));    //CAS失败后，就再次尝试 ---> 等待其他线程原子性的修改回来
+    return n;
+  }
+  
+  C+++11中的RMW操作
+  std::atomic<>::fetch_add() / sub() / and() / or() / xor() 
+  std::atomic<>compare_exchange_strong()
+  std::atomic<>compare_exchange_weak()         ---> 就是上述的CAS
+
+  atomic<T>:并不是所有的类型的原子操作都是lock-free ---> 有些原子操作是通过加锁实现，有些则是依赖硬件指令实现的
+  
+
+6.无锁堆栈
+  static nodeType* top = null;
+  //push时，涉及到修改 ---> 保护 
+  push(nodeType& node){
+    //CAS无锁保护
+    do{
+      nodeType* t = top;        //先拿到栈顶，压入新元素
+      node->next = t;           //更新栈顶时，若不加保护，切出去，另外一个线程完成了push，再切回来 ---> 另外一个线程的push被覆盖   ----> 无锁保护:切回来后，什么改变了? --> 栈顶地址 ---> 若栈顶地址和之前读到的不一样表明由data race ---> 采用CAS保护
+    }while(!CAS(&top,t,node));
+  }
+
+  nodeType* pop(){
+    nodeType* next;
+    do{
+      nodeType* t = top;
+      if(t == null)
+        return null;
+      next = t->next;
+    }while(!CAS(&top,t,next));
+    return t;
+  }
+
+
+  1)atomic_flag 
+    原子bool类型，用作并发中的标识
+
+    操作函数:
+    1)var.test_and_set(std::memory_order_acquire);
+       原子操作
+       检查标志是否已经设置过,若没有，则设置该标志，并返回false
+       若已经被设置，则返回true
+    2)var.clear(sd::memory_order_release)
+       标志清除
+    可用做自旋锁
+
+  2)template<bool cond, class T,class F>
+    根据条件选择泛型类型

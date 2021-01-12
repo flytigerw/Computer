@@ -1,0 +1,60 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Divide and Conquer in Earlier Chapters<BR>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+
+It is interesting to oberve that we have actually used the
+divide-and-conquer method on several occasions in earlier chapters
+of this book.  For example, the binary tree traversal methods
+preorder, inorder, and postorder of Chapter 11 may be viewed
+as divide-and-conquer methods. To traverse a binary tree with
+<code class=var>n &gt; 0</code> nodes we break the binary tree into three parts:
+the left subtree, the right subtree, and the root.
+The left and right subtrees are traversed recursively.  Traversal of
+the root simply
+requires us to visit it.
+
+<br><br>
+The linear-time initialization methods of Section 12.4.4 (for heaps),
+Section 12.5.5 (for leftist trees), and Section 13.3.2 (for winner trees)
+can be arrived at using the divide-and-conquer method and then
+eliminating the recursion as was done for the min-max problem
+in Program 18.1.  Applying divide-and-conquer to the max heap initialization
+problem yields the algorithm: if the max heap is empty, do nothing;
+if the max heap is not empty, then initialize the left subtree of the root
+recursively,
+initialize the right subtree
+recursively, and
+finally ensure the max heap property at the root.
+When the recursion is eliminated using the ideas used
+to arrive at Program 18.1, we get the code of Program 12.4.
+<br><br>
+The divide-and-conquer algorithm to initialize a leftist tree is:
+if the number of elements is less than <code class=var>2</code> do nothing;
+otherwise, divide the elements into two almost equal groups,
+create a leftist tree for each group, and meld the two leftist trees
+into one.  When the recursion is elminated using the ideas
+used in arriving at Program 18.1, we get the code of Program 12.7.
+<br><br>
+The divide-and-conquer algorithm to initialize a winner tree is:
+if the number of elements is less than <code class=var>2</code> do nothing;
+otherwise, divide the elements into two almost equal groups,
+create a winner tree for each group, play a match between the winners of the
+two groups to determine the overall winner.
+When the recursion is elminated using the ideas
+used in arriving at Program 18.1, we get the initialization
+code for winner trees.
+
+
+
+</FONT>
+</BODY>
+</HTML>

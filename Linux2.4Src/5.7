@@ -1,0 +1,64 @@
+
+
+
+其他文件操作
+
+1.lseek(fd,offset,orgin)
+  调整文件的读写位置 --> 修改inode->f_pos
+  若将f_pos调整到i_size后，则会生成文件空洞: f_pos - i_size --> 空洞中的文件逻辑块没有与之对应的物理磁盘块 
+  读取文件空洞时，结果全为0
+
+2.dup(fd)
+  复制文件句柄
+  生成的新句柄与旧句柄指向同一文件上下文(file*)
+  程序大致思路:
+   搜索files_struct->open_fds位图，找到第一个>start的空闲点位 --> newfd
+   然后install newfd --> files[newfd] = files[oldfd]
+
+  shell的重定向机制就依赖于此
+  例子:
+   shell命令:echo what is dup > foo
+   执行流程
+   1)shell进程接收该命令后，会先去寻找可执行文件echo  --> 去哪找? --> 由shell配置文件指示
+   2)然后fork()生成一个子进程
+     在子进程中调用execve()执行echo程序,并将参数what is dup传给他
+   
+   3)父进程在fork()时会先根据参数指示，打开或关闭某些文件句柄，然后再copy到子进程中
+     STDIN,STDOUT,STDERR常数，代表0,1,2三个文件句柄
+     在此例中:
+      a.父进程(shell进程)先打开文件foo  --> 假如生成文件句柄号3
+      b.调用dup(STDOUT)复制句柄         --> 生成新句柄4
+      c.调用close(STDOUT)关闭句柄       --> 1号槽空闲
+      d.调用dup(3)复制句柄              --> 填入到1号槽中
+        此时:STDOUT -- 1号句柄 -- foo文件上下文   --->  写入到STDOUT中的数据，会重定向到foo文件中
+      e.子进程继承父进程的文件句柄,并在execve()时关闭3和4号句柄 --> 通过close-on-exec指示
+
+      f.然后,父进程先关闭1和3号句柄
+             再通过dup(4)将4号槽对应 标准输出文件上下文 重定向到 1号槽中
+             最后再close(4)
+      
+      可见，fork()结束后，父进程的文件句柄没有改变
+            在execve()后子进程的STDOUT指向foo文件上下文
+  
+
+3.ioctl(fd,cmd,arg)
+  对文件属性进行调整  --->  通常会深入到inode层
+  对于普通文件,可在open()时,指定文件的属性
+  但有些文件并不是通过open()生成(比如socket文件)，也就无法在打开时指定文件的属性
+  只能在打开后，通过ioctl()调整文件的属性
+  见pdf656 --> a little out of date
+
+4.link(oldname,newname)
+  在内核中,dentry表示文件名
+  该函数为旧文件名创建别名，使得新旧dentry指向同一个inode   --->  要求新旧文件名位于同一文件系统中
+  大致思路: --> 具体见pdf660
+   1)通过path_init()+path_walk()找到文件名(dentry)对应的inode结构
+     所以可先找到旧文件名 和 新文件名的父目录 对应的inode
+     二者的inode必须位于同一文件系统中
+   2)然后为新文件名创建一个dentry,其与旧文件名指向同一个inode
+     并更新相关对象中的内容，比如父母录中的dentry,data block. 
+                                 inode中的dentry队列等等
+
+
+
+  

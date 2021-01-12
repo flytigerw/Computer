@@ -1,0 +1,103 @@
+
+1.int stat(const char* pathname,struct stat* statbuf);
+  int lstat(const char* pathname,struct stat* statbuf);
+  int fstat(int fd,struct stat* statbuf);
+  They retrieve information about a file,mostly drawn from the file i-node
+
+  These three sysCalls differ only in the way that the file is specified
+   1)stat ---> file pathname
+   2)lstat --> If the file is a symbol link,then the information about the link is returned,rather than the file to which the link points
+   3)fstat --> fd
+
+  The stat() and lstat() don't require permissions on the file itself
+  But the execute permission is required on all all the parent dirs specified in pathname
+  The fstat() always succeeds if provided with a valid file
+
+  All of the fields of struct stat can be seen in pdf 280
+  Here are some important fields
+   1)dev_t st_dev + ino_t st_ino
+     They identify the device on which the file resides and the i-node number of the file respectively
+     The combination of st_dev and st_ino uniquely identifies a file across all file systems
+     The major ID and the minor ID of st_dev can be extracted using two macros --> major() and minor()
+     We need to include <sys/types.h> and define _BSD_SOURCE to obtain the declarations of these two marcos
+     For portability,we cast the returned value to long when printing them
+   
+   2)st_mode
+     It's a bit mask of serveing the dual purpose of identifying the file type and specifying the file permissions
+     The firt 4 bits define the file types
+     The file type can be extracted by & with the constant S_IFMT
+     The resulting value can be compared with a range of constants to determine the file type
+     Ex:
+       if((statbuf.st_mode & S_IFMT) == S_IFREG)
+         printf("regular file\n");
+     There are standard macros to simplify this
+       if(S_ISREG(statbuf.st_mode))
+         printf("regular file\n");
+     The full set of macros can be seen in pdf 282
+
+     The bottom 12bits of the st_mode define the permissions for the file
+   
+   3)st_size 
+     For regular files,it's the total size of the file in bytes
+     For a symbolic link,it contains the length of the pathname pointed to by the link
+     For a shared memory object,it contains the size of the object
+   4)st_blocks
+     It indicates the total number of blocks allocated to the file,in 512-byte block units
+     It includes space allocated for pointer blocks
+     If the file contains holes,this will be smaller than might be expected from the corresponding number of bytes(st_size)
+     du -k file displays the actual space for a file ---> It's calculated from st_blocks
+   5)st_blksize
+     It's not the block size of the underlying file system,but rather the optimal block size for I/O
+     I/O in blocks smaller than this size is less efficient
+     The typical value is 4096
+   
+   6)Timestamps:atime,ctime,mtime
+
+2.File timestamps
+  atime   ---> last access time 
+  mtime   ---> last modification time 
+  ctime   ---> last stauts change time ---> last change to inode information
+
+  sysCalls and libFunc that may update the timestamp can be seen in pdf 286
+
+  In most cases,the timestamp is updated to current time 
+  The exceptions are utime() and similar calls,which can be used to set the atime and mtime to arbitrary values
+
+3.The atime and mtime stored in file inode can be explicitly changed by utime() or the related sysCalls
+  Programs such as tar() and unzip() use these sysCalls to reset file timestamps when unpacking an archive
+
+  int utime(const char* pathname,const struct utimbuf* buf)
+  1)If the pathame is a symbol link,it's dereference
+  2)struct utimbuf{
+    time_t actime;
+    time_t modtime;
+  }
+   These fileds measure time in seconds
+   Either the EUID of the progress must match the file's user ID,the process must have the write permission on the file or the process must be privileged
+   If buf is NULL,then both atime and ctime are set to current time
+   
+   There ar three steps to change just one of the file timestamps
+   1)Use stat() to retrieve both times
+   2)Use one of these times to initialize utimbuf structrue
+   3)Use utime()
+   Ex:Make the mtime the same as the atime
+      struct stat sb;
+      struct utimbuf utb;
+      if(stat(pathname,&sb) == -1)
+        errExit("stat");
+      utb.actime = sb.st_atime;
+      utb.modime = sb.st_atime;
+      if(utime(pathname,&utb) == -1)
+        errExit("utime");
+   A successful utime() always set the ctime to current time
+
+4.int utimes(const char* pathname,const struct timeval tv[2])
+  The most notable difference utime() and utimes() is that utimes allows time values to be specified with microsecond accuracy
+  tv[0] --> atime   tv[1] ---> mtime
+  
+  int futimes(int fd,const struct timeval tv[2]);
+  int lutime(const char* pathname,const struct utimbuf* buf)
+  They provide different ways of identifying the file
+  For lutime,if the file is a symbolic link,the the link is not dereferenced.The timestamps of the link itself are changed
+
+5.

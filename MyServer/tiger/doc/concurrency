@@ -1,0 +1,76 @@
+C++11并发学习
+
+1.thead对象
+  1)构造
+    template<class Fn,class...Args>
+     explicit thread(Fn&& fn,Args&&...)
+  2)不支持拷贝语义
+    只支持移动语义
+  3)可被joinable的thead对象必须在销毁之前被join或者设置为detached
+  4)成员函数
+    get_id()
+    joinable();
+    join(),detach()
+  4)工具函数
+    this_thread::sleep_for(std::chrono::milliseconds(10));
+
+2.Mutex  
+  1)mutex类型
+    mutex
+     函数:lock(),unlock(),try_lock() ---> 非阻塞
+    recursive_mutex
+     运行一个线程递归地上锁 --> 少用
+    time_mutex
+     规定阻塞的时间
+     try_lock_for()
+     try_lock_until()
+    recursive_timed_mutex
+  2)lock类
+    lock_guard
+    unique_lock
+      接口更多
+       lock(),unlock() 
+       and try_lock_for()+try_lock_until()  ---> 可以控制阻塞的时间
+       release() ---> 获得底层Mutex* ---> 自己不再负责该Mutex
+       可以自定义mutex,提供unique_lock需要的接口
+      支持移动构造 
+
+    构造unique_lock时，可以提供相关的Tag类 ----> 更加精细的锁控制
+    struct adopt_lock_t{}  ---> 通过constexpr函数adpot_lock()获取
+    struct defer_lock_t{}  ---> defer_lock()
+    struct unique_lock_t{} ---> unique_lock()
+    struct try_to_lock_t{} ---> try_to_lock()
+
+3.使用同步原语(临界区，锁，条件变量)进行 共享数据的 安全访问的缺点
+  1)同步原语操作内核对象
+    即:会进行上下文切换，深入内核
+  2)内核资源有限
+
+4.无锁数据结构:采用原子操作来达到访问安全性
+  将共享数据放入无锁数据结构，采用原子修改来访问共享数据
+  
+  原子性操作: load(读)，store(写)
+  原子性交换: Atomic Read-Modify-Write  compare_exchange_weak,compare_exchange_strong
+
+  在C/C++中，所有的内存操作都被假定为非原子性的
+  在现代处理器中，普通的32为整形，只要内存地址是对齐的，那么赋值操作就是原子操作
+  在现代编译器中，volatile可以保障基本类型对其，并限制编译器对其优化
+  Ex:
+   volatile int i = 10;      
+   ///////////
+   int b = i;         //volatile保障对齐，而且抑制编译器的优化，现代处理器保障32整形赋值操作的原子性
+
+   对于同一个变量，在某些地方有原子性读写的要求(添加volatile)，但在某些地方又不需要(不添加volatile,让编译器优化)
+   实现技巧:用macro添加volatile
+   int i =2;
+   #define ACCESS_ONCE(x) (*(volatile typeof(x)*) &x)
+   #define READ_ONCE(x) ACCESS_ONCE(x)
+   #define WRITE_ONCE(x,val) ({ACCESS_ONCE(x) = val;})
+   a = READ_ONCE(i);
+
+   C++ volatile的作用
+   1)保障下一条语句不会直接使用上一条语句中 volatile变量的寄存器内容，而是从新从内存中读取
+   2)通知编译器不要对该变量进行各种激进的优化
+   3)保障volatile变量间的顺序性，编译器不会进行乱序优化
+     volatile变量与非volatile变量的执行顺序，编译不保证，可能进行乱序优化
+

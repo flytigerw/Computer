@@ -1,0 +1,166 @@
+
+1.输入与输出
+  主要关注4个包
+  1)io
+    为io primitives提供基本的接口
+    a.type Reader interface{
+	 		  Read(p []byte) (n int,err error)
+	    }
+	    将数据读入到切片p中
+	    细节点:
+	    1.n为实际读取的字节数
+    	2.若 n < len(p) ---> 方法会立即返回，而不是等待更多的数据
+	    3.读取时遇到错误 --> 返回读取的字节数以及相应的错误err
+	    4.在底层输入流结束时，方法会返回n>0字节
+	      若再次调用，则肯定返回(0,EOF)
+    	5.若n>0，则优先处理已经读取的数据，再处理err.对于EOF也是如此
+    
+    	例子:
+    	func ReadFrom(reader io.Reader,num int) ([]byte,error){
+	    	p := make([]byte,num)
+		    n,err := reader.Read(p)
+	    	if n>0{
+			    return p[:n],nil
+		    }
+		    return p,err 
+	    }
+	    只要实现了io.reader接口的IO类都可以传入该函数，比如标准输入，文件，字符串等reader ---> 多态性
+	    data,err := ReadFrom(os.Stdin,11)
+	    date,err := ReadFrom(file,9)            //file是os.file的实例
+	    data,err := ReadFrom(strings.NewReader("from string"),12)
+	
+	  b.type Writer interface{
+		    Write(p []byte) (n int,err error)
+    	}
+    	将切片p中的数据，写入底层数据流
+    	实现该接口时的一些规则:
+	    1.n表示实际写入的字节数
+	    2.若n<len(p),则必须返回非nil的err -----> 未完全写入，有错误发生
+	    3.若中途出现问题，也要返回非nil的err
+	    4.不能修改p中的数据
+	
+    	例子:
+	    标准库中:Fprint,Fprintf,Fprintln ----> 接受io.Writer参数 ---> 将数据格式化到io.Writer中
+    	func Println(a ...interface{}) (n int,err error){
+	      	return Fprintln(os.Stdout,a...)           //将内容格式化输出到stdout中
+	    }
+	
+    	只要类实现这两个接口，就有了IO能力 ---> 能够与底层IO流打交道
+   
+  2)fmt
+    实现了格式化IO函数
+	  a.print系列
+	    分为三类
+	    1.Fprint,Fprintf,Fprintln : 接受io.Writer,将内容输出到io.Writer中 
+	    2.Print,Printf,Println    : 将内容输出到stdout中 ----> 调用Fxxxx(os.stdout) 
+	    3.Sprint,Sprintf,Sprintln : 将内容格式为string类型，并不输出到某处   
+	    对于xxxxf函数，都需要给出格式
+	    其他函数采用默认格式
+	 
+	    print系列的函数的参数都为 ...interface{}
+	    当有多个参数时
+	    对于xxxt函数:多个参数会直接连接  ---> r := fmt.Sprint("hello",2020) ---> hello2020 ---> 连接字符串，需要使用stringconv.Itoa
+	    对于xxxln函数:多个参数之间会有空格  ---> r := fmt.Sprintln("hello",2020) --> hello 2020 
+	
+	  b.Stringger接口
+	    tyde Stringer interface{
+		    String() string 
+	    }
+  	若要格式化输出 自定义类型的值，则应该实现该接口 ----> print函数会调用String()方法
+	
+比如:
+type Person struct {
+	Name string 
+	Age int 
+	Sex int 
+}
+//实现Stringer接口
+func(p *Person) String() string{
+	buffer := bytes.NewBufferString("这是")
+	buffer.WriteString(p.Name+",")
+	if p.Sex == 0{
+		buffer.WriteString("他")
+	}else{
+		buffer.WriteString("她")
+	}
+	buffer.WriteString("今年")
+	buffer.WriteString(strconv.Itoa(p.Age))
+	buffer.WriteString("岁")
+	return buffer.String()
+}
+
+p := new Person{"张三",28,0)
+fmt.Println(p)              ---> 格式化为:这是张三，他今年28岁
+    
+	c.Formatter接口
+	 type Formatter interface{
+     	Format(f State,c rune)
+	 }
+	 通过该接口可自定义输出格式(自定义占位符)
+	 可调用Sprintf或Fprintf生成输出
+	 比如:
+	 
+func (p *Person) Format(f fmt.State,c rune) {     //一般也会先实现Stringer接口，供Format调用String()方法
+	if c == 'L'{
+		f.Write([]byte(p.String()))                //State接口含有Write方法 ---> 可以输出数据
+		f.Write([]byte("person 有三个字段"))
+	}else{
+		f.Write([]byte(fmt.Sprintln(p.String())))   //若没有此句子，会导致fmt.Printf("%s",p)什么也不输出
+	}
+}
+fmt.Printf("%L",p)
+     
+	 d.Scan系列函数
+	 类似Print系列，也分类三类
+	 1)Fscan,Fscnaf,Fscanln
+	 2)Sscan,Sscanf,Sscanln --->从字符串中读取内容
+	 3)Scan,Scanf,Scanln   --->  func Scan(a ...interface{}) (n int,err error){return Fscan(os.Stdin,a...)}
+	                       --->  调用Fxxx函数，从标准输入中读取内容
+	 
+	 Ex:
+	 var(name string 
+		  age  int
+		)
+	 n,_ := fmt.Scan("张三 28",&name,&age)  ----> 可以识别出连续空格的值，并赋给变量
+
+2.os包提供了 平台无关的 操作系统功能接口 
+  比如文件打开:
+  file,err := os.Open("file.go")
+  if err != nil{
+	  log.Fatal(err)
+  }
+
+3.filepath包:路径操作
+  1)func Dir(path string) string        --> 获取路径的目录   特殊: /A/B/  --> 返回/A/B 
+	  func Base(path string) string       --> 获取最后的文件名              --> 返回B
+	  func Ext(path string) string        --> 获得文件的扩展名
+  2)相对路径和绝对路径
+    func IsAbs(path string) bool        --> 是否为绝对路径
+    func Abs(path string) (string,bool) --> 加入当前工作目录使之成为绝对路径
+    func Rel(basepath,targetpath string)(string,error)  ---> targetpath相对于basepath的相对路径
+  3)路径的切分与拼接
+    func Split(path string) (dir,file string)
+  	其根据最后一个路径分割符进行切割为dir和file
+	  比如:
+	  filepath.Spilit("/A/B") ---> dir = /A/  file = B 
+    filepath.Spilit("/A/B/") ---> dir = /A/B/  file = "" 
+	  filepath.Spilit("A") ---> dir = ""  file = A 
+    
+    路径的拼接:
+    func Join(elem ...string) string 
+    Ex:
+	  Join(basepath , Rel(basepath,targetpath)) ----> targetpath 
+	
+  4)文件匹配  
+    func Glob(pattern string) (matches[]string,err error)
+	  返回所有匹配了pattern的文件列表
+  	若pattern不合法 ---> 返回filepath.ErrBadPattern 
+  	比如:
+	  filepath.Glob("testdata/*.input")
+   
+  5)遍历目录树
+    func Walk(root string,waklFn WalkFunc) error 
+	  对root目录下的每个文件调用WalkFunc   ---> 不会解析符号链接
+	  type WalfFunc func(path string,info os.FileInfo,err error) error 
+	  path参数使用root作为前缀
+	 

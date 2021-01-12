@@ -1,0 +1,126 @@
+1.TSC
+  64位寄存器，记录时间戳。在每个时钟信号到来时+1
+  通过指令tdtsc获取
+  __asm__ __volatile__(
+          "rdtsc" : "=a" (low), "=d" (high)
+           );
+  低32为存放到eax中，高32存到edx中
+
+
+2.时长 = 数值*时间单位
+  数值有整数和小数之分
+  template<class rep,class period = std::ratio<1> >
+   class duration
+  比如:30s
+  duration<int> t(30);
+  duration<double,std::ratio<60,1> > t(30);
+  duration.count() ---> 数值
+
+3.FastSteadyClock
+  利用TSC指令实现的时钟
+  时钟最主要的功能是求now()
+  FastSteadyClock维护了两个CheckTimePoint.设为p0和p1
+  CheckTimePoint(){
+      time_point m_tp;    //时间点
+      uint64_t m_tsc;     //从0到现在所经过的时钟信号数 --> 通过rdtsc()获取
+  }
+  从p0到p1:
+  时间变化量    :delta_tp = p1.m_tp - p0.m_tp
+  时钟信号变化量:delta_tsc = p1.m_tsc - p0.m_tsc
+  比率: cycle_ratio = delta_tp / delta_tsc
+  求now():
+    先调用rdtsc()求出此刻的 m_tsc
+    然后以p1为参考点计算now() = p1.m_tp + (m_tsc - p1.m_tsc) * cycle_ratio 
+  求now()时，cycle_ratio应该反映出最近时间段内 时间和时钟 的变化比率关系
+  所以会为FastSteadyClock分配一个线程，以每20ms为一个周期，计算该周期内的cycle_ratio
+
+  注意点:
+   1)初始状态的设定
+   2)要保证只能有一个线程运行FastSteadyClock ---> 其所有成员都是静态的，不能有data race
+   3)如果在给FastSteadyClock分配线程之前调用now()如何处理?
+     为FastSteadyClock设立init标志位，当分配了线程且计算出第一个cycle_ratio时，init=true
+     init为false时，调用标准库的now()
+
+
+4.Timer
+  冗杂的类，既包含了独立的定时器设计，也包括了多个定时器的管理设计
+  独立的定时器:TimerElement
+  继承类: 
+   1)ListNode
+     多个TimerElement通过侵入式结构形成双向链表
+   2)RefCounter
+     含有引用计数器，但不需要弱引用语义
+   3)IDCounter<TimerElement>
+     每类TimerElenment都自己的IDCounter
+  数据成员:
+   到期的时间点，到期时的函数，用于保护的锁
+  成员函数：
+   1)void call()
+     考虑到期时，有多处调用相同TimerElement的回调函数 --> 应该保证只被调用一次.所以call()会先加锁，在调用回调函数
+   2)voll cancel()
+     从时间槽中删除
+
+  多个定时器的管理:
+     TimerSlot
+     时间槽.多个TimerElement构成的侵入式双向链表
+     TimerPool
+     池化.和TimerSlot一样的结构
+  
+   1)TimeSlot m_slots[8][256];
+     8种level,每种level含有256根链表
+   2)TimeSlot timeout_slots
+     容纳已经timeout的定时器.
+   3)TimerPool m_pool;
+     池化技术，减少创建和销毁的开销
+
+   为Timer分配一个线程.用线程的运行来体现时间的流逝
+   线程运行函数:void thread_run();
+   其每隔一个周期运行run_once()一次
+   void run_once()逻辑
+    1)触发timeout_slots中已经到期的定时器
+    2)此时的时间为 FastSteadyClock::now() ---> uint64_t
+      64位数据可以分解为8个8位的数据
+      以另外一种形式来表示时间
+      union TimePoint{
+        uint64_t rep;    // rep =(cur-start) / precision --> 时间数值
+        uint8_t idx[8];  //反映64位的rep的各个8位数值情况
+      }
+      以此将now转为TimePoint& cur_tp
+      last_tp : 上一个周期的TimePoint
+      delta = cur_tp.rep - last_tp.rep --->一个周期内时间变化
+      接下来检测从last_tp到cur_tp时间段内的定时器 ---> 超时定时器
+
+      首先来看TimerElement如何被插入到m_slots中的 ---> TimerElement在m_slots是如何分布的
+      void Timer<F>::insert_to_slots(TimerElement * element, bool mainloop);
+       1)以last_tp为参照点,将element的时间转为TimePoint形式 -> tp.比如last_tp为256,element中的时间点为400,则tp=144
+         
+       2)判断tp所属的level
+        for(int i=7;i>=0;--i){     //第一个高位非0点
+          if(tp.idx[i] > 0){       
+           level = i;              //计时器归属的等级 ---> 确定了m_slots的横坐标
+           offset = (tp.idx[i] + last_tp.idx[i]) & 0xff;  //y坐标的计算
+                                                          //idx[i]的范围 0-255 --> 对应m_slots[8][256]的纵坐标
+                                                          //二者相加，很可能大于255 --> 那么就只取低8位
+                                                          //(x,y)形成二维的索引
+                                                      
+           break;
+         }
+       }
+      3)将TimerElement插入m_slots[x][y]对应的链表中
+
+
+      现在来看如何检测从last_tp到cur_tp时间段内的定时器 
+      由以上可知，定时器的插入位置相对于last_tp而非时间原点，而last_tp会不断地更新
+      假设last_tp会更新4次:t1,t2,t3,t4
+      如果在相对于t1的时刻插入定时器:A,B,C,D
+      A位于[t1,t2]
+      B位于[t2,t3]
+      C,D位于[t3,t4]
+
+      作者的算法有误.
+
+      
+
+    定时器删除 ----> 将其reset()后送入到pool中
+
+

@@ -1,0 +1,1424 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Suffix Trees<br>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<a href = "#substring">Have You Seen This String?</a>
+<br>
+<a href = "#tree">The Suffix Tree</a>
+<br>
+<a href = "#search">Let's Find That Substring</a>
+<br>
+<a href = "#nifty">Other Nifty Things You Can Do with a Suffix Tree</a>
+<br>
+<a href = "#build">How to Build Your Very Own Suffix Tree</a>
+<br>
+<a href = "#exercises">Exercises</a>
+<br>
+<a href = "#reference">References and Selected Readings</a>
+<br><br>
+
+<a name = "substring"></a>
+<font color=blue><big><big>Have You Seen This String?</big></big></font><br>
+In the classical <strong>substring search</strong> problem, we are given
+a string <code class=var>S</code> and a pattern <code class=var>P</code>
+and are to report whether or not the pattern <code class=var>P</code>
+occurs in the string <code class=var>S</code>.
+For example, the pattern <code class=var>P = cat</code> appears (twice)
+in the string <code class=var>S1 = The big cat ate the small catfish.</code>,
+but
+does not appear in the string
+<code class=var>S2 = Dogs for sale.</code>.
+<br><br>
+Researchers in the <a href = "#genome">human genome project</a>
+are constantly searching for substrings/patterns (we use the terms
+substring and pattern interchangeably)
+in a gene databank that contains tens of thousands of genes.
+Each gene is represented as a sequence or string of letters drawn from
+the alphabet
+<code class=var>{A, C, G, T}</code>. Although, most
+of the strings in the databank are around <code class=var>2000</code>
+letters long, some have tens of thousands of letters.
+Because of the size of the gene databank and the frequency with which
+substring searches are done, it is imperitive that we have as fast an
+algorithm as possible to locate a given substring within the strings in the
+databank.
+<br><br>
+We can search for a pattern <code class=var>P</code>
+in a string <code class=var>S</code>,
+using pattern matching algorithms that are described in standard
+<a href = "#reference"> algorithm's texts</a>.
+The complexity of such a search is
+<code class=var>O(|P| + |S|)</code>,
+where <code class=var>|P|</code> denotes the length (i.e., number of
+letters or digits) of
+<code class=var>P</code>.
+This complexity looks pretty good when you consider that
+the pattern <code class=var>P</code> could appear anywhere
+in the string <code class=var>S</code>. Therefore,
+we must
+examine every letter/digit (we use the terms letter and
+digit interchangeably) of the string before we can conclude that the
+search pattern does not appear in the string. Further, before we can conclude
+that the search pattern appears in the string, we must examine every
+digit of the pattern. Hence, every
+pattern search algorithm must take
+time that is linear in the lengths of the pattern and the string being
+searched.
+<br><br>
+When classical pattern matching
+algorithms are used to search for several patterns
+<code class=var>P1, P2, ..., Pk</code> in the string
+<code class=var>S</code>,
+<code class=var>O(|P1| + |P2| + ... + |Pk| + k|S|)</code> time is taken
+(because <code class=var>O(|Pi| + |S|)</code> time is taken to
+seach for <code class=var>Pi</code>).
+The suffix tree data structure that we are about to study reduces this
+complexity to
+<code class=var>O(|P1| + |P2| + ... + |Pk| + |S|)</code>.
+Of this time,
+<code class=var>O(|S|)</code> time is spent setting up the suffix tree for
+the string <code class=var>S</code>;
+an individual pattern search takes only
+<code class=var>O(|Pi|)</code> time (after the suffix tree for
+<code class=var>S</code> has been built).
+Therefore once the
+suffix tree for <code class=var>S</code> has been created,
+the time needed to search
+for a pattern depends only on the length of the pattern.
+
+
+
+<br><br>
+<a name = "tree"></a>
+<big><big><font color=blue>The Suffix Tree</font></big></big><br>
+The <strong>suffix tree</strong> for <code class=var>S</code>
+is actually the <a href = "tries.htm">compressed trie</a>
+for the nonempty suffixes of the string <code class=var>S</code>.
+Since a suffix tree is a compressed trie, we sometimes refer to the
+tree as a trie and to its subtrees as subtries.
+<br><br>
+The (nonempty) suffixes of the string <code class=var>S = peeper</code> are
+<code class=var>peeper, eeper, eper, per, er,</code>
+and <code class=var>r</code>.
+Therefore, the suffix tree for the string <code class=var>pepper</code>
+is the compressed trie that contains the elements (which are also the keys)
+<code class=var>peeper, eeper, eper, per, er,</code> and
+<code class=var>r</code>.
+The alphabet for the string <code class=var>peeper</code> is
+<code class=var>{e, p, r}</code>. Therefore, the radix of the
+compressed trie is <code class=var>3</code>.
+If necessary, we may use the mapping
+<code class=var>e -> 0, p -> 1, r -> 2</code>, to
+convert from the letters of the string to numbers.
+This conversion is necessary only when we use a node structure in which
+each node has an array of child pointers.
+Figure 1 shows the compressed trie (with edge information) for the suffixes of
+<code class=var>peeper</code>.
+This compressed trie is also the suffix tree for the string
+<code class=var>peeper</code>.
+<center>
+<font color=blue>
+<img src=suffix1.gif>
+<br>Figure 1 Compressed trie for the suffixes of peeper
+</font>
+</center>
+<br><br>
+Since the data in the information nodes <code class=var>D-I</code>
+are the suffixes of
+<code class=var>peeper</code>, each information node
+need retain only the start index of the suffix it contains.
+When the letters in <code class=var>peeper</code> are indexed
+from left to right beginning with the index <code class=var>1</code>,
+the information nodes <code class=var>D-I</code>
+need only retain the indexes
+<code class=var>6, 2, 3, 5, 1,</code> and <code class=var>4</code>,
+respectively. Using the index stored in an information node, we can
+access the suffix from the string <code class=var>S</code>.
+Figure 2 shows the suffix tree of Figure 1 with each information node
+containing a suffix index.
+<center>
+<font color=blue>
+<img src=suffix2.gif>
+<br>Figure 2 Modified compressed trie for the suffixes of peeper
+</font>
+</center>
+<br><br>
+The first component of each branch node is a reference to an element
+in that subtrie. We may replace the element reference by the index of
+the first digit of the referenced element. Figure 3 shows the resulting
+compressed
+trie.
+We shall use this modified form as the representation for the suffix tree.
+<center>
+<font color=blue>
+<img src=suffix3.gif>
+<br>Figure 3 Suffix tree for peeper
+</font>
+</center>
+<br><br>
+When describing the search and construction algorithms for suffix trees,
+it is easier to deal with a drawing of the suffix tree in which
+the edges are labeled by the digits used in the move from a
+branch node to a child node. The first digit of the label is the
+digit used to determine which child is moved to, and the
+remaining digits of the label give the digits that are skipped over.
+Figure 4 shows the suffix tree of Figure 3 drawn in this manner.
+<center>
+<font color=blue>
+<img src=suffix4.gif>
+<br>Figure 4 A more humane drawing of a suffix tree
+</font>
+</center>
+<br><br>
+In the more humane drawing of a suffix tree,
+the labels on the edges
+on any root to information node path
+spell out the suffix represented by that information node.
+When the digit number for the root is not <code class=var>1</code>,
+the humane drawing of a suffix tree includes a head node with an
+edge to the former root. This edge is labeled with the digits that
+are skipped over.
+<br><br>
+The string <strong>represented</strong> by a node of a suffix tree
+is the string spelled by the labels on the path from the root to that node.
+Node <code class=var>A</code> of Figure 4 represents the empty string
+<code class=var>epsilon</code>, node <code class=var>C</code>
+represents the string <code class=var>pe</code>, and
+node <code class=var>F</code> represents the string
+<code class=var>eper</code>.
+<br><br>
+Since the keys in a suffix tree are of different length, we must ensure that
+no key is a proper prefix of another (see <a href = "suffix.different">Keys
+With Different Length</a>).  Whenever the last digit of string
+<code class=var>S</code> appears only once in <code class=var>S</code>,
+no suffix of <code class=var>S</code> can be a proper
+prefix of another suffix of <code class=var>S</code>.
+In the string <code class=var>peeper</code>, the
+last digit is <code class=var>r</code>, and this digit appears only once.
+Therefore, no suffix of <code class=var>peeper</code> is a proper prefix of another.
+The last digit of <code class=var>data</code> is <code class=var>a</code>,
+and this last digit appears twice in <code class=var>data</code>. Therefore,
+<code class=var>data</code> has two suffixes
+<code class=var>ata</code> and <code class=var>a</code>
+that begin with <code class=var>a</code>. The suffix
+<code class=var>a</code> is a proper prefix of
+the suffix
+<code class=var>ata</code>.
+<br><br>
+When the last digit of the string <code class=var>S</code> appears more than
+once in <code class=var>S</code> we must append a new digit
+(say <code class=var>#</code>) to the suffixes of <code class=var>S</code>
+so that no suffix is a prefix of another. Optionally, we may append
+the new digit to <code class=var>S</code> to get the string
+<code class=var>S#</code>, and then construct the suffix tree
+for <code class=var>S#</code>. When this optional route is taken,
+the suffix tree has one more suffix (<code class=var>#</code>) than
+the suffix tree obtained by appending the symbol
+<code class=var>#</code> to the suffixes of <code class=var>S</code>. 
+
+
+
+<br><br>
+<a name = "search"></a>
+<big><big><font color=blue>Let's Find That Substring</font></big></big><br>
+<font color=blue>But First, Some Terminology</font><br>
+Let <code class=var>n = |S|</code> denote the length (i.e., number of digits)
+of the string whose suffix tree we are to build. We number the digits
+of <code class=var>S</code> from left to right beginning with the number
+<code class=var>1</code>. <code class=var>S[i]</code> denotes the
+<code class=var>i</code>th digit of <code class=var>S</code>, and
+<code class=var>suffix(i)</code> denotes the suffix
+<code class=var>S[i]...S[n]</code> that begins at digit
+<code class=var>i</code>, <code class=var>1 &lt;= i &lt;= n</code>.
+<br><br>
+<font color=blue>On With the Search</font><br>
+A fundamental observation used when searching for a
+pattern <code class=var>P</code> in a string
+<code class=var>S</code> is that <code class=var>P</code>
+appears in <code class=var>S</code> (i.e., <code class=var>P</code>
+is a substring of <code class=var>S</code>) iff
+<code class=var>P</code> is a prefix of some suffix of
+<code class=var>S</code>.
+<br><br>
+Suppose that <code class=var>P = P[1]...P[k] =
+S[i]...S[i+k-1]</code>.
+Then, <code class=var>P</code> is a
+prefix of <code class=var>suffix(i)</code>.
+Since <code class=var>suffix(i)</code> is in our compressed
+trie (i.e., suffix tree), we
+can search for <code class=var>P</code> by using the
+<a href = "suffix.htm#prefix">strategy</a> to search
+for a key prefix in a compressed trie.
+<br><br>
+Let's search for the pattern <code class=var>P = per</code>
+in the string <code class=var>S = peeper</code>. Imagine that we
+have already constructed the suffix tree (Figure 4) for
+<code class=var>peeper</code>.
+The search starts at the root node <code class=var>A</code>.
+Since <code class=var>P[1] =
+p</code>, we follow the edge 
+whose label begins with the digit <code class=var>p</code>.
+When following this edge, we compare the remaining digits
+of the edge label with successive digits of <code class=var>P</code>.
+Since these remaining label digits agree with the
+pattern digits, we reach
+the branch node
+<code class=var>C</code>. In getting to node <code class=var>C</code>, we have
+used the first two digits of the pattern.
+The third digit of the pattern is <code class=var>r</code>, and so,
+from node <code class=var>C</code> we follow the edge whose label begins
+with <code class=var>r</code>. Since this edge has no additional digits
+in its label, no additional digit comparisons are done and we
+reach the information node <code class=var>I</code>. At this time, the
+digits in the pattern have been exhausted and we conclude that
+the pattern is in the string. Since an information node is reached,
+we conclude that
+the pattern is actually a suffix of the string <code class=var>peeper</code>.
+In the actual suffix tree representation (rather than in the humane drawing),
+the information node <code class=var>I</code> contains the index
+<code class=var>4</code> which tells us that the pattern
+<code class=var>P = per</code> begins at digit <code class=var>4</code>
+of <code class=var>peeper</code> (i.e., <code class=var>P = suffix(4)</code>).
+Further, we can conclude that
+<code class=var>per</code> appears exactly once in
+<code class=var>peeper</code>; the search for a pattern that appears more than
+once terminates at a branch node, not at an information node.
+<br><br>
+Now, let us search for the pattern <code class=var>P = eeee</code>.
+Again, we start at the root. Since the first character of the pattern
+is <code class=var>e</code>, we follow the edge whose label begins
+with <code class=var>e</code> and reach the node <code class=var>B</code>.
+The next digit of the pattern is also <code class=var>e</code>, and
+so, from node <code class=var>B</code> we follow the edge whose label begins
+with <code class=var>e</code>. In following this edge, we must compare
+the remaining digits <code class=var>per</code> of the edge label with the
+following digits <code class=var>ee</code> of the
+pattern. We find a mismatch when the first pair <code class=var>(p,e)</code>
+of digits are compared and we conclude that the pattern does not appear
+in <code class=var>peeper</code>.
+<br><br>
+Suppose we are to search for the pattern <code class=var>P = p</code>.
+From the root, we follow the edge whose label begins
+with <code class=var>p</code>.
+In following this edge, we compare
+the remaining digits (only the digit <code class=var>e</code> remains)
+of the edge label with the
+following digits (there aren't any) of the
+pattern. Since the pattern is exhausted while following this edge,
+we conclude that the pattern is a prefix of all keys in the
+subtrie rooted at node <code class=var>C</code>. 
+We can find all occurrences of the pattern by traversing the subtrie
+rooted at <code class=var>C</code> and visiting the information
+nodes in this subtrie. If we want the location of just one of the
+occurrences of the pattern, we can use the index stored in the
+first component of the branch node <code class=var>C</code> (see Figure 3).
+When a pattern exhausts while following the edge to node
+<code class=var>X</code>, we say that node <code class=var>X</code>
+has been reached; the search terminates at node <code class=var>X</code>.
+<br><br>
+When searching for the pattern <code class=var>P = rope</code>,
+we use the first digit <code class=var>r</code> of <code class=var>P</code>
+and reach the information node <code class=var>D</code>. Since the
+the pattern has not been exhausted, we must check the
+remaining digits of the pattern against those of the key in
+<code class=var>D</code>. This check reveals that the pattern is not a prefix
+of the key in <code class=var>D</code>, and so the pattern does not
+appear in <code class=var>peeper</code>.
+<br><br>
+The last search we are going to do is for the pattern
+<code class=var>P = pepe</code>. Starting at the root of Figure 4,
+we move over the edge whose label begins with <code class=var>p</code>
+and reach node <code class=var>C</code>. The next unexamined digit of the
+search pattern is <code class=var>p</code>. So, from
+node <code class=var>C</code>, we wish to follow the edge
+whose label begins with <code class=var>p</code>. Since no edge
+satisfies this requirement, we conclude that <code class=var>pepe</code>
+does not appear in the string <code class=var>peeper</code>.
+
+
+
+
+<br><br>
+<a name = "nifty"></a>
+<big><big><font color=blue>Other Nifty Things You Can Do with a Suffix Tree</font></big></big><br>
+Once we have set up the suffix tree for a string <code class=var>S</code>,
+we can tell whether or not <code class=var>S</code> contains a pattern
+<code class=var>P</code> in <code class=var>O(|P|)</code> time.
+This means that if we have a suffix tree for the text of Shakespeare's play
+``Romeo and Juliet,'' we can determine whether or not the phrase
+<code class=var>wherefore art thou</code> appears in this play
+with lightning speed. In fact, the time taken will be that needed to
+compare up to <code class=var>18</code> (the length of the
+search pattern) letters/digits. The search time is independent of the
+length of the play.
+<br><br>
+Other interesting things you can do at lightning speed are:
+<ol>
+<li>
+<em>Find all occurrences of a pattern <code class=var>P</code></em>.
+This is done by searching the suffix tree for <code class=var>P</code>.
+If <code class=var>P</code> appears at least once, the
+search terminates successfully
+either at an information node or at a branch node. When the search terminates
+at an information node, the pattern occurs exactly once. When we terminate
+at a branch node <code class=var>X</code>,
+all places where the pattern occurs can be found by
+visiting the information nodes in the subtrie rooted
+at <code class=var>X</code>.
+This visiting can be done in time linear in the number of occurrences of the
+pattern if we
+<dl compact>
+<dt> (a)
+<dd>
+Link all of the information nodes in the suffix tree into a chain,
+the linking is done in lexicographic order of the represented suffixes
+(which also is the order in which the information nodes are encountered
+in a left to right scan of the information nodes). The information nodes
+of Figure 4 will be linked in the order <code class=var>E, F, G, H, I, D</code>.
+<dt> (b)
+<dd>
+In each branch node, keep a reference to the first and last
+information node in the subtrie of which that branch node is the root.
+In Figure 4, nodes <code class=var>A, B,</code> and <code class=var>C</code>
+keep the pairs <code class=var>(E, D), (E, G),</code>
+and <code class=var>(H,I)</code>, respectively.
+We use the pair <code class=var>(firstInformationNode, lastInformationNode)</code>
+to traverse the information node chain starting at
+<code class=var>firstInformationNode</code> and ending at
+<code class=var>lastInformationNode</code>. This traversal yields all
+occurrences of patterns that begin with the string spelled
+by the edge labels from the root to the branch node.
+Notice that when <code class=var>(firstInformationNode, lastInformationNode)</code>
+pairs are kept in branch nodes, we can eliminate the branch node field that
+keeps a reference to an information node in the subtrie (i.e., the field
+<code class=code>element</code>).
+</dl>
+<br><br>
+<li>
+<em>Find all strings that contain a pattern <code class=var>P</code></em>.
+Suppose we have a collection <code class=var>S1, S2, ... Sk</code>
+of strings and we wish to report all strings that contain a query pattern
+<code class=var>P</code>. For example, the genome databank contains
+tens of thousands of strings, and when a researcher submits a
+query string, we are to report all databank strings
+that contain the query string. To answer queries of this type efficiently,
+we set up a compressed trie (we may call this a <strong>multiple
+string suffix tree</strong>) that contains the suffixes of the string
+<code class=var>S1$S2$...$Sk#</code>, where <code class=var>$</code> and
+<code class=var>#</code> are two different
+digits that do not appear in any of the
+strings <code class=var>S1, S2, ..., Sk</code>.
+In each node of the suffix tree, we keep a list
+of all strings <code class=var>Si</code>
+that are the start point of a suffix represented by
+an information node in that subtrie.
+<br><br>
+<li>
+<em>Find the longest substring of <code class=var>S</code>
+that appears at least <code class=var>m &gt; 1</code> times</em>.
+This query can be answered in <code class=var>O(|S|)</code> time in the
+following way:
+<dl compact>
+<dt>(a)
+<dd>
+Traverse the suffix tree labeling the branch nodes with the sum of
+the label lengths from the root and also with the number of information
+nodes in the subtrie.
+<dt>(b)
+<dd>
+Traverse the suffix tree visiting branch nodes
+with information node count
+<code class=var>&gt;= m</code>.
+Determine the visited branch node with longest label length.
+</dl>
+<br><br>
+Note that step (a) needs to be done only once. Following this,
+we can do step (b) for as many values of <code class=var>m</code>
+as is desired.
+Also, note that when <code class=var>m = 2</code> we can avoid determining the
+number of information nodes in subtries. In a compressed trie, every
+subtrie rooted at a branch node has at least two information nodes in it.
+<br><br>
+<li>
+<em>Find the longest common substring  of the strings
+<code class=var>S</code> and <code class=var>T</code></em>.
+This can be done in time <code class=var>O(|S| + |T|)</code> as below:
+<dl compact>
+<dt> (a)
+<dd>
+Construct a multiple string suffix tree for <code class=var>S</code>
+and <code class=var>T</code> (i.e., the suffix tree for
+<code class=var>S$T#</code>).
+<dt>(b)
+<dd>
+Traverse the suffix tree to identify the branch node for
+which the sum of the label lengths on the path from
+the root is maximum and whose subtrie has at least one information
+node that represents a suffix that begins in
+<code class=var>S</code> and at least one information
+node that represents a suffix that begins in <code class=var>T</code>.
+</dl>
+<br><br>
+Notice that the related problem to find the longest common subsequence
+of <code class=var>S</code> and <code class=var>T</code> is solved
+in <code class=var>O(|S| * |T|)</code> time using dynamic programming
+(see Exercise 15.22 of the text).
+</ol>
+
+
+<br><br>
+<a name = "build"></a>
+<big><big><font color=blue>How to Build Your Very Own Suffix Tree</font></big></big><br>
+
+<big><font color=blue>Three Observations</font><br></big>
+To aid in the construction of the suffix tree, we add a
+<code class=var>longestProperSuffix</code> field to each branch node.
+The <code class=code>longestProperSuffix</code> field of a branch
+node that represents the nonempty string <code class=var>Y</code>
+points to the branch node for the longest proper
+suffix of <code class=var>Y</code>
+(this suffix is obtained by removing the first
+digit from <code class=var>Y</code>).
+The <code class=code>longestProperSuffix</code> field of the root is not used.
+<br><br>
+Figure 5 shows the suffix tree of Figure 4 with longest proper
+suffix pointers (often, we refer to the longest proper
+suffix pointer as simply the suffix pointer) included.
+Longest proper suffix pointers are shown as red arrows.
+Node <code class=var>C</code> represents the string <code class=var>pe</code>.
+The longest proper suffix <code class=var>e</code> of <code class=var>pe</code>
+is represented by node <code class=var>B</code>. Therefore, the
+(longest proper) suffix pointer of <code class=var>C</code> points to node
+<code class=var>B</code>. The longest proper suffix of the string
+<code class=var>e</code> represented by node <code class=var>B</code> is the
+empty string. Since the root node represents the empty string, the longest
+proper suffix pointer of node <code class=var>B</code> points to the root node
+<code class=var>A</code>.
+<center>
+<font color=blue>
+<img src=suffix5.gif>
+<br>Figure 5 Suffix tree of Figure 4 augmented with suffix pointers
+</font>
+</center>
+<br><br>
+<strong><font color=blue>Observation 1</font></strong>
+If the suffix tree for any string <code class=var>S</code>
+has a branch node that represents the string
+<code class=var>Y</code>, then the tree also has a branch node that represents
+the longest proper suffix <code class=var>Z</code> of <code class=var>Y</code>.
+<br>
+<strong><font color=blue>Proof</font></strong>
+Let <code class=var>P</code> be the branch node for <code class=var>Y</code>.
+Since <code class=var>P</code> is a branch node, there are at least
+<code class=var>2</code> different digits <code class=var>x</code> and
+<code class=var>y</code> such that <code class=var>S</code> has
+a suffix that begins with <code class=var>Yx</code> and another that
+begins with
+<code class=var>Yy</code>.
+Therefore, <code class=var>S</code> has
+a suffix that begins with <code class=var>Zx</code> and another that
+begins with
+<code class=var>Zy</code>.
+Consequently, the suffix tree for <code class=var>S</code>
+must have a branch node for <code class=var>Z</code>.
+<br><br>
+<strong><font color=blue>Observation 2</font></strong>
+If the suffix tree for any string <code class=var>S</code>
+has a branch node that represents the string
+<code class=var>Y</code>, then the tree also has a branch node for
+each of the suffixes of <code class=var>Y</code>.
+<br>
+<strong><font color=blue>Proof</font></strong>
+Follows from Observation 1.
+<br><br>
+Note that the suffix tree of Figure 5 has a branch node for
+<code class=var>pe</code>. Therefore, it also must have branch nodes
+for the suffixes <code class=var>e</code> and <code class=var>epsilon</code>
+of <code class=var>pe</code>.
+
+<br><br>
+The concepts of the <strong>last branch node</strong>
+and the <strong>last branch index</strong> are useful
+in describing the suffix tree construction algorithm.
+The last branch node for suffix <code class=var>suffix(i)</code> is the
+parent of the information node that represents
+<code class=var>suffix(i)</code>. In Figure 5, the last branch nodes
+for suffixes <code class=var>1</code> through <code class=var>6</code>
+are <code class=var>C, B, B, C, B,</code> and
+<code class=var>A</code>, respectively.
+For any suffix <code class=var>suffix(i)</code>, the last branch
+index <code class=var>lastBranchIndex(i)</code> is the index of
+the digit on which a branch is made at the last branch node
+for <code class=var>suffix(i)</code>.
+In Figure 5, <code class=var>lastBranchIndex(1) = 3</code>
+because <code class=var>suffix(1) = peeper</code>;
+<code class=var>suffix(1)</code> is represented by information node
+<code class=var>H</code> whose parent is node <code class=var>C</code>;
+the branch at <code class=var>C</code> is made using the third digit
+of <code class=var>suffix(1)</code>; and the third digit of
+<code class=var>suffix(1)</code> is <code class=var>S[3]</code>.
+You may verify that <code class=var>lastBranchIndex[1:6] =
+[3, 3, 4, 6, 6, 6]</code>.
+<br><br>
+<strong><font color=blue>Observation 3</font></strong>
+In the suffix tree for any string <code class=var>S</code>,
+<code class=var>lastBranchIndex(i) &lt;= lastBranchIndex(i+1)</code>, 
+<code class=var>1 &lt;= i < n</code>.
+<br>
+<strong><font color=blue>Proof</font></strong>
+Left as an exercise.
+<br><br>
+
+<br><br>
+<big><font color=blue>Get Out That Hammer and Saw, and Start Building</font><br></big>
+To build your very own suffix tree, you must start with your very own string.
+We shall use the string <code class=var>R = ababbabbaabbabb</code>
+to illustrate the construction procedure. Since the last digit
+<code class=var>b</code> of <code class=var>R</code> appears more than
+once, we append a new digit <code class=var>#</code> to <code class=var>R</code>
+and build the suffix tree for <code class=var>S = R# = ababbabbaabbabb#</code>.
+With an <code class=var>n = 16</code> digit string <code class=var>S</code>,
+you can imagine that this is going to be a rather long example.
+However, when you are done with this example, you will
+know everything you ever wanted to know about suffix tree construction.
+<br><br>
+<font color=blue>Construction Strategy</font><br>
+The suffix tree construction algorithm starts with a root node that
+represents the empty string. This node is a branch node.
+At any time during the suffix tree construction process, exactly one
+of the branch nodes of the suffix tree will be designated the
+<strong>active node</code>. This is the node from where the process
+to insert the next suffix begins. Let <code class=var>activeLength</code> be the
+length of the string represented by the active node.
+Initially,
+the root is the active node and <code class=var>activeLength = 0</code>.
+Figure 6 shows the initial configuration, the active node is shown in green.
+
+<center>
+<font color=blue>
+<img src=suffix6.gif>
+<br>Figure 6 Initial configuration for suffix tree construction
+</font>
+</center>
+<br><br>
+
+As we proceed, we shall add branch and information nodes
+to our tree. Newly added branch nodes will be colored
+magenta, and newly added information nodes will be colored cyan.
+Suffix pointers will be shown in red.
+<br><br>
+Suffixes are inserted into the tree in the order
+<code class=var>suffix(1), suffix(2), ..., suffix(n)</code>.
+The insertion of the suffixes in this order is accomplished by
+scanning the string <code class=var>S</code> from left to right.
+Let <code class=var>tree(i)</code> be the compressed trie
+for the suffixes <code class=var>suffix(1), ..., suffix(i)</code>,
+and let <code class=var>lastBranchIndex(j, i)</code> be the last branch index
+for <code class=var>suffix(j)</code> in <code class=var>tree(i)</code>.
+Let <code class=var>minDistance</code>
+be a lower bound on the distance (measured by number
+of digits) from the active node to the last branch index of the
+suffix that is to be inserted. Initially,
+<code class=var>minDistance = 0</code> as
+<code class=var>lastBranchIndex(1,1) = 1</code>.
+When inserting <code class=var>suffix(i)</code>, it will be the case that
+<code class=var>lastBranchIndex(i,i) &gt;= i + activeLength + minDistance</code>.
+<br><br>
+To insert <code class=var>suffix(i+1)</code> into
+<code class=var>tree(i)</code>, we must do the following:
+<ol>
+<li>
+Determine
+<code class=var>lastBranchIndex(i+1, i+1)</code>.
+To do this, we begin at the current active node.
+The first <code class=var>activeLength</code> number of digits
+of the new suffix (i.e., digits
+<code class=var>S[i+1], S[i+2], ..., S[i + activeLength]</code>)
+will be known to agree with the string represented
+by the active node. So, to determine <code class=var>lastBranchIndex(i+1,i+1)</code>,
+we examinine digits <code class=var>activeLength + 1</code>,
+<code class=var>activeLength + 2</code>, ..., of the new suffix.
+These digits are used to follow a path through <code class=var>tree(i)</code>
+beginning at the active node and terminating when
+<code class=var>lastBranchIndex(i+1,i+1)</code> has been determined.
+Some efficiencies result from knowing that
+<code class=var>lastBranchIndex(i+1,i+1) &gt;= i + 1 + activeLength + minDistance</code>.
+<li>
+If <code class=var>tree(i)</code> does not have
+a branch node <code class=var>X</code>
+which represents the string
+<code class=var>S[i]...S[lastBranchIndex(i+1,i+1)-1]</code>, then create
+such a branch node <code class=var>X</code>.
+<li>
+Add an information node for <code class=var>suffix(i+1)</code>.
+This information node is a child of the branch node <code class=var>X</code>,
+and the label on the edge from <code class=var>X</code> to the
+new information node is <code class=var>S[lastBranchIndex(i+1, i+1)]...S[n]</code>.
+</ol>
+<br><br>
+<font color=blue>Back to the Example</font><br>
+We begin by inserting <code class=var>suffix(1)</code> into
+the tree <code class=var>tree(0)</code> that is shown in Figure 6.
+The root is the active node, <code class=var>activeLength = minDistance = 0</code>.
+The first digit of <code class=var>suffix(1)</code> is <code class=var>S[1] = a</code>.
+No edge from the active node (i.e., the root) of <code class=var>tree(0)</code>
+has a label that begins with <code class=var>a</code>
+(in fact, at this time, the active node has no edge at all).
+Therefore, <code class=var>lastBranchIndex(1,1) = 1</code>. So,
+we create an information node and an edge whose label is the entire
+string. Figure 7 shows the result,
+<code class=var>tree(1)</code>. The root remains the active node, and
+<code class=var>activeLength</code> and <code class=var>minDistance</code>
+are unchanged.
+<center>
+<font color=blue>
+<img src=suffix7.gif>
+<br>Figure 7 After the insertion of the suffix ababbabbaabbabb#
+</font>
+</center>
+<br><br>
+In our drawings, we shall show the
+labels on edges that go to information nodes using the notation
+<code class=var>i+</code>, where <code class=var>i</code> gives
+the index, in <code class=var>S</code>, where the label starts
+and the <code class=var>+</code> tells us that the label goes to
+the end of the string.
+Therefore, in Figure 7, the edge label <code class=var>1+</code>
+denotes the string <code class=var>S[1]...S[n]</code>.
+Figure 7 also shows the string <code class=var>S</code>.
+The newly inserted suffix is shown in cyan.
+<br><br>
+To insert the next suffix, <code class=var>suffix(2)</code>,
+we again begin at the active node examining digits
+<code class=var>activeLength + 1 = 1</code>,
+<code class=var>activeLength + 2 = 2</code>, ..., of the new suffix.
+Since, digit 1 of the new suffix is <code class=var>S[2] = b</code> and
+since the active node has no edge whose label
+begins with <code class=var>S[2] = b</code>,
+<code class=var>lastBranchIndex(2,2) = 2</code>. Therefore,
+we create a new information node and an edge whose label is
+<code class=var>2+</code>. Figure 8 shows the resulting tree.
+Once again, the root remains the active node and
+<code class=var>activeLength</code> and <code class=var>minDistance</code>
+are unchanged.
+<center>
+<font color=blue>
+<img src=suffix8.gif>
+<br>Figure 8 After the insertion of the suffix babbabbaabbabb#
+</font>
+</center>
+<br><br>
+Notice that the tree of Figure 8 is the compressed trie
+<code class=var>tree(2)</code>
+for <code class=var>suffix(1)</code> and
+<code class=var>suffix(2)</code>.
+<br><br>
+The next suffix, <code class=var>suffix(3)</code>,
+begins at <code class=var>S[3] = a</code>. Since the
+active node of <code class=var>tree(2)</code> (i.e., the root)
+has an edge whose label begins with <code class=var>a</code>,
+<code class=var>lastBranchIndex(3,3) &gt; 3</code>.
+To determine
+<code class=var>lastBranchIndex(3,3)</code>,
+we must see more digits of <code class=var>suffix(3)</code>. In particular,
+we need to see as many additional digits as are needed to distinguish between
+<code class=var>suffix(1)</code> and <code class=var>suffix(3)</code>.
+We first compare
+the second digit
+<code class=var>S[4] = b</code>
+of the new suffix and the second digit <code class=var>S[2] = b</code>
+of the edge label <code class=var>1+</code>.
+Since <code class=var>S[4] = S[2]</code>, we must do additional comparisons.
+The next comparison is between the third digit <code class=var>S[5] = b</code>
+of the new suffix
+and the third digit <code class=var>S[3] = a</code>
+of the edge label <code class=var>1+</code>.
+Since these digits are different, <code class=var>lastBranchIndex(3,3)</code>
+is determined to be <code class=var>5</code>.
+At this time, we update <code class=var>minDistance</code> to have the
+value <code class=var>2</code>.
+Notice that, at this time, this is the max value possible
+for <code class=var>minDistance</code>
+because
+<code class=var>lastBranchIndex(3,3) = 5 = 3 + activeLength + minDistance</code>.
+<br><br>
+To insert the new suffix,
+<code class=var>suffix(3)</code>, we
+split the edge of <code class=var>tree(2)</code>
+whose label is <code class=var>1+</code> into two.
+The first split edge has the label <code class=var>1,2</code>
+and the label for the second split edge is <code class=var>3+</code>.
+In between the two split edges, we place a branch node.
+Additionally, we introduce an information node for the
+newly inserted suffix.
+Figure 9 shows the tree <code class=var>tree(3)</code> that
+results. The edge
+label <code class=var>1,2</code> is shown as the
+digits <code class=var>S[1]S[2] = ab</code>.
+<center>
+<font color=blue>
+<img src=suffix9.gif>
+<br>Figure 9 After the insertion of the suffix abbabbaabbabb#
+</font>
+</center>
+<br><br>
+The compressed trie <code class=var>tree(3)</code>
+is incomplete because we have yet to put in the
+longest proper suffix pointer for the newly created
+branch node <code class=var>D</code>.
+The longest suffix for this branch node is <code class=var>b</code>, but
+the branch node for <code class=var>b</code> does not exist.
+No need to panic, this branch node will be the next branch node
+created by us.
+<br><br>
+The next suffix to insert is
+<code class=var>suffix(4)</code>.
+This suffix is the longest proper suffix of the most recently inserted
+suffix, <code class=var>suffix(3)</code>. The insertion process
+for the new suffix begins by updating the active node by following the
+suffix pointer in the current active node. Since the root has
+no suffix pointer, the active node is not updated. Therefore,
+<code class=var>activeLength</code> is unchanged also.
+However, we must update <code class=var>minDistance</code> to ensure
+<code class=var>lastBranchIndex(4,4) &gt;= 4 + activeLength + minDistance</code>.
+It is easy to see that
+<code class=var>lastBranchIndex(i,i) &lt;= lastBranchIndex(i+1,i+1)</code>
+for all <code class=var>i < n</code>. Therefore,
+<code class=var>lastBranchIndex(i+1,i+1) &gt;= lastBranchIndex(i,i) &gt;= i + activeLength + minDistance</code>.
+To ensure
+<code class=var>lastBranchIndex(i+1,i+1) &gt;= i + 1 + activeLength + minDistance</code>,
+we must reduce
+<code class=var>minDistance</code> by
+<code class=var>1</code>.
+<br><br>
+Since <code class=var>minDistance = 1</code>,
+we start at the active node (which is still the root) and move forward
+following the path dictated by <code class=var>S[4]S[5]...</code>.
+We do not compare the first <code class=var>minDistance</code>
+digits as we follow this path, because a match is
+assured until we get to the point where
+digit <code class=var>minDistance + 1</code> (i.e., <code class=var>S[5]</code>)
+of the new suffix is to be compared.
+Since the active node edge label that begins with
+<code class=var>S[4] = b</code>
+is more than one digit long, we compare <code class=var>S[5]</code> and the
+second digit <code class=var>S[3] = a</code> of this edge's label.
+Since the two digits are different,
+the edge is split in the same way we split the edge with label
+<code class=var>1+</code>. The first split edge has the label
+<code class=var>2,2 = b</code>, and the label on the second split
+edge is <code class=var>3+</code>; in between the two
+split edges, we place a new branch node <code class=var>F</code>,
+a new information node <code class=var>G</code> is created for the
+newly inserted suffix, this information node is connected
+to the branch node <code class=var>F</code> by an edge whose
+label is <code class=var>5+</code>. Figure 10 shows the
+resulting structure.
+<center>
+<font color=blue>
+<img src=suffix10.gif>
+<br>Figure 10 After the insertion of the suffix bbabbaabbabb#
+</font>
+</center>
+<br><br>
+We can now set the suffix pointer from the branch node
+<code class=var>D</code> that was created when
+<code class=var>suffix(3)</code> was inserted. This suffix
+pointer has to go
+to the newly created branch node <code class=var>F</code>.
+<br><br>
+The longest proper suffix of the string <code class=var>b</code> represented by
+node <code class=var>F</code> is the empty string. So, the suffix
+pointer in node <code class=var>F</code> is to point to the
+root node.
+Figure 11 shows the compressed trie with suffix pointers added.
+This trie is <code class=var>tree(4)</code>.
+<center>
+<font color=blue>
+<img src=suffix11.gif>
+<br>Figure 11 Trie of Figure 10 with suffix pointers added
+</font>
+</center>
+<br><br>
+The construction
+of the suffix tree continues with an attempt to insert the next suffix
+<code class=var>suffix(5)</code>.
+Since <code class=var>suffix(5)</code> is the longest proper suffix of
+the most recently inserted suffix <code class=var>suffix(4)</code>,
+we begin by following the suffix pointer in the active node. However,
+the active node is presently the root and it has no suffix pointer. So,
+the active node is unchanged. To preserve the desired
+relationship among
+<code class=var>lastBranchIndex, activeLength, minDistance</code>,
+and the index (<code class=var>5</code>)
+of the next suffix that is to be inserted,
+we must reduce <code class=var>minDistance</code> by one.
+So, <code class=var>minDistance</code> becomes zero.
+<br><br>
+Since <code class=var>activeLength = 0</code>, we need to examine digits of
+<code class=code>suffix(5)</code> beginning with the first one
+<code class=var>S[5]</code>.
+The active node has an edge whose label begins with
+<code class=var>S[5] = b</code>.
+We follow the edge with label <code class=var>b</code>
+comparing suffix digits and label digits.
+Since all digits agree, we reach
+node <code class=var>F</code>. Node <code class=var>F</code>
+becomes the active node (whenever we encounter a branch node
+during suffix digit examination, the active node is
+updated to this encountered branch node) and
+<code class=var>activeLength = 1</code>.
+We continue the comparison of
+suffix digits using an edge from the current active node.
+Since the next suffix digit to compare is
+<code class=var>S[6] = a</code>, we use an active node edge whose label
+begins with <code class=var>a</code> (in case such an
+edge does not exist, <code class=var>lastBranchIndex</code> for the
+new suffix is <code class=var>activeLength + 1</code>). This edge has the label
+<code class=var>3+</code>. The digit comparisons terminate
+inside this label when digit <code class=var>S[10] = a</code>
+of the new suffix is compared with digit <code class=var>S[7] = b</code>
+of the edge label <code class=var>3+</code>.
+Therefore, <code class=var>lastBranchIndex(5,5) = 10</code>.
+<code class=var>minDistance</code> is set to its max possible value, which is
+<code class=var>lastBranchIndex(5,5) - (index of suffix to be inserted) - activeLength = 10 - 5 - 1 = 4</code>.
+<br><br>
+To insert <code class=var>suffix(5)</code>,
+we split the
+edge <code class=var>(F,C)</code> that
+is between nodes <code class=var>F</code> and
+<code class=var>C</code>. The split takes place at digit
+<code class=var>splitDigit = 5</code> of the label of
+edge <code class=var>(F,C)</code>. Figure 12 shows the resulting tree.
+<center>
+<font color=blue>
+<img src=suffix12.gif>
+<br>Figure 12 After the insertion of the suffix babbaabbabb#
+</font>
+</center>
+<br><br>
+Next, we insert <code class=var>suffix(6)</code>.
+Since this suffix is the longest proper suffix of the last suffix
+<code class=var>suffix(5)</code> that we inserted,
+we begin by following the suffix link in the active node. This gets us to
+the tree root, which becomes the new active node.
+<code class=var>activeLength</code> becomes <code class=var>0</code>.
+Notice that when we follow a suffix pointer, <code class=var>activeLength</code>
+reduces by <code class=var>1</code>; the value of
+<code class=var>minDistance</code> does not change because
+<code class=var>lastBranchIndex(6,6) &gt;= lastBranchIndex(5,5)</code>.
+Therefore, we still have the desired relationship
+<code class=var>lastBranchIndex(6,6) &gt;= 6 + activeLength + minDistance</code>.
+
+<br><br>
+From the new active node, we follow the edge whose label begins with
+<code class=var>a</code>. When an edge is followed, we do not compare
+suffix and label digits. Since <code class=var>minDistance = 4</code>,
+we are assured that the first mismatch will occur five or more digits from here.
+Since the label
+<code class=var>ab</code> that begins with <code class=var>a</code>
+is <code class=var>2</code> digits long, we skip over
+<code class=var>S[6]</code> and <code class=var>S[7]</code> of the
+suffix, move to node <code class=var>D</code>, make <code class=var>D</code>
+the active node, update <code class=var>activeLength</code> to be
+<code class=var>2</code> and <code class=var>minDistance</code> to be
+<code class=var>2</code>,
+and examine the label on the active node edge that begins
+with <code class=var>S[8] = b</code>. The label on this edge
+is <code class=var>5+</code>. We omit the comparisons
+with the first two digits of this label
+because <code class=var>minDistance = 2</code> and
+immediately compare the fifth digit <code class=var>S[10] = a</code> of
+<code class=var>suffix(6)</code> with the third digit
+<code class=var>S[7] = b</code> of the edge label. Since these
+are different, the edge is split at its third digit.
+The new branch node that results
+from the edge split is the node that the suffix pointer
+of node <code class=var>H</code> of Figure 12 is to point to.
+Figure 13 shows the tree that results.
+<center>
+<font color=blue>
+<img src=suffix13.gif>
+<br>Figure 13 After the insertion of the suffix abbaabbabb#
+</font>
+</center>
+<br><br>
+Notice that following the last insertion, the active node is <code class=var>D</code>,
+<code class=var>activeLength = 2</code>, and <code class=var>minDistance = 2</code>.
+<br><br>
+Next, we insert <code class=var>suffix(7)</code>.
+Since this suffix is the longest proper suffix of the
+suffix just inserted, we can use
+a short cut to do the insertion. The short cut
+is to follow the suffix pointer in the current active node
+<code class=var>D</code>. By following this short cut, we skip
+over a number of digits that is <code class=var>1</code> less than
+<code class=var>activeLength</code>.
+In our example, we
+skip over <code class=var>2 - 1 = 1</code> digit of
+<code class=var>suffix(7)</code>.
+The short cut guarantees a match between
+the skipped over digits and the string represented by the node
+that is moved to.
+Node <code class=var>F</code> becomes the new active node and
+<code class=var>activeLength</code> is reduced by 1.
+Once again, <code class=var>minDistance</code> is unchanged.
+(You may verify that whenever a short cut is taken, leaving
+<code class=var>minDistance</code> unchanged satisfies the desired relationship
+among <code class=var>lastBranchIndex, activeLength, minDistance</code>,
+and the index of the next suffix that is to be inserted.)
+<br><br>
+To insert <code class=var>suffix(7)</code>,
+we use <code class=var>S[8] = b</code> (recall that because of the
+short cut we have taken to node <code class=var>F</code>,
+we must skip over <code class=var>activeLength = 1</code> digit of the suffix)
+to determine the edge whose label is to be examined.
+This gets us the label <code class=var>5+</code>. Again, since
+<code class=var>minDistance = 2</code>,
+we are assured that
+digits <code class=var>S[8]</code> and <code class=var>S[9]</code> of the
+suffix match with the first two digits of the edge label
+<code class=var>5+</code>.
+Since there is a mismatch at the third digit of the edge label, the
+edge is split
+at the third digit of its label. The suffix pointer of node
+<code class=var>J</code> is to point to the branch node that is placed between
+the two parts of the edge just split. Figure 14 shows the result.
+<center>
+<font color=blue>
+<img src=suffix14.gif>
+<br>Figure 14 After the insertion of the suffix bbaabbabb#
+</font>
+</center>
+<br><br>
+Notice that following the last insertion, the active node is <code class=var>F</code>,
+<code class=var>activeLength = 1</code>, and <code class=var>minDistance = 2</code>.
+If <code class=var>lastBranchIndex(7,7)</code> had turned out to be greater
+than 10, we would increase <code class=var>minDistance</code>
+to <code class=var>lastBranchIndex(7,7) - 7 - activeLength</code>.
+<br><br>
+To insert <code class=var>suffix(8)</code>, we first take
+the short cut from the current active node <code class=var>F</code>
+to the root. The root becomes the new active node, <code class=var>activeLength</code>
+is reduced by <code class=var>1</code> and
+<code class=var>minDistance</code> is unchanged.
+We start the insert process at the new active node.
+Since <code class=var>minDistance = 2</code>, we have to move at least
+<code class=var>3</code> digits down from the active node.
+The active node edge whose label begins with <code class=var>S[8] = b</code>
+has the label <code class=var>b</code>.
+Since <code class=var>minDistance = 2</code>,
+we must follow edge labels until we have skipped
+<code class=var>2</code> digits. Consequently, we move to
+node <code class=var>F</code>. Node <code class=var>F</code>
+becomes the active node, <code class=var>minDistance</code>
+is reduced by the length <code class=var>1</code> of the label on the edge
+<code class=var>(A,F)</code> and becomes
+<code class=var>1</code>, <code class=var>activeLength</code> is increased
+by the length of the label on the edge
+<code class=var>(A,F)</code> and becomes
+<code class=var>1</code>,
+and we follow the edge <code class=var>(F,H)</code>
+whose label
+begins with <code class=var>S[9] = a</code>.
+This edge is to be split at the second digit of its edge label.
+The suffix pointer of
+<code class=var>L</code> is to point to the
+branch node that will be inserted between the two edges created
+when edge <code class=var>(F,H)</code> is split.
+Figure 15 shows the result.
+<center>
+<font color=blue>
+<img src=suffix15.gif>
+<br>Figure 15 After the insertion of the suffix baabbabb#
+</font>
+</center>
+<br><br>
+
+The next suffix to insert is <code class=var>suffix(9)</code>.
+From the active node <code class=var>F</code>,
+we follow the suffix pointer to node <code class=var>A</code>, which
+becomes the new active node.
+<code class=var>activeLength</code> is reduced by <code class=var>1</code>
+to zero, and <code class=var>minDistance</code> is unchanged
+at <code class=var>1</code>.
+The active node edge whose label begins with <code class=var>S[9] = a</code>
+has the label <code class=var>ab</code>.
+Since <code class=var>minDistance = 1</code>,
+we compare the second digit of <code class=var>suffix(9)</code>
+and the second digit of the edge label. Since these two digits are different,
+the edge <code class=var>(A,D)</code> is split at the
+second digit of its label.
+Further the suffix pointer of the branch node <code class=var>M</code>
+that was created when the last suffix was inserted into the trie, is to point to
+the branch node that will be placed between nodes <code class=var>A</code>
+and <code class=var>D</code>. Finally, since the newly created branch node
+represents a string whose length is one, its suffix pointer
+is to point to the root.
+Figure 16 shows the result.
+<center>
+<font color=blue>
+<img src=suffix16.gif>
+<br>Figure 16 After the insertion of the suffix aabbabb#
+</font>
+</center>
+<br><br>
+As you can see, creating a suffix trie can be quite tiring.
+Let's continue though, we have, so far,
+inserted only the first <code class=var>9</code>
+suffixes into our suffix tree.
+<br><br>
+For the next suffix, <code class=var>suffix(10)</code>, 
+we begin with the root <code class=var>A</code> as the active node.
+We would normally follow the suffix pointer in the active node
+to get to the new active node from which the insert process is to start.
+However, the root has no suffix pointer. Instead, we reduce
+<code class=var>minDistance</code> by one. The new value of
+<code class=var>minDistance</code> is zero.
+<br><br>
+The insertion process begins by
+examining the active node edge (if any) whose label begins with
+the first digit
+<code class=var>S[10] = a</code> of <code class=var>suffix(10)</code>.
+Since the active node has an edge whose label begins with
+<code class=var>a</code>, additional digits are examined to determine
+<code class=var>lastBranchIndex(10,10)</code>.
+We follow a search path from the active node.
+This path is determined by the digits of <code class=var>suffix(10)</code>.
+Following this path, we reach node <code class=var>J</code>. By examining
+the label on the edge <code class=var>(J,E)</code>, we determine that
+<code class=var>lastBranchIndex(10,10) = 16</code>.
+Node <code class=var>J</code>
+becomes the active node,
+<code class=var>activeLength = 4</code>,
+and <code class=var>minDistance = 2</code>.
+<br><br>
+When <code class=var>suffix[10]</code> is inserted,
+the edge <code class=var>(J,E)</code> splits. The split is at the
+third digit of this edge's label.
+Figure 17 shows the tree after the new suffix is inserted.
+<center>
+<font color=blue>
+<img src=suffix17.gif>
+<br>Figure 17 After the insertion of the suffix abbabb#
+</font>
+</center>
+<br><br>
+To insert the next suffix, <code class=var>suffix(11)</code>,
+we first take a short cut by following
+the suffix pointer at the
+active node. This pointer gets us to node <code class=var>L</code>, which
+becomes the new active node. At this time, <code class=var>activeLength</code>
+is reduced by one and becomes <code class=var>3</code>.
+Next, we need to move forward
+from <code class=var>L</code> by a number of digits greater than
+<code class=var>minDistance = 2</code>.
+Since digit <code class=var>activeLength + 1</code> of <code class=var>suffix(11)</code>
+is <code class=var>S[14] = b</code> we follow the <code class=var>b</code>
+edge of <code class=var>L</code>. We omit comparing the first
+<code class=var>minDistance</code> digits of this edge's label.
+The first comparison made is between
+<code class=var>S[16] = #</code> (digit of suffix) and
+<code class=var>S[7 + 2] = a</code> (digit of edge label).
+Since these two digits are different,
+edge <code class=var>(L,G)</code> is to be split.
+Splitting this edge (at its third digit) and setting the suffix pointer
+from the most recently created branch node <code class=var>R</code> gives
+us the tree of Figure 18.
+<center>
+<font color=blue>
+<img src=suffix18.gif>
+<br>Figure 18 After the insertion of the suffix bbabb#
+</font>
+</center>
+<br><br>
+To insert the next suffix, <code class=var>suffix(12)</code>,
+we first take the short cut from the current
+active node <code class=var>L</code>
+to the node <code class=var>N</code>. Node <code class=var>N</code> becomes the
+new active node, and we begin comparing
+<code class=var>minDistance + 1 = 3</code>
+digits down from node <code class=var>N</code>.
+Edge <code class=var>(N,H)</code> is split. Figure 19 shows the tree
+after this edge has been split and after the suffix pointer from the most
+recently created
+branch node <code class=var>T</code>
+has been set.
+<center>
+<font color=blue>
+<img src=suffix19.gif>
+<br>Figure 19 After the insertion of the suffix babb#
+</font>
+</center>
+<br><br>
+When inserting <code class=var>suffix(13)</code>,
+we follow the short cut from the active node <code class=var>N</code>
+to the branch node <code class=var>P</code>. Node <code class=var>P</code>
+becomes the active node and we are to move down the tree by at least
+<code class=var>minDistance + 1 = 3</code> digits.
+The active node edge whose label begins with
+<code class=var>S[14] = b</code> is used first.
+We reach node
+<code class=var>D</code>, which becomes
+the active node, and <code class=var>minDistance</code>
+becomes <code class=var>1</code>. At node <code class=var>D</code>, we
+use the edge
+whose label begins with <code class=var>S[15] = b</code>. Since the label
+on this edge
+is two digits long, and since the second digit of this label
+differs from <code class=var>S[16]</code>,
+this edge is to split. Figure 20
+shows the tree after the edge is split and the suffix pointer from
+node <code class=var>V</code> is set.
+<center>
+<font color=blue>
+<img src=suffix20.gif>
+<br>Figure 20 After the insertion of the suffix abb#
+</font>
+</center>
+<br><br>
+To insert <code class=var>suffix(14)</code>,
+we take the short cut from the current active node <code class=var>D</code>
+to the branch node <code class=var>F</code>. Node <code class=var>F</code>
+becomes the active node. From node <code class=var>F</code>, we must move
+down by at least <code class=var>minDistance + 1 = 2</code> digits.
+We use the edge whose label begins with <code class=var>S[15] = b</code>
+(<code class=var>S[15]</code> is used because it is <code class=var>activeLength = 1</code> digits from the start of
+<code class=var>suffix(14)</code>).
+The split takes place at the second digit of edge
+<code class=var>(F,L)</code>'s label. Figure 21 shows the new tree.
+<center>
+<font color=blue>
+<img src=suffix21.gif>
+<br>Figure 21 After the insertion of the suffix bb#
+</font>
+</center>
+<br><br>
+The next suffix to insert begins at <code class=var>S[15] = b</code>.
+We take the short cut from the current active node <code class=var>F</code>,
+to the root. The root is made the current active node
+and then we move down by <code class=var>minDistance + 1 = 2</code>
+digits.
+We follow the active node edge whose label begins with <code class=var>b</code>
+and reach node <code class=var>F</code>.
+A new information node is added to <code class=var>F</code>.
+The suffix pointer for the
+last branch node <code class=var>Z</code> is set
+to point to the current active node <code class=var>F</code>,
+and the root becomes the new active node.
+Figure 22 shows the new tree.
+<center>
+<font color=blue>
+<img src=suffix22.gif>
+<br>Figure 22 After the insertion of the suffix b#
+</font>
+</center>
+<br><br>
+Don't despair, only one suffix remains. Since no suffix is a proper
+prefix of another suffix, we are assured that the root has no edge
+whose label begins with the last digit of the string <code class=var>S</code>.
+We simply insert an information node as a child of the root. The
+label for the edge to this new information node is the last digit of
+the string. Figure 23 shows the complete suffix tree for
+the string <code class=var>S = ababbabbaabbabb#</code>.
+The suffix pointers are not shown as they are no longer needed;
+the space occupied by these pointers may be freed.
+<center>
+<font color=blue>
+<img src=suffix23.gif>
+<br>Figure 23 Suffix tree for ababbabbaabbabb#
+</font>
+</center>
+<br><br>
+<big><font color=blue>Complexity Analysis</code></big><br>
+Let <code class=var>r</code> denote the number of different digits
+in the string <code class=var>S</code> whose
+suffix tree is to be built (<code class=var>r</code> is the alphabet
+size), and let <code class=var>n</code> be the number of digits
+(and hence the number of suffixes) of the string <code class=var>S</code>.
+<br><br>
+To insert <code class=var>suffix(i)</code>, we
+<dl compact>
+<dt> (a)
+<dd>
+Follow
+a suffix pointer in the active node
+(unless the active node is the root).
+<dt> (b)
+<dd>
+Then move down the existing suffix tree
+until <code class=var>minDistance</code> digits have been crossed.
+<dt> (c)
+<dd>
+Then compare some number of suffix digits with edge label digits
+until <code class=var>lastBranchIndex(i,i)</code>
+is determined.
+<dt> (d)
+<dd>
+Finally insert a new information node and possibly also
+a branch node.
+</dl>
+The total time spent in part (a) (over all <code class=var>n</code> inserts) is
+<code class=var>O(n)</code>.
+<br><br>
+When moving down the suffix tree in part (b), no digit comparisons are made.
+Each move to a branch node at the next level takes <code class=var>O(1)</code>
+time. Also, each such move reduces the value of
+<code class=var>minDistance</code> by at least one. Since
+<code class=var>minDistance</code>
+is zero initially and never becomes less than zero, the total time
+spent in part (b) is <code class=var>O(n + total amount by which minDistance
+is increased over all n inserts)</code>.
+<br><br>
+In part (c), <code class=var>O(1)</code> time is spent determining whether
+<code class=var>lastBranchIndex(i,i) = i + activeLength + minDistance</code>.
+This is the case iff
+<code class=var>minDistance = 0</code>
+or
+the digit <code class=var>x</code> at position
+<code class=var>activeLength + minDistance + 1</code>
+of <code class=var>suffix(i)</code> is not the same
+as the digit in position <code class=var>minDistance + 1</code>
+of the label on the appropriate edge of the active node.
+When
+<code class=var>lastBranchIndex(i,i) != i + activeLength + minDistance</code>,
+<code class=var>lastBranchIndex(i,i) > i + activeLength + minDistance</code> and
+the value of
+<code class=var>lastBranchIndex(i,i)</code> is determined by making
+a sequence of comparisons between suffix digits and edge label digits (possibly
+involving moves downwards to new branch nodes). For each such comparison
+that is made, <code class=var>minDistance</code> is increased by
+<code class=var>1</code>. This is the only circumstance under
+which <code class=var>minDistance</code> increases in the algorithm.
+So, the total time
+spent in part (c) is <code class=var>O(n + total amount by which minDistance
+is increased over all n inserts)</code>.
+Since each unit increase in the value of <code class=var>minDistance</code>
+is the result of an equal compare between a digit at a new
+position (i.e., a position from which such a compare
+has not been made previously) of the string <code class=var>S</code>
+and an edge label digit,
+the total amount by which <code class=var>minDistance</code>
+is increased over all <code class=var>n</code> inserts is
+<code class=var>O(n)</code>.
+<br><br>
+Part (d) takes
+<code class=var>O(r)</code> time per insert, because we need to initialize
+the <code class=var>O(r)</code> fields of the branch node that may be created.
+The total time for part (d) is, therefore, <code class=var>O(nr)</code>.
+<br><br>
+So, the total time taken to
+build the suffix tree is <code class=var>O(nr)</code>.
+Under the assumption that the alphabet size <code class=var>r</code>
+is constant, the complexity of
+our suffix tree generation algorithm becomes <code class=var>O(n)</code>.
+<br><br>
+The use of branch nodes with as many children fields as the alphabet size
+is recommended only when the alphabet size is small.
+When the alphabet size is large (and it may be as large as
+<code class=var>n</code>, making the above algorithm an
+<code class=var>O(n<sup>2</sup>)</code> algorithm),
+<a href = "tries.htm">the use of a
+hash table</a> results in an expected time complexity of
+<code class=var>O(n)</code>. The space complexity changes
+from <code class=var>O(nr)</code> to <code class=var>O(n)</code>.
+<br><br>
+A divide-and-conquer algorithm that has a time and space
+complexity of <code class=var>O(n)</code> (even when the alphabet
+size is <code class=var>O(n)</code>) is developed in
+<a href = "http://www.cs.rutgers.edu/~farach">Optimal suffix tree construction with large alphabets</a>.
+
+<br><br>
+<a name = "exercises"></a>
+<big><big><font color=blue>Exercises</font></big></big><br>
+<ol>
+<li>
+Draw the suffix tree for <code class=var>S = ababab#</code>.
+<li>
+Draw the suffix tree for <code class=var>S = aaaaaa#</code>.
+<li>
+Draw the multiple string suffix tree for
+<code class=var>S1 = abba, S2 = bbbb,</code> and <code class=var>s3
+= aaaa</code>.
+<li>
+Prove Observation 3.
+<li>
+Draw the trees <code class=var>tree(i), 1 &lt; = i &lt; = |S|</code>
+for <code class=var>S = bbbbaaaabbabbaa#</code>.
+Show the active node in each tree.
+Also, show the longest proper suffix pointers.
+<li>
+Draw the trees <code class=var>tree(i), 1 &lt; = i &lt; = |S|</code>
+for <code class=var>S = aaaaaaaaaaaa#</code>.
+Show the active node in each tree.
+Also, show the longest proper suffix pointers.
+<li>
+Develop the class <code class=var>SuffixTree</code>.
+Your class should include a method to create the suffix tree for a
+given string as well as a method to search a suffix tree for a given
+pattern. Test the correctness of your methods.
+<li>
+Explain how you can obtain the multiple string suffix tree
+for <code class=var>S1, ..., Sk</code> from that for
+<code class=var>S1, ..., S(k-1)</code>.
+What is the time complexity of your proposed method?
+</ol>
+
+<br><br>
+<a name = "reference"></a>
+<big><big><font color=blue>References and Selected Readings</font></big></big><br>
+<a name = "genomics"></a>
+You can learn more about the genome project and
+genomic applications of pattern matching from the following Web sites:
+<ol>
+<li>
+<a href = "http://www.nhgri.nih.gov/HGP/">NIH's Web site for the human genome project</a>
+<li>
+<a href = "http://www.ornl.gov/TechResources/Human_Genome/home.html">
+Department of Energy's Web site for the human genomics project</a>
+<li>
+<a href = "http://merlin.mbcr.bcm.tmc.edu:8001/bcd/Curric/welcome.html">
+Biocomputing Hypertext Coursebook</a>.
+</ol>
+<br><br>
+Linear time algorithms to search for a single pattern in a given string
+can be found in most algorithm's texts. See, for example, the texts:
+<ol>
+<li>
+<em>Computer Algorithms</em>, by E. Horowitz, S. Sahni, and
+S. Rajasekeran, Computer Science Press, New York, 1998.
+<li>
+<em>Introduction to Algorithms</em>, by T. Cormen, C. Leiserson, and
+R. Rivest, McGraw-Hill Book Company, New York, 1992.
+</ol>
+<br><br>
+For more on suffix tree construction, see the papers:
+<ol>
+<li>
+``A space economical suffix tree construction algorithm,'' by
+E. McCreight, <em>Journal of the ACM</em>,
+23, 2, 1976, 262-272.
+<li>
+``On-line construction of suffix trees,'' by E. Ukkonen,
+<em>Algorithmica</em>, 14,  3, 1995, 249-260.
+<li>
+Fast string searching with suffix trees,'' by M. Nelson,
+<em>Dr. Dobb's Journal</em>, August 1996.
+<li>
+<a href = "http://www.cs.rutgers.edu/~farach">
+Optimal suffix tree construction with large alphabets</a>, by M. Farach,
+<em>IEEE Symposium on the Foundations of Computer Science</em>, 1997.
+</ol>
+<br><br>
+You can download C++ code to construct a suffix tree from
+<a href = "http://www.ddj.com/ftp/1996/1996.08/suffix.zip">
+http://www.ddj.com/ftp/1996/1996.08/suffix.zip</a>. This code, developed
+by M. Nelson, is described in paper 3 above.
+</html>

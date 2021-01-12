@@ -1,0 +1,43 @@
+1.等待队列
+  1)什么时候会用到等待队列?
+  当线程/协程没有争抢到资源时，就需要等待在该资源上
+  等待队列中的元素就应该记录 被阻塞的线程/协程的信息
+  为每个元素添加一个状态 -> is_wating 
+
+
+2从 互斥量+条件变量 分析等待队列
+ F1,F2,F3,F4并发使用mutex
+
+ F1率先lock(),F2再调用lock()
+  
+ F2:lock()
+ 1)通过atomic count判断是否已经上锁
+   原子性操作，不需要加锁
+ 2)已经上锁,调用CondVar.wait(lock)
+   此为临界区，需要加锁 
+ 3)do_wait流程 
+   a.生成一个Entry,并加入waitingQueue中   
+        | 此时F1要释放锁,调用CondVar.notify(lock) ---> 阻塞在临界区外
+   b.释放锁 ---> F1可以进入临界区 
+                 若真的进入,则会获得waitingQueue的front Entry ---> F2刚才push的 
+   
+   接下来就是notify和wait在状态之间的相互博弈
+   1.notify先运行,修改状态WAKEUP_BEGIN
+     wait后运行，检测到WAKEUP_BEGIN，于是就不再向下阻塞协程，等待notify完成wakeup动作,然后退出
+   2.wait先运行
+     a.先自旋，给notify一个运行的机会
+     b.若notify还是没有运行
+       将状态修改为SUSPEND_BEGIN 
+       此时若notify运行，会检测到SUSPEND_BEGIN，先等待suspend动作结束，再进行wakeup动作
+     c.挂起F2 ---> 生成FiberEntry
+       状态修改SUSPEND_END
+       F2切回到主协程，运行process
+
+   
+3.locked_channel_impl
+  1)push核心
+    a.加锁保护
+    b.数据入队
+    c.若size() 从0 --> 1 
+      则需要唤醒读者
+      read_var.notify() ---> 将buffer中的队首元素地址写入Entry.value中

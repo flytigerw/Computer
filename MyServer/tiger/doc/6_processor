@@ -1,0 +1,181 @@
+1.Processor
+  每个Processor对应一个线程，每个线程上可以运行N个Fiber
+  Processor负责管理这N个Fiber.
+
+  管理任务概览:
+   1)Fiber切换
+     每个线程都有一个main Fiber
+     将正在运行的Fiber切换到main Fiber ---> 所以需要变量running_fiber追踪正在运行的Fiber
+   2)Fiber调度
+     切回到main Fiber后又干嘛呢?
+     对原Fiber做后续处理，并从可运行的Fiber中挑选一个运行
+     有可能原Fiber因为阻塞而被挂起
+     故需要维护两个Fiber队列
+     a.waiting
+       等待队列
+     b.runnable
+       可运行队列
+     
+     Fiber是通过Scheduler提供的接口进行创建，然后由Scheduler交给Processor
+     如果直接将Fiber交给runnable队列会出现什么问题呢?
+     Processor中还维护了ready队列，容纳新建的Fiber
+
+     当Fiber运行结束以后，应该进行销毁
+     可采取的措施为，将运行结束的Fiber标记为DONE，送入gc_queue队列，定期对gc_queue进行清理
+   
+   3)负载均衡
+     由Scheduler评估各个Processor的负载状况.
+     空闲的Processor可以从繁忙的Processor那里"偷一些"Fiber来运行
+     Processor提供让出Fiber的接口
+
+  数据成员:
+   1)int m_id  
+     id标识
+   2)Fiber* running_fiber,*next_fiber 
+     next_fiber为预取的Fiber
+   3)FiberQueue runnable,ready,waiting,gc_queue
+     维护的4大队列
+   4)condition_variable_any cond
+     Fiber进出runnable队列属于生产者-消费者模型，需要用条件变量同步
+     bool notified:记录条件变量的状态
+   5)static thread_local 变量
+     Processor* cur_proc :当前正在运行的Processor
+   6)Scheduler* m_scheduler
+     
+   7)其他数据成员在具体场景中进行说明
+  
+  重要的成员函数:
+   1)schedule()
+     Processor对应的线程的运行函数，也是main Fiber的运行的逻辑.负责协程调度
+     运行逻辑
+
+     起始状态:
+     a.更新cur_proc
+     b.先从runnable队列中取出一个Fiber赋给running_fiber
+       若runnable队列为空，则将ready队列中的Fiber转移到的runnable中
+        若ready队列也为空，则阻塞在条件变量上
+        当ready队列有Fiber时，再唤醒条件变量.此时再将ready中Fiber转移到runnable中
+
+     运行状态:
+     找到running_fiber后，修改状态为RUNNABLE，然后调度执行 ---> running_fiber->swap_in()
+     running_fiber切回来以后，对状态进行分析，然后做相应处理
+      1.RUNABLE
+        说明Fiber还没有运行结束，但主动调用了yield
+        此时应该从runnable中挑选一个Fiber运行.可能runnable为空，需要类似b的处理
+      2.BLOCK
+        Fiber遇到阻塞而被挂起.比如阻塞在条件变量上.
+        在切回schedule()之前进行挂起处理，比如状态修改，纳入waiting队列中等 --> 由Suspend()函数负责
+        切回到schedule()后，选择下一可运行的Fiber
+      3.DONE
+        Fiber运行结束
+        将其纳入gc_queue中，若gc_queue的容量满足一定条件，就进行Fiber销毁
+        选择下一个可运行的Fiber
+     函数中的两个疑问点:
+     1.add_new_quota
+       作者注释为:每轮调度只加有限次数新协程, 防止新协程创建新协程产生死循环
+       在代码中，add_new_quota被设为1
+       每次调用runnable.next()时，就会--add_new_quota --> 即每轮调度只能调用一次runnable.next()
+
+     2.next_fiber
+       在BLOCK中,running_fiber = next_fiber ---> 预取
+       在DONE中,为next_fiber赋值
+       在suspend_my_fiber时，为next_fiber赋值
+       总体感觉next_fiber并不是很需要
+    
+    2)条件变量的使用封装
+      阻塞在条件变量的时间点:runnable和ready都为空,等待ready队列中有Fiber到来
+      void wait_on_condition(){
+        gc();  ---> 垃圾处理
+        std::unique_lock<LockType> lock_guard(runnable.lock_ref());
+       if(notified){   
+        notified= false;
+        return ;
+       }
+      idle = true;          //标记processor为idle状态 ---> scheduler据此标志，从其他processor处steal一些Fiber给它
+      cond.wait(lock_guard);
+      idle = false;         //唤醒以后，不再空闲
+     }
+
+     
+     唤醒条件变量的时间点:ready中有Fiber到来,Fiber从waiting转移到runnable中
+     void notify_condition(){
+       std::unique_lock<LockType> lock_guard(runnable.lock_ref());
+       if(idle)             //通过idle来保证wait一定在notify之前调用，如果发生虚假唤醒，idle为false，此次notify不用再唤醒
+        cond.notify_all();
+       else                //若cond并不是通过notify唤醒的 --> 虚假唤醒 ---> idle会变为false.修改notified为true 
+                           //notify()调用就表明此时ready队列中已经有数据 
+                           //那么下次wait()就无需真正的wait ----> 不丢失此次notify()的信号
+                           
+        notified = true;
+     }
+     调用wait_on_condition和notif_condion时，都必须是在处理runnable队列  ---> 对runnable队列加锁
+
+
+   3)steal(size_t n)
+     从当前Processor中steal n个Fiber
+     由Scheduler交给其他Processer调度运行
+     运行逻辑:
+     a.首先明确ready和runnable的Fiber都可以steal
+     b.先尝试从ready中steal n个
+     c.若ready中数量不够,则继续在runnable中steal
+     d.running_fiber和next_fiber也处于runnable中
+       要保证他们不会被steal
+       措施:
+       先把他们从runnable中删除
+       再从runnable中steal以满足外界需求
+       然后再把他们压入到runnable中
+    具体的steal使用见scheduder的调度
+   
+   4)Processer提供static性质的FiberYield()
+     逻辑:
+      1)先得到当前正在运行的Processor
+      2)Processer对应一个线程
+        获取线程的正在运行的Fiber,然后调用swap_out()切换到main Fiber ---> 切回到schedule()
+   
+   5)协程挂起相关
+     比如协程阻塞在条件变量上
+     条件变量含有等待队列，等待队列应该记录被挂起的Fiber的相关信息以及条件变量的相关信息
+     不同的等待队列的信息可能不同，但均会有Fiber信息
+     于是在Processer中定义SuspendEntry记录被挂起的Fiber信息
+     struct SuspendEntry{
+        WeakPtr<Fiber> m_fiber;  //通过WeakPtr可以检测Fiber是否还存在.可能Fiber在被挂起时，在别处被销毁了
+        uint64_t m_id;           //suspend_id
+     }
+
+     相关函数
+     成员函数:
+      1)SuspendEntry suspend_my_fiber(Fiber* f);
+        Processor挂起自己的某个Fiber
+        步骤:
+        a.修改Fiber状态为BLOCK
+        b.将其从runnable中删除，并添加到waiting中
+        c.获得下一个可运行的Fiber，交给next_fiber
+          与上面的BLOCK处理相对应
+        d.生成SuspendEntry{WeakPtr<Fiber>(f),id}并返回
+     
+     2)bool Processer::wakeup_my_fiber(const IncursivePtr<Fiber>& fiber,uint64_t id,const std::function<void()>& fctor);
+       不负责WakePtr的检测，只关注如何唤醒
+       步骤:
+       a.调用回调函数
+         唤醒时可能需要做相应处理
+       b.从waiting中删除，并加入到runnable中
+         如果runnable的size()从0到1，则唤醒条件变量
+      如何避免多个协程对同一个SuspendEntry重复唤醒呢?
+      这就是SuspendEntry的m_id和Fiber的suspend_id的作用
+      唤醒之前，检查m_id == suspend_id 
+      若相等，则表明还没有被唤醒，++suspend_id 
+      若不等，则表明已经被唤醒.return
+      注意:suspend_id类型为atomic
+
+    static函数:
+     1)SuspendEntry Suspend();
+       挂起正在运行的Fiber
+       从Fiber中得到m_processer
+       再调用m_processer的suspend_my_fiber(....)
+     2)SuspendEntry Suspend(time)
+       挂起正在运行的Fiber
+       通过Scheduler添加一个定时任务
+       到期后，唤醒Fiber
+     3)bool WakeUp(const SuspendEntry& entry,const std::function<void()>& fctor);
+       通过检测entry的WeakPtr ---> 调用lock()转为强引用计数指针IncursivePtr
+       若底层的Fiber存在，则转型成功，然后调用wakeup_my_fiber

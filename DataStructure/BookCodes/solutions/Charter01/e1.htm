@@ -1,0 +1,36 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 3<BR>
+<BR>
+</H1>
+<P ALIGN=LEFT>
+The function <code class=code>swap</code> fails to
+swap the values of the actual parameters because
+<code class=code>x</code> and
+<code class=code>y</code> are value parameters.
+The invocation <code class=code>swap(a, b)</code> results in the values
+of the actual
+parameters <code class=code>a</code> and <code class=code>b</code>
+being copied into the formal parameters
+<code class=code>x</code> and <code class=code>y</code>, respectively.
+Then, within the body of
+<code class=code>swap</code>, the values of
+<code class=code>x</code> and <code class=code>y</code> are interchanged,
+and the function terminates.  Upon termination, the new values of
+<code class=code>x</code> and <code class=code>y</code> are not copied
+back into the actual parameters. Consequently, the values of
+the actual parameters are unaffected by the function.
+<BR>
+To get the function to work properly we should change the header to
+<br>
+<code class=code>void swap(int& x, int& y);
+<br><br>
+</FONT>
+</BODY>
+</HTML>

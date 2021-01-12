@@ -1,0 +1,561 @@
+<HTML>
+<HEAD>
+   <TITLE>Towers of Hanoi Page</TITLE>
+</HEAD>
+<BODY LINK="#0000FF" VLINK="#551A8B" ALINK="#FF0000" BACKGROUND="whitemarb.gif">
+
+<CENTER><IMG SRC="stack.gif" ALT="A Hanoi Tower" HEIGHT=240 WIDTH=200><p>
+</center>
+<CENTER>
+<H2>
+The Towers of Hanoi<BR>
+<a href="http://obelix.ee.duth.gr/~apostolo">Apostolos Syropoulos</a>
+</H2></CENTER>
+<align=left>
+<H2>
+Introduction</H2>
+</align>I do not know of any other puzzle, that has attracted more the
+attention of so many programmers around the globe, than the classical ``Towers
+of Hanoi'' puzzle. But why is it so popular? Unfortunately, I cannot speak
+of any other person but myself. Back in 1984, a Lecturer of the Department
+of Mathematics of the University of Ioannina, Greece, gave me a copy of
+an article about the Lisp programming language. In that article, the author
+in order to present the capabilities of the language used the ``Towers
+of Hanoi'' puzzle. This was a big surprise for me, because I always had
+the wrong impression that computers are good only in performing arithmetic
+operations. After that I tried to learn more about the puzzle. This search,
+in the long term, gave me the opportunity to learn about many things I
+wasn't aware of. But, who invented this puzzle and what is it about? The
+``Towers of Hanoi'' puzzle was invented by Edouard Lucas, 
+a French mathematician,
+around 1883. The puzzle can be stated as follows: There are 3 needles and
+a tower of disks on the first one, with the smaller on the top and the
+bigger on the bottom. The purpose of the puzzle is to move the whole tower
+from the first needle to the second, by moving only one disk every time
+and by observing not to put a bigger disk atop of a smaller one. The legend
+that is popularly attached to it appeared in, among others, the ``Metamagical
+Themas'' column of the Scientific American magazine <A HREF="#SA">[1]</A>:
+<UL><I>
+In the great temple of Brahma in Benares, on a brass plate under
+the dome that marks the center of the world, there are 64 disks of pure
+gold that the priests carry one at a time between these diamond needles
+according to Brahma's immutable law: No disk may be placed on a smaller
+disk. In the begging of the world all 64 disks formed the Tower of Brahma
+on one needle. Now, however, the process of transfer of the tower from one
+needle to another is in mid course. When the last disk is finally in place,
+once again forming the Tower of Brahma but on a different needle, then
+will come the end of the world and all will turn to dust.
+</I></UL>
+There are many solutions to the ``Towers of Hanoi'' problem and this
+document is an effort to present all of them. Here we describe the various
+solutions and we present their implementation in the Java programming language.
+This work should by no means considered <i>original</i>, but rather
+an <i>editorial work</i>.
+<align=left>
+<H2>
+<a name=recursive>Solving the Problem</a></H2>
+</align>
+The ``Towers of Hanoi'' problem can be solved by a simple 
+<i>problem-reduction</i>
+approach. One way of reducing the original ``Towers of Hanoi'' problem,
+i.e., that of moving a tower of <I>n</I> disks from pole <B>A</B> to pole
+<B>B</B> by using pole <B>C</B>, to a set of of simpler problems involves
+the following chain of reasoning:
+<OL>
+<LI>
+In order to move all of the disks to pole <strong>B</strong> we must certainly
+move the biggest disk there, and pole <strong>B</strong> must be empty just
+prior to moving the biggest disk to it.
+</LI>
+<li>
+Now looking at the initial configuration, we can't move the biggest disk
+anywhere until all other disks are first removed. Furthermore, the other
+disks had better not be moved to pole <strong>B</strong> since then we would
+not be able to move the biggest disk there. Therefore we should first move
+all other disks to pole <strong>C</strong>.
+</li>
+<LI>
+Then we can complete the key step of moving the biggest disk from 
+pole <strong>A</strong> to pole <strong>B</strong> and go on to solve the
+problem
+</LI>
+</OL>
+In this way we have reduced the problem of moving a tower to the one
+of moving a tower with height one less and that of moving the biggest disk.
+This solution can be most effectively rendered as a <i>recursive</i>
+procedure, i.e., a procedure that is defined in terms of it self. Program
+<a href="hanoiA.html">hanoiA</a> implements the recursive solution suggested
+by the above solution.
+
+<align=left>
+<H2>
+<a name=non-recursive>Removing Recursion</a></H2>
+</align> 
+Every recursive subroutine can be transformed into a non-recursive one by
+a series of simple steps. The necessary steps are described in many good
+text books on Data Structures, e.g., <A HREF="#data">[2]</A>. The 
+transformation assumes that our programming language supports <tt>goto</tt>s.
+In case it doesn't (as it is usually the case today), we can transform it to
+some pseudo-language and then simply replace the <i>unconditional jumps</i>
+with iterative constructs, e.g., <tt>while</tt> loops. The following rules
+assume that the labels <tt>1</tt>, <tt>2</tt>,..., <tt>k</tt> are not
+used in the recursive subroutine. Moreover, <tt>k</tt> is one more than the 
+number recursive calls in a given subroutine.
+<ol>
+<li> At the beginning of the subroutine, code is inserted which declares
+<i>stacks</i> associated with each formal parameter, each local variable,
+and the return address for each recursive call. Initially all stacks are
+empty.
+</li>
+<li> 
+The label <tt>1</tt> is attached to the first executable program statement.
+</li>  
+<li> 
+If the subroutine is a <i>function</i>, i.e., returns some value, then
+we must replace all <tt>return</tt> statements with <i>assignment</i>
+statements, i.e., we introduce a fresh variable, say <tt>z</tt>,
+which has the same type as that of the function, and replace each
+<tt>return e</tt> statement with a <tt>z=e</tt> statement.
+</li><p> Now, each recursive call is replaced by a set of instructions which 
+do the following:<p>
+<li> Store the values of all parameters and local variables in their
+respective stacks. The <i>stack pointer</i> is the same for all stacks.
+</li>
+<li> Create the i-the label, <strong>i</strong>, and store 
+<strong>i</strong> in the address stack. The value <strong>i</strong>
+of this label will be used as the return address. This label is placed
+in the subroutine as described in rule <a href="#viii">8</a>.
+</li>
+<li>
+Evaluate the arguments of this call (they may be expressions)
+and assign these values to the appropriate formal parameters. 
+</li>
+<li>
+Insert an unconditional  branch to the beginning of the subroutine.
+</li>
+<li><a name="viii">If</a> this is a procedure, add the label created above
+to the statement immediately  following the unconditional branch. If this
+is a function then follow the unconditional branch by code to use the value 
+of the variable <tt>z</tt> in the same way a <tt>return</tt> statement
+was handled earlier. The first statement of this code is given the label
+that was created above.
+</li>
+<p> These steps are sufficient to remove all recursive calls from a
+subroutine. Finally, we need to append code just after the last executable
+statement to do the following:<p>
+<li> If the recursion stacks are empty, then return the value of <tt>z</tt>,
+i.e., <tt>return z</tt>, in case this is a function, or else simply 
+<tt>return</tt>. 
+</li>
+<li> If the stacks are not empty, then restore the value of all parameters
+and of all local variables. These are at the top of the each stack. Use the
+return label from the corresponding stack and execute a branch to this label.
+This can be done using a <tt>switch</tt> statement.
+</li>   
+</ol> 
+The above rules can be used to transform the recursive solution into
+an <i>iterative</i> one. Program <a href="hanoiB.html">hanoiB</a>
+has all the details.
+
+<align=left>
+<H2>
+<a name=FGS>The Fourth Grade Solution</a></H2>
+</align> 
+Let <i>m</i> be a natural binary number with at most <i>n</i> digits,
+then <i>m</i> lies in the range 0..2<sup><i>n</i></sup>-1. 
+Moreover, let <i>m</i> have
+exactly <i>n</i> digits, with the rightmost digits having index 1 and
+the leftmost having index <i>n</i>. If we increment <i>m</i> by one, then
+exactly one digit changes from '0' to '1'. Furthermore,
+it can be proved that we need
+2<sup><i>n</i></sup>-1 moves to solve the Towers of Hanoi puzzle, 
+for a tower of height <i>n</i>. The combination of these remarks are the 
+idea behind the <i>Fourth Grade Solution</i> (FGS) 
+<a href="#SIGPLAN1">[3]</a>: if the number <i>m</i> is set initially
+to zero, each time we increment it by one, the index of the digit
+that changes from '0' to '1' corresponds to the disk that has to be moved.
+This means that we use the successive values of <i>m</i> to determine which
+disk to move. Now we must determine where to move each disk. The description
+provided in <a href="#SIGPLAN1">[3]</a>, slightly edited, follows:
+<ul><i> Disk 1 is initially placed on pole <b>B</b> for odd n and pole
+<b>C</b> for even n.<p>
+If we need to move disk 1, we have two choices, since we never violate
+the rule of having to place a smaller on a larger disk. Disk 1 <b>is</b>
+the smallest. We have to remember where 1 was before, and if we know where 
+1 is now, there is only possibility left. Here we use the observation that 
+all disks move in cycles. The cycle once started by a disk is maintained
+until completion.<p>
+If we move a disk different from 1, then we know that all such moves are
+dictated by the position of disk 1, since we cannot move on top of it.
+Because of this restriction and since we may not leave a disk at the old
+place, there is again only one choice left. So, to calculate where to move
+we use the following formula, based one the position of disk 1 and the disk
+currently to be moved.
+<center>
+<tt>to_position := 6 - where_1_is - where_disk_is</tt><br>
+<tt>to_position := 6 - Hold[1] - Hold[Disk]</tt>
+</center>
+</ul></i>
+Program <a href="hanoiC.html">hanoiC</a> has all the details.   
+
+<align=left>
+<H2>
+<a name=FS>The French Solution</a></H2>
+</align> 
+The French Solution <a href="#SIGPLAN2">[4]</a>, called so because its
+inventors are French, is essentially equivalent to the FGS. 
+The solution is based on the observation that for a recursive procedure 
+a tree can be associated. In the case of the 
+<a href="hanoiA.html">recursive solution</a>
+of the puzzle, the associated tree is a binary one. Each node of this tree
+has a label of the form <i>x->y</i>, which denotes a move of a disk
+from pole <i>x</i> to pole <i>y</i>. The values of <i>x</i> and <i>y</i>
+depend on which recursive call they correspond, i.e., the first
+recursive call swaps arguments <tt>withPole</tt> and <tt>toPole</tt>
+and so the label of the root is <i>A->B</i> (the second recursive call
+swaps arguments <tt>fromPole</tt> with <tt>withPole</tt>). Furthermore, 
+we label each edge of the tree "Y" or "X" depending on which of the 
+of the swaps takes place on the destination of the edge. An in-order traversal 
+of the tree solves the puzzle, i.e., execution of the procedure can be viewed 
+as in-order traversal of the tree.<p>
+
+Let us now define the <b><i>level</i></b> of a node of this tree to be
+1 if the node is a leaf, 2 if it is the parent of a leaf, etc. Moreover,
+let <i>S</i><sub>n</sub> be the sequence of the levels of the nodes
+encountered during the traversal. It follows that <i>S</i><sub>n</sub> has
+2<sup>n</sup>-1 elements and satisfies:
+<UL>
+<LI> <i>S</i><sub>0</sub> = <i>empty</i></LI>
+<LI> <i>S</i><sub><i>i</i></sub> = <i>S</i><sub><i>i-1</i></sub> i   
+<i>S</i><sub><i>i-1</i></sub>  (<i>i</i>>0)</LI>
+</UL>
+Thus <i>S</i><sub>1</sub> =  &lt;1&gt;, 
+<i>S</i><sub>2</sub> = &lt;1 2 1&gt;, 
+<i>S</i><sub>3</sub> = &lt;1 2 1 3 1 2 1&gt;, etc. 
+An interesting remark is that the sequence <i>S</i><sub>n</sub>
+and <i>C</i><sub>n</sub> are identical, where <i>C</i>
+is the sequence whose n-th element <i>C</i><sub>n</sub> is the
+sequence of indexes (counted from the rightmost position) of the
+rightmost ones in the binary representations of the numbers 1, 2, 3, ...,
+2<sup>n</sup>-1. That is, <i>C</i><sub>2</sub> = &lt;1 2 1&gt;
+denotes the position of the rightmost one of the binary representation
+of the numbers 1, 2, and 3, as can be verified from the following table:
+<center><TABLE BORDER NOSAVE >
+<TR>
+<TD>Number</TD>
+<TD>Binary representation</TD>
+<TD>Position of rightmost one</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>1</CENTER>
+</TD>
+<TD>
+<CENTER>1</CENTER>
+</TD>
+<TD>
+<CENTER>1</CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>2</CENTER>
+</TD>
+<TD>
+<CENTER>10</CENTER>
+</TD>
+<TD>
+<CENTER>2</CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>3</CENTER>
+</TD>
+<TD>
+<CENTER>11</CENTER>
+</TD>
+<TD>
+<CENTER>1</CENTER>
+</TD></TR></TABLE></center>
+
+Coming back to the binary tree representing the execution of the procedure,
+it follows from the definition of the procedure that, during the traversal,
+leaves and interior nodes are alternatively visited. Let's consider what
+happens when a node <i>E</i> with an even-umbered level is visited and try
+to understand the way a program can reach such a node. <i>E</i> may only
+be an interior node; thus the preceding one was a leaf, say <i>L</i>. If
+<i>L</i> is a left child, then <i>E</i> is its parent and the swap to perform
+is a "Y", i.e., swap arguments <tt>withPole</tt> and <tt>toPole</tt>;
+otherwise, to go from <i>L</i> to <i>E</i>, a program has to go up the tree 
+<i>x</i> times, performing <i>x</i> swaps of the "X" type, i.e., swaps 
+arguments <tt>fromPole</tt> with <tt>withPole</tt>, then up one "Y". But
+<i>E</i> is at an even level, <i>L</i> is at an odd level, so the difference
+between their levels in the tree, which is <i>x</i>+1, must be odd; thus
+<i>x</i> is even, which means that the "X" swaps cancel out and that has
+to be done is one "Y" swap. <p>
+
+For interior nodes on odd-numbered levels, the same line of reasoning shows
+the swap to be "X" if the previous node was on an even level, and "XY"
+("X" followed by "Y") otherwise. The combination of the previous ideas leads
+to program <a href="hanoiD.html">hanoiD</a>.
+
+<align=left>
+<H2> 
+<a name=Rohl>A Response to a Challenge by Hayes</a></H2>
+</align>
+The solution(s) presented in  this section are a response of 
+J.S. Rohl (<a href="#COMPJOUR1">[5]</a>)
+to a challenge thrown down by P. J. Hayes (<a href="#COMPJOUR2">[6]</a>): 
+<UL><I>
+It would be a very nontrivial exercise to convert (the recursive version)
+to (the non-recursive version), let alone convert it mechanically. In fact...
+I hereby offer it as a challenge to optimistic optimizers, and to those 
+who make it their business to prove that equivalent programs area equivalent.
+</I></UL>
+Rohl has derived some very interesting non-recursive solutions to the 
+problem by eliminating the recursion from the recursive solution (if you
+haven't reviewed the <a href="hanoiA.html">recursive</a> solution, now
+it's time to do it). <p>
+
+He starts the program transformation by removing all but the first parameter
+of the recursive solution. In his recursive version the pegs are represented
+by the integers 1 (<tt>fromPole</tt>), 2 (<tt>toPole</tt>), and 3 
+(<tt>withPole</tt>). According to this scheme we can eliminate 
+<tt>withPole</tt>, simply because
+<center> 
+<tt>fromPole</tt>+<tt>toPole</tt>+<tt>withPole</tt>=6  
+</center>
+Now it's the turn of parameter <tt>toPole</tt> to be eliminated. If we think
+the three pegs in a triangular arrangement, then we can replace <tt>toPole</tt>
+by its direction, i.e., <i>clockwise</i> or <i>anticlockwise</i> from
+<tt>fromPole</tt>. This means that we have to modify procedures 
+<tt>moveDisk</tt> and <tt>hanoi</tt>, so that they can calculate the
+destination of the move from <tt>fromPole</tt> and <tt>dir</tt>. Under these
+considerations the solution is rephrased as follows:
+<ul>
+In order to move a tower of height k from peg <tt>fromPole</tt> to its 
+neighbor in direction <tt>dir</tt>, we must first move the tower of height
+<tt>k-1</tt>
+ to to its neighbor in the <it>opposite</i> direction; then we move the
+bottom disk to the its neighbor in direction <tt>dir</tt>, and finally
+we move the tower of height <tt>k-1</tt> in the <i>opposite</i> direction.
+</ul>
+These observations lead to program <a href="hanoiE.html">hanoiE1</a>.
+<p>
+<a name=Rohl2>It</a> is interesting to note that at each recursive
+call we decrease the
+height of the tower by one and we invert the direction. Thus, the
+direction is redutant since it can be defined by the parity of the current
+height (<tt>k</tt>). Consequently, we don't need function <tt>Opposite</tt>
+and so the definition of the <tt>hanoi</tt> procedure is 
+<a href="hanoiE.html#Sol2"> simplified </a>.
+<p>
+<a name=Rohl3>We</a> can go a step further and eliminate the second argument
+too. How? Simply by observing that a disk always moves at the same direction,
+and that odd-numbered disks move in one direction while the even-numbered
+disks move in the opposite direction. The elimination of the second argument
+is based on the following observation:
+<ul>
+<i>Any parameter called by value can be replaced by a global variable, provided
+there exists an inverse for each expression used as an actual parameter for
+it.</i>
+</ul>
+So, we have to first identify the expression and then to discover its inverse.
+Then we we create a global variable and assign to it its value before
+a recursive call and reassign to it its original value after the recursive
+call by using the inverse expression. This remarks lead us in an even more 
+simplified <a href="hanoiE.html#Sol3">solution</a>.
+<p>
+<a name=Rohl4>Now</a>,
+we turn our attention to the complete removal of recursion. By using the
+techniques of section "<a href="#non-recursive">Removing Recursion</a>",
+we can easily remove the recursive calls. First, we move the assignments
+to the global variable that substituted the second argument to the
+procedure that prints the moves. Next, we design our stack-based solution
+based on principles that have been exposed previously. The resulting
+procedure can be further simplified by replacing the stack with a set,
+which in turn can be replaced by an integer! This way we get a very simple 
+<a href="hanoiE.html#Sol4">solution</a>.
+<P>
+Solutions that resemble the solution of this section have been proposed
+by Walsh <a href="#IPL1">[7]</a> in and Buneman and Levy in
+<a href="#IPL2">[8]</a>.
+
+<H2>
+<a name=Radix6>The ``Radix 6 Number'' Solution</a></H2>
+</align> 
+Gault and Clint in <a href="#COMPJOUR3">[9]</a> present a solution that
+computes the solution in n steps instead of 2<sup>n</sup>-1 steps, but still
+this solution needs a storage of length 2<sup>n</sup>-1. The solution is based
+on the observation that there are six different possible moves and so a 
+sequence of disk transfers may be encoded as number  of radix 6. Each digit
+of this number corresponds to a single move. The following tables present the
+encoding:
+<center><table noborder>
+<tr><td>
+<TABLE BORDER NOSAVE >
+<TR>
+<TD>Clockwise moves</TD>
+<TD>Code</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From A to B</CENTER>
+</TD>
+<TD>
+<CENTER>1<sub>6</sub></CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From C to A</CENTER>
+</TD>
+<TD>
+<CENTER>2<sub>6</sub></CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From B to C</CENTER>
+</TD>
+<TD>
+<CENTER>3<sub>6</sub></CENTER>
+</TD>
+</TR></TABLE>
+</td>
+<td>
+<TABLE BORDER NOSAVE >
+<TR>
+<TD>Anticlockwise moves</TD>
+<TD>Code</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From B to A</CENTER>
+</TD>
+<TD>
+<CENTER>4<sub>6</sub></CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From A to C</CENTER>
+</TD>
+<TD>
+<CENTER>5<sub>6</sub></CENTER>
+</TD>
+</TR>
+<TR>
+<TD>
+<CENTER>From C to B</CENTER>
+</TD>
+<TD>
+<CENTER>0<sub>6</sub></CENTER>
+</TD>
+</TR></TABLE>
+</td></tr></table>
+</center>
+Now, the solution can be expresses by the simple formula:
+<center>
+<i>H(n,x,y) = H(n-1,x,z) ++ H(1,x,y) ++ H(n-1,z,y)</i>
+</center>
+where <i>H(1,x,y)</i> is the code for the move from pole <i>x</i> to
+pole <i>y</i> and <i>++</i> the string concatenation operator. The authors
+observed that it is possible to define the operator <i>++</i> as
+follows:
+<center>
+c<sub>1</sub> ++ c<sub>2</sub> = c<sub>1</sub>*10<sub>6</sub><sup>n</sup> +
+c<sub>2</sub>,
+</center>
+where c<sub>2</sub> represent a sequence of moves, i.e., a number of radix 6.
+You can now <a href="hanoiF.html">read</a> more about this solution. 
+<H2>
+<a name=bitwise>Using bitwise logical and shift operators</a></H2>
+</align>
+Surprisingly if we treat a particular move as a bitstring, then we can 
+solve the problem very easy. The two solutions I am presenting here had
+been brought to my attention by Adam Moorhouse and Glenn C. Rhoads.
+The kernel of the solution by Glenn C. Rhoads is just the following loop:
+<pre>
+   for (int x=1; x < (1 << n); x++)
+   {
+       FromPole = (x&x-1)%3;
+       ToPole = ((x|x-1)+1)%3;
+       moveDisk(FromPole,ToPole);
+   }
+</pre>
+The expression <tt>1 << n</tt> is actually equal to 2<sup>n</sup>. The
+operators <tt>&</tt> and <tt>|</tt> perform the bitwise AND and the bitwise
+inlcusive OR operations, respectively. The kernel of the solution by
+Adam Moorhouse is the following loop:
+<pre>
+for (int move = 1; move < (1 << height) ; move++) 
+{
+    int piece = (int)( Math.log( move ^ ( move - 1 )) / log2 )  + 1;
+    int fromPole = ( move >> piece ) * ( piece % 2 == 0 ? 1 : -1 ) % 3;
+    int toPole = ( from + (piece % 2 == 0 ? 1 : -1)) % 3;
+    fromPole = (from +3) % 3;
+    toPole = (to + 3) % 3;
+    moveDisk(fromPole, toPole);
+}
+</pre>
+The operator <tt>^</tt> performs the bitwise exlusive OR operation.
+You can now <a href="hanoiG.html">read</a> more about these solutions. 
+<!--         -->
+<!-- COMMENT -->
+<!--         -->
+<H2><a name=Refer>References</a></H2>
+</align>
+<DL COMPACT>
+<DT><a name="SA"><strong>1</strong></a><dd>
+R.&nbsp;Douglas Hofstadter. Metamagical themas.
+<em>Scientific American</em>, 248(2):16-22, March 1983.
+<p>
+<dt><a name="data"><strong>2</strong></a><dd>
+Ellis Horowitz and Sartaj Sahni.
+<em>Fundamentals of Data Structures in Pascal</em>.
+Computer Science Press, Rockville, MD, USA, 1984.
+<p>
+<dt><a name="SIGPLAN1"><strong>3</strong></a><dd>
+Herbert Mayer and Don Perkins.
+<em>Towers of Hanoi Revisited</em>.
+<em>SIGPLAN Notices</em>, 19(2):80-84, February 1984.
+<p>
+<dt><a name="SIGPLAN2"><strong>4</strong></a><dd>
+Bertrand Meyer.
+<em>A Note On Iterative Hanoi</em>.
+<em>SIGPLAN Notices</em>, 19(12), December 1984.
+<p>
+<dt><a name="COMPJOUR1"><strong>5</strong></a><dd>
+J. S. Rohl.
+<em>Towers of Hanoi: The Derivation of Some Iterative Versions</em>.
+<em>The Computer Journal</em>, 30(1), 70-76, 1987.
+<p>
+<dt><a name="COMPJOUR2"><strong>6</strong></a><dd>
+P. J. Hayes.
+<em>A note on the Towers of Hanoi Problem</em>.
+<em>The Computer Journal</em>, 20(3), 282-285, 1977.
+<p>
+<dt><a name="IPL1"><strong>7</strong></a><dd>
+T. R. Walsh.
+<em>The Towers of Hanoi Revisited: Moving the rings by counting the moves</em>.
+<em>Information Processing Letters</em>, 15(2), p-p, 1982.
+<p>
+<dt><a name="IPL2"><strong>8</strong></a><dd>
+P. Buneman and L. Levy.
+<em>The Towers of Hanoi Problem</em>.
+<em>Information Processing Letters</em>, 10(4,5), p-p, 1980.
+<p>
+<dt><a name="COMPJOUR3"><strong>9</strong></a><dd>
+D.Gault and M. Clint.
+<em>A Fast Algorithm for the Towers of Hanoi Problem</em>.
+<em>The Computer Journal</em>, 30(4), 376-378, 1987.
+</dl>
+</BODY>
+</HTML>
+
+
+
+
+

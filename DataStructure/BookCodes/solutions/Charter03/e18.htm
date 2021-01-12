@@ -1,0 +1,238 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 3, Exercise 18<BR>
+<BR>
+</H1>
+(a)
+<pre class=table>
+_________________________________________________________________________________________
+Statement                                            s/e     Frequency        Total steps
+_________________________________________________________________________________________
+int factorial(int n)                                   0             0           Theta(0)
+{                                                      0             0           Theta(0)
+   if (n <= 1) return 1;                               1             1           Theta(1)
+   else return n * factorial(n - 1);   1 + t<sub>factorial</sub>(n-1)             1   1 + t<sub>factorial</sub>(n-1)
+}                                                      0             0           Theta(0)
+_________________________________________________________________________________________
+</pre>
+<br><br>
+So, <em class=math>t<sub>factorial</sub>(n) = c</em> for
+<em class=math>n &lt;= 1</em> and
+<em class=math>1 + t<sub>factorial</sub>(n-1)</em> for 
+<em class=math>n &gt; 1</em> (here <em class=math>c</em> is a constant).
+Using repeated substitution, we get:
+<br>
+<pre>
+<em class=math>t<sub>factorial</sub>(n) = 1 + t<sub>factorial</sub>(n-1)
+<br>
+            = 2 + t<sub>factorial</sub>(n-2)
+<br>
+            = 3 + t<sub>factorial</sub>(n-3)
+<br>
+            .
+<br>
+            .
+<br>
+            .
+<br>
+            = n - 1 + t<sub>factorial</sub>(1)
+<br>
+            = n - 1 + c
+<br>
+            = Theta(n)
+</em>
+</pre>
+<br><br><br>
+(c)
+We shall do the analysis for the case <em class=math>n &gt;= 1</em>.
+<pre class=table>
+_______________________________________________________________________________________
+Statement                                         s/e        Frequency      Total steps
+_______________________________________________________________________________________
+bool minmax(...)                                    0                0         Theta(0)
+{                                                   0                0         Theta(0)
+   if (n < 1) return false;                         1                1         Theta(1)
+   indexOfMin = indexOfMax = 0;                     1                1         Theta(1)
+   for (int i = 1; i < n; i++)                      1         Theta(n)         Theta(n)
+      if (a[indexOfMin] &gt; a[i]) indexOfMin = i;     1         Theta(n)         Theta(n)
+      else if (a[indexOfMax] ...) indexOfMax = i;   1   Omega(0), O(n)   Omega(0), O(n)
+   return true;                                     1                1         Theta(1)
+}                                                   0                0         Theta(0)
+_______________________________________________________________________________________
+</pre>
+<br><br>
+So, <em class=math>t<sub>minmax</sub>(n) = Theta(n)</em>,
+<em class=math>n &gt;= 1</em>.
+
+<br><br><br>
+(f)
+<pre class=table>
+_______________________________________________________________________________
+Statement                              s/e        Frequency        Total steps
+_______________________________________________________________________________
+void matrixMultiply(...)                 0                0           Theta(0)
+{                                        0                0           Theta(0)
+   for (int i = 0; i < m; i++)           1         Theta(m)           Theta(m)
+      for (int j = 0; j < p; j++)        1        Theta(mp)          Theta(mp)
+      {                                  0                0           Theta(0)
+         T sum = 0;                      1        Theta(mp)          Theta(mp)
+         for (int k = 0; k < n; k++)     1       Theta(mnp)         Theta(mnp)
+            sum += a[i][k] * b[k][j];    1       Theta(mnp)         Theta(mnp)
+         c[i][j] = sum;                  1        Theta(mp)          Theta(mp)
+      }                                  0                0           Theta(0)
+}                                        0                0           Theta(0)
+_______________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>multiply</sub>(m, n, p) = Theta(mnp)</em>
+<br><br><br>
+(h)
+Assume that <em class=math>n &gt;= 1</em>.
+<pre class=table>
+___________________________________________________________________________________
+Statement                                     s/e   Frequency           Total steps
+___________________________________________________________________________________
+T polyEval(...)                                 0            0             Theta(0)
+{                                               0            0             Theta(0)
+
+   T y = 1, ...;                                1            1             Theta(1)
+
+   for (int i = 1; i <= n; i++)                 1     Theta(n)             Theta(n)
+   {                                            0            0             Theta(0)
+      y *= x;                                   1     Theta(n)             Theta(n)
+      value += y * coeff[i];                    1      Theta(n)            Theta(n)
+   }                                            0             0            Theta(0)
+   return value;                                1             1            Theta(1)
+}                                               0             0            Theta(0)
+___________________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>polyEval</sub> (n) = Theta(n)</em>, <em class=math>n &gt;= 1</em>.
+<br><br><br>
+(j)
+<pre class=table>
+__________________________________________________________________________________________
+Statement                                          s/e       Frequency         Total steps
+__________________________________________________________________________________________
+void rank(...)                                       0               0             Theta(0)
+{                                                    0               0             Theta(0)
+   for (int i = 0; i < n; i++)                       1         Theta(n)            Theta(n)
+      r[i] = 0;                                      1         Theta(n)            Theta(n)
+
+   for (i = 1; i < n; i++)                           1         Theta(n)            Theta(n)
+      for (int j = 0; j < i; j++)                    1         Theta(n<sup>2</sup>)           Theta(n<sup>2</sup>)
+         if (a[j] &lt;= a[i])) r[i]++;                  1         Theta(n<sup>2</sup>)           Theta(n<sup>2</sup>)
+         else r[j]++;                                1   Omega(0), O(n<sup>2</sup>)     Omega(0), O(n<sup>2</sup>)
+}                                                    0                0            Theta(0)
+__________________________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>rank</sub> (n) = Theta(n<sup>2</sup>)</em>.
+<br><br><br>
+(l)
+<pre class=table>
+________________________________________________________________________________
+Statement                                       s/e      Frequency   Total steps
+________________________________________________________________________________
+void selectionSort(...)                           0              0      Theta(0)
+{                                                 0              0      Theta(0)
+   for (int size = n; size > 1; size--)           1       Theta(n)      Theta(n)
+   {                                              0              0      Theta(0)
+      int j = indexOfMax(a, size);      Theta(size)       Theta(n)      Theta(n<sup>2</sup>)
+      swap(a[j], a[size - 1]);                    1       Theta(n)      Theta(n)
+   }                                              0              0      Theta(0)
+}                                                 0              0      Theta(0)
+________________________________________________________________________________
+</pre>
+<br><br>
+So, <em class=math>t<sub>selectionSort</sub> (n) = Theta(n<sup>2</sup>)</em>
+<br><br><br>
+(n)
+First, we obtain the asymptotic complexity of
+<code class=code>insert</code>.
+<pre class=table>
+_________________________________________________________________________________
+Statement                                 s/e          Frequency      Total steps
+_________________________________________________________________________________
+void insert(...)                            0                  0         Theta(0)
+{                                           0                  0         Theta(0)
+   int i;                                   0                  0         Theta(0)
+   for (i = n - 1; i >= 0 && ...)           1     Omega(1), O(n)   Omega(1), O(n)
+      a[i+1] = a[i];                        1     Omega(1), O(n)   Omega(1), O(n)
+
+   a[i+1] = x;                              1                  1         Theta(1)
+}                                           0                  0         Theta(0)
+_________________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>insert</sub>(n) = Omega(1), O(n)</em>
+<br><br><br>
+Now, we analyze the function <code class=code>insertionSort</code>.
+<pre class=table>
+____________________________________________________________________________________
+Statement                                 s/e           Frequency        Total steps
+____________________________________________________________________________________
+void insertionSort(...)                      0                   0          Theta(0)
+{                                            0                   0          Theta(0)
+   for (int i = 1; i < n; i++)               1            Theta(n)          Theta(n)
+   {                                         0                   0          Theta(0)
+      T t = a[i];                            1            Theta(n)          Theta(n)
+      insert(a, i, t);          Omega(1), O(i)            Theta(n)   Omega(n), O(n<sup>2</sup>)
+   }                                         0                   0          Theta(0)
+}                                            0                   0          Theta(0)
+____________________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>insertionSort</sub> (n) = Omega(n), O(n<sup>2</sup>)</em>
+<br><br><br>
+(p)
+First, we obtain the asymptotic complexity of
+<code class=code>bubble</code>.
+<pre class=table>
+_______________________________________________________________________________
+Statement                              s/e        Frequency         Total steps
+_______________________________________________________________________________
+void bubble(...)                         0                0            Theta(0)
+{                                        0                0            Theta(0)
+   for (int i = 0; i < n - 1; i++)       1         Theta(n)            Theta(n)
+      if (a[i].greaterThan(a[i+1]))      1         Theta(n)            Theta(n)
+         swap(a[i], a[i + 1]);           1   Omega(0), O(n)      Omega(0), O(n)
+}                                        0                0            Theta(0)
+_______________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>bubble</sub> (n) = Theta(n)</em>
+<br><br><br>
+Now, we analyze the function <code class=code>bubbleSort</code>.
+<pre class=table>
+_______________________________________________________________________________
+Statement                                    s/e       Frequency    Total steps
+_______________________________________________________________________________
+_
+void bubbleSort(...)                           0               0       Theta(0)
+{                                              0               0       Theta(0)
+   for (int i = n; i > 1; i--)                 1        Theta(n)       Theta(n)
+      bubble(a, i);                     Theta(i)        Theta(n)       Theta(n<sup>2</sup>)
+}                                              0               0       Theta(0)
+_______________________________________________________________________________
+</pre>
+<br><br>
+So,
+<em class=math>t<sub>bubbleSort</sub> (n) = Theta(n<sup>2</sup>)</em>
+
+</FONT>
+</BODY>
+</HTML>

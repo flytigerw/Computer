@@ -1,0 +1,97 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 1, Exercise 29<BR>
+<BR>
+</H1>
+
+We may represent a subset of <code class=code>n</code> elements
+by the one-dimensional array <code class=code>x[1:n]</code>,
+where
+<code class=code>x[j]</code> is one if element
+<code class=code>j</code> is included in the subset and
+<code class=code>x[j]</code> is zero if element
+<code class=code>j</code> is not included in the subset.
+<br><br>
+To output the subsets recursively, we define a method
+<code class=var>subsets(int i)</code>
+which outputs all
+<code class=code>x[1:n]</code> with preset values for
+<code class=code>x[1:i-1]</code> and
+<code class=code>x[i:n]</code> taking on all possible 0 and 1
+values.  The invocation
+<code class=code>subsets(1)</code>
+will output all subsets.
+<br><br>
+The code is
+given below.
+
+<HR class = coderule>
+<pre class = code>
+/** generate all subsets of n elements */
+
+package applications;
+
+public class AllSubsets
+{
+   // class data member
+   static int [] x;  // subset vector
+   
+   /** define array x and invoke private method subsets */
+   public static void allSubsets(int n)
+   {
+      x = new int [n + 1];
+      // output all subsets of x[1:n]
+      subsets(1);
+   }
+
+   /** output x[1:i-1] followed by all subsets of x[i:x.length-1] */
+   private static void subsets(int i)
+   {
+      if (i == x.length - 1)
+      {// x[x.length - 1] can be 0 or 1
+         // output subset without last element
+         x[x.length - 1] = 0;
+         for (int j = 1; j &lt;= x.length - 1; j++)
+            System.out.print(x[j] + " ");
+         System.out.println();
+         
+         // output subset with last element
+         x[x.length - 1] = 1;
+         for (int j = 1; j &lt;= x.length - 1; j++)
+            System.out.print(x[j] + " ");
+         System.out.println();
+         return;
+      }
+                   
+      // leave element i out
+      x[i] = 0;
+      // generate all subsets with i excluded
+      subsets(i + 1);
+                   
+       // put element i into subset
+       x[i] = 1;
+       // generate all subsets with i included
+       subsets(i + 1);
+   }
+    
+   /** test program */
+   public static void main(String [] args)
+   {
+      allSubsets(4);
+   }
+}
+<hr class=coderule>
+</pre>
+
+<br><br>
+The above code may be modified if we are to output element identifiers
+for the selected elements rather than 0/1 vectors.
+
+</FONT>
+</BODY>
+</HTML>

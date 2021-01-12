@@ -1,0 +1,238 @@
+1.A frequent app requirement is to read data from file,make some change to the data and then write it back to the file
+  Problems can arise if multiple processes are simultaneously updating the same file
+  Although file locking is normally used with file I/O,we can use it as a more general synchronization technique
+  Cooperationg processes can follow a convention that locking all or part of the file to indicate access by a process to some shared resource other than the file itself
+
+2.We should be cautious when using file locking with stdio library because of it's user-space buffering
+  The input buffer maybe filled before locking and output buffer maybe flushed after unlocking
+  Ways to avoid the problems
+   1.Perform file I/O using read() and write()
+   2.Flush the stdio stream immediately after locking and flush it once more immediately before unlocking
+   3.Disable stdio buffering using setbuf(),perhaps at the cost of some efficiency
+
+3.By default,file locks are advisory which means process can ignore the file locks placed by another process
+  In order for an advisory locking scheme to be workable,each process accesses the file must cooperate,by placing a lock before file I/O
+  By contrast,mandatory locking forces a process performing I/O to abide by the locks placed by another process
+
+4.int flock(int fd,int operation)
+  1)It places a single lock on the entire file
+  2)operation
+    LOCK_SH : Place a shared lock    ---> Multiple processes can simultaneously hold a shared lock on a file
+    LOCK_EX : Place an exclusive lock
+    LOCK_UN : Unlock the file
+    LOCK_NB : Make a nonblocking lock request
+     By default,flock() blocks if another process already holds an incompatible lock on the file
+     Uing this flag,flock() instead returns -1 with errno EWOULDBLOCK
+  
+  3)A process can place a shared or exclusive lock regardless of the access mode (R,W,RW)of the file
+  4)An existing shared lock can be converted to an exclusive lock by making another flock() with LOCK_EX operation
+    It will block if another process holds a shared lock on the file unless LOCK_NB is specified
+    The lock conversion is not guaranteed to be atomic
+    During the conversion,the existed lock is removed and a new lock is placed.
+    Between the two steps,another process's incompatible lock requeset may be granted.
+    If this occurs,the conversion blocks unless LOCK_NB was specified
+
+  5)A file lock is automatically released when the corresponding fd is closed
+    The file lock obtain via flock() is associated with open file description
+    So,if a fd is duplicated,the new fd refers to the same file lock
+    The lock is released only when all the duplicated fds have been closed
+    The child inherits its parent's fd.It's as with fd duplicated via dup()
+    
+    Locks created by flock() are preserved across exec()
+    Unless the close-on-exec on that fd was set and that fd is the last one referring to the underlying open file description
+    If we use open() to obtain a second fd referring to the same file,then the second fd is treated independently by flock()
+    Ex:fd1 = open(file,O_RDWR);
+       fd2 = open(file,O_RDWR);
+       flock(fd1,LOCK_EX);
+       flock(fd2,LOCK_EX);          //The process lock itself out of a file 
+
+   
+   Limitations of flock()
+   1)Only whole files can be locked
+     Such coarse locking limits the potential for concurrency among opearting processes
+     Ex:There are multiple processes and each of them would like to simultaneously access different parts of the file
+   
+   2)We can place any advisory locks with flock
+   
+5.Record locking with fcntl()
+  Files on UNIX system are bytes sequences,with no concept of record boundaries
+  Any notion of record boundaries  within a file is defined purely within the app
+  Typically,fcntl() is used to lock byte ranges according to app-defined record boundaries within the file
+  Codes using fcntl() to synchronize access by two processes to the same region of a file
+   struct flock flockstr;
+   //Set fields of flockstr to describe lock to be placed or removed
+   fcntl(fd,cmd,&flockstr);
+  
+   1)struct flock{
+     short    l_type;            //Lock_type:F_RDLCK,F_WRLCK,F_UNLOCK
+     short    l_whence;          //How to interpret l_start:SEEK_SET,SEEK_CUR,SEEK_END;
+     off_t    l_start;          
+     off_t    l_len;             //Number of bytes to lock;0 means until EOF
+     pid_t    l_pid;
+   }
+   Semantically,read(F_RDLCK) and write(F_WRLCK) locks correspond to the shared and exclusive locks applied by flock()
+   They follow the same compatibility rules:any number of processes can hold read locks on a file region.Only one process can hold a write lock and this lock excludes read and write locks by other processes
+   Attempting to place a lock that is incompatible with file access mode results in error EBADF
+   Ex:F_WRLCK  --> O_RDONLY
+
+  2)In general,apps should lock the minimum range of bytes necessary
+    This allows greater concurrency for other processes simultaneously tring to lock different regions of the same file
+
+  3)lock the entire file:specify l_whence as SEEK_SET and both l_start and l_len as 0
+
+  4)cmd
+    a.F_SETLK
+      Acquire(l_type is F_RDLCK or F_WRLCK) or release (l_type is F_UNLCK) a lock on the specified bytes
+      If an incompatible lock is held by another process on any part of region to be locked,fcntl() fails with EAGAIN
+    
+    b.F_SETLKW
+      It's the same as F_SETLK
+      Except that if an incompatible lock has been placed,it blocks until the lock can be granted
+      If we're handling signals and not specified SA_RESTART,then an F_SETLKW opration may be interrupted
+      We can take adavantage of this behaviour to use alarm() or setitimer() to set a timeout on the lock request
+
+    c.F_GETLK
+      Check if it would be possible to acquire the lock specified in flockstr,but don't actually acquire it
+      l_type must be F_RDLCK or F_WRLCK
+      flockstr is treate as a value-result argument
+      On return,it contains information informing us whether or not the specified lock could be placed
+      If the lock is permitted(No incompatible lock exists),the F_UNLCK is returned in l_type and remaining bytes are left unchanged
+      If it's not permitted,then F_UNLOCK returns information about one of the incompatible locks --> l_type,l_start,l_whence
+      
+      There are potential race conditions when combining the use of F_GETLK with a subsequent F_SETFL or F_SETLKW
+      By the time we perform latter operation,the information returned by F_GETLK may alreay be out of date
+   
+  5)Details of file lock acquisition and release with fcntl()
+    a.Unlocking a file always immediately succeeds
+      It's not an error to unlock a region on which we don't currently hold a lock
+
+    b.At any time,the process can hold just only one type of lock on a particular region of a file
+      Placing a new lock on the region we have locked either results in no change(The new lock type is the same as the existing lock) or automatically converts the existing lock to a new mode
+      When converting a read lock to a writing lock,we must be prepared for the possibility that the call will yield an error(F_SETLK) or block(F_SETLKW)
+      This differs from flock(),whose lock convertions are not atomic
+
+    c.Placing a lock of differnt mode in the middle of a lock we already hold results in three blocks
+      Two smaller blocks in the previous mode are created in either side of the new lock
+      Unlocking a region in the middle of large existing lock leaves two smaller locked regions on either side of the unlocked regions
+
+
+6.Deadlock situations
+   Process A                     Process B
+   F_SETLKW 10~19                F_SETLKW  50~59
+   F_SETLKW 50~59                F_SETLKW  10~19
+   Each process is wating for the resources held by the peer to be released
+   To prevent the possibility,the kernel checks each new lock requests made via F_SETLKW to see if it would result in a deadlock situation
+   If it would,the kernel selects one of the blocked processes and cause its fcntl() to unblock and fails with EDEADLK
+
+7.Some requirements that influence the kernel data structure design
+  1)The kernel must be able to merge a new lock with any existing locks of the same mode that may lie on either side of the new lock
+  2)A new lock may replace one or more existing locks held by calling process
+    The kernel must be able to locate all the locks
+  3)When creating a new lock with a different mode in the middle of an existing lock,the job of spiliting the existing lock should be simple
+
+  On Linux,each open file has an assocaite linked list of locks agains that file
+  Locks within the list are ordered,first by PID and then by starting offset
+  An Ex can be seen in pdf 1135
+
+  Whenever a new file lock is added to this data structre,the kernel must check for conflicts with any existing lock
+  The search is carried out sequentially,starting at the head of the list
+
+8.Semantics of lock inheritance and release
+  1)Record locks are not inherited across fork() by child process
+    It contrasts with flock(),where the child inherits a referrence to the same lock and can release the lock,with the consequence that the parent loses the lock
+  
+  2)Record locks are preserved across exec()
+
+  3)All of the threads share the same set of record locks
+
+  4)Record locks are associated with both process and i-node
+    So,when a process terminates,all of its record locks are released
+       when a process closes a fd,all locks held by that process on corresponding file are released,regaredless of the fd(s) through which the locks were obtained
+    Ex: fd1 = open(file,xx)
+        fd2 = open(file,yy)
+        They refer to the i-node
+        add locks through fd1
+        if we close fd2,the locks will also be released
+       
+       A fd can be also closed by exec() is close-on-exec flag was set or via dup2() which closes it second fd argument if that fd is already open
+
+9.When multiple processes must wait in order to place a lock on a currently locked region,a couple of questions arised
+  On Linux,a series of read locks can indeed starve a blocked write lock,possibly indefinitely
+  On Linux,here are the rules that determine which process obtains the lock when it becomes available
+   1)The order in which queued lock requests are granted is indeterminate
+     If multiple processes are waiting to place locks,the order in which they are satisfied depends on how the processes are scheduled
+   2)Writers don't have priority over readers and vice versa
+   But on some other UNIX implementations,aboves rules are not true
+
+10.By default the file locks are advisory which means that the process is free to ignore locks and simply perform I/O on the file
+   When using advisory locks,it is up to app designers to 
+   1)set appropriate ownership and permissions for the file so as to prevent noncooperating process from performing file I/O
+   2)ensure the that processes composing the app cooperate by obtaining the appropriate lock on the file before performing file I/O
+
+  Locks can be mandatory which means every file I/O is checked whether it is compatible with any locks held by other processes on the region of the file on which I/O is being performered
+
+  In order to enable mandatory locking on Linux,both file system and the file should be enabled
+  1)file system
+    mount it with -o mand option
+    Ex: mount -o mand /dev/sda /testfs
+    We can achieve the same result by specifying MS_MANDLOCK flag when calling mount(2)
+  2)file
+    It is enabled by the combination of having the set-group-ID permission bit turned on and the group-execute permission turned off
+    Ex: chmod g+s,g-x /testfs/file
+  
+  If mandatory locking is enabled for a file,what happens if a sysCall that performs data transfer encounters a lock conflict?
+  The answear depends on whether the file has been opened in blocking or nonblocking mode
+  blocking mode ---> the sysCall blocks
+  nonblocking mode -> the sysCall fails with error EAGAIN
+  Same rules apply for truncate() and ftruncate(),if the bytes they are attempting to add or remove from file overlap the region currently locked by anoter process
+  Attempts to open a file with O_TRUNC flag always immediately fails(errno = EAGAIN) if any other process holds a read or write lock on any part of the file
+  
+  It's not possible to create a shared memory mapping on a file if any other process holds a mandatory read or write lock on any part of the file
+  Conversely,it's not possible to place a mandatory lock on any part of the file that is currently involved in a shared memory mapping
+  In both cases,relevat sysCalls fail with errno EAGAIN 
+
+  Mandatory locks do less than we might expect at first and have some shortcomings and problems
+  1)Holding a mandatory lock on a file doesn't prevent other processes from deleting it,since all that required to unlink a file is suitable permissions on the parent dir
+  2)Careful consideration shoule be applied before applying mandatory locks on publicly accessable file,since not even the priviledged process can override a mandatory lock
+    A malicious user could continuously hold a lock on the file in order to create a denial-of-service attack
+
+  3)There is performance cost with mandatory locking becaue kernel must check for lock conflicts on the file
+  4)Mandatory locking also incurs app design
+    We need to handle the possiblity that each I/O system call can return EAGAIN(for nonblocking I/O) or EDEADLK(for blocking I/O)
+  In summary the use of mandatory lockisng is best avoided
+
+
+11.The /proc/locks file
+   We can view the set of file locks held in curent systems by examining the contents of the /proc/locks
+   Fileds:
+    1)The ordinal number 1,2,3 ....
+      N:-> It reprents lock requests blocked by the lock numebr N
+    2)Type of lock 
+      FLOCK   ---> a lock created by flock()
+      POSIX   ---> a lock created by fcntl()
+    3)Mode of lock
+      ADVISORY or MANDATORY
+    4)READ or WRITE
+    5)PID of process holding the lock
+    6)Three colon:separated numbers
+      They identify the file on which the lock is held
+      major : minor device number : inode numebr
+    7)The starting byte of the lock ---> This is always 0 for flock() locks
+    8)The ending byte of the lock
+  An Ex can be seen in pdf 1141 
+
+
+12.Running just one instance of a program
+   Some programs in particular the daemons need to ensute that only one instance is runing on the system at a time
+   A common method is to have the daemon create a file on standard dir and place a write lock on it
+   Another instance will fill to obtain the file write lock
+   The daemon holds the file lock for the duration of its execution and deletes the file before terminating
+   
+   Many network servers use an alternative convention  assuming that a server instance is running if the well-known socket port to which the server binds is already in use 
+
+  The /var/run is usual location for such lock files
+  Alternatively the location may be specified by a line in the daemon's configuration file
+
+  Conventionnaly,the daemon writes its PID into the lock file and the file is named with an extension .pid
+  It's useful if some apps need to find the PID of the daemon
+

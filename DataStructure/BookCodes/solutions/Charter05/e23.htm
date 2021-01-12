@@ -1,0 +1,56 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 5, Exercise 23<BR>
+<BR>
+</H1>
+The code is given below and in the file
+<code class=code>arrayListWithLeftShift.h</code>. Test code is
+included in <code class=code>arrayListWithLeftShift.cpp</code>.
+<hr class=coderule>
+<pre class=code>
+template&lt;class T&gt;
+class arrayListWithLeftShift : public arrayList&lt;T&gt; 
+{
+   public:
+      // constructor and destructor
+      arrayListWithLeftShift(int initialCapacity = 10)
+           : arrayList&lt;T&gt; (initialCapacity) {}
+
+      void leftShift(int theAmount);
+};
+
+template&lt;class T&gt;
+void arrayListWithLeftShift&lt;T&gt;::leftShift(int theAmount)
+{// Left shift by i elements.
+
+
+   if (theAmount &lt;= 0)
+      return; 
+      // could throw exception when i &lt; 0 or do a right shift by i
+
+   int newSize = 0;
+   if (theAmount &lt; listSize)
+   {// list is not empty after the shift
+      newSize = listSize - theAmount;
+
+      // left shift elements with higher index &gt;= i
+      copy(element + theAmount, element + listSize, element);
+   }
+
+   // destroy uneeded elements
+   for (int i = newSize; i &lt; listSize; i++)
+      element[i].~T(); 
+
+   listSize = newSize;
+}
+</pre>
+<hr class=coderule>
+The complexity of the method is <code class=code>O(listSize)</code>.
+</FONT>
+</BODY>
+</HTML>

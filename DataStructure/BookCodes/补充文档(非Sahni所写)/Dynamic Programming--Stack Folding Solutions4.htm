@@ -1,0 +1,166 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 54, Exercise 4<BR>
+<BR>
+</H1>
+
+To get the candidate heights, we first compute all
+<code class=var>hsum(i,k)</code> values. Then, these values are
+sorted using the merge sort method. Following the sort, duplicate
+values are eliminated by making a left to right sweep over the
+sorted candidate heights. Next, we make a binary search for the minimum
+height for which a folding into a rectangle of given width
+is possible.
+If no folding is possible for a trial candidate height <code class=var>tHeight</code>,
+then
+candidate heights smaller than <code class=var>tHeight</code>
+are eliminated because no stack folding
+for these smaller heights is possible either.
+When a folding is possible for a trial candidate height <code class=var>tHeight</code>,
+then
+candidate heights larger than <code class=var>tHeight</code>
+are eliminated because these
+larger heights cannot result in the minimum height folding.
+<br><br>
+The code is given below.
+
+<HR class = coderule>
+<pre class = code>
+// global variables
+int n;              // number of components;
+int widthSum;       // sum of widths of all components;
+int *h;             // component heights
+int *w;             // component widths
+int *r;             // space to be left at column ends
+int **hsum;         // hsum(i,k)
+int *theW;          // W_i for current height choice
+int *kay;           // kay values for current height choice;
+
+int minimumHeightFolding(int theWidth, int bestW[], int bestKay[])
+{// Fold components with heights h[1 .. n] and widths
+ // w[1 .. n] into a rectangle of width theWidth and
+ // minimum height.
+ // r is array of space to be left at column ends
+ //        length of r must exceed that of h
+ // theW[i] is W_i
+ // hsum[i][k] is hsum(i,k)
+ // Values of bestW[1..n+1] and bestKay[1..n] are computed
+ // by this method.
+ // Return minimum folding height.
+ // Return 0 if folding into a theWidth rectangle is not possible.
+   theW = new int [n + 2];
+   theW[n + 1] = 0;
+   kay = new int [n + 1];
+   // determine sum of widths
+   widthSum = 0;
+   for (int i = 1; i &lt;= n; i++)
+      widthSum += w[i];
+   // determine hsum(i,k)
+   hsum = new int [n + 1][n + 1];
+   for (int i = 1; i &lt;= n; i++)
+   {
+      hsum[i][i] = h[i];
+      for (int k = i + 1; k &lt;= n; k++)
+         hsum[i][k] = hsum[i][k - 1] + h[k];
+   }
+   r[0] = r[n + 1] = 0;
+
+   // collect possible rectangle height values into a 1D array
+   int *height = new int [n * n];
+   int k = 0;      // cursor for height[]
+   for (int i = 1; i &lt;= n; i++)
+      for (int j = 1; j &lt;= n; j++)
+         height[k++] = hsum[i][j] + r[i] + r[j + 1];
+
+   // sort the possible heights
+   mergeSort(height, n * n);
+
+   // eliminate duplicates
+   k = 0;
+   for (int i = 1; i &lt; n * n; i++)
+      if (height[k] < height[i])
+         height[++k] = height[i];
+
+   // do a binary search over the k + 1 distinct heights
+   int minHeight = 0;
+   int left = 0;
+   int right = k;
+   while (left &lt;= right)
+   {
+      int middle = (left + right)/2;
+      variableWidthFolding(height[middle]);
+      if (theW[1] &lt;= theWidth)
+      {// height[middle] is feasible
+         minHeight = height[middle];
+         // save theW and kay
+         for (int i = 1; i &lt;= n; i++)
+         {
+            bestW[i] = theW[i];
+            bestKay[i] = kay[i];
+         }
+         right = middle - 1;  // do not examine larger heights
+      }   
+      else
+         // height[middle] is infeasible, do not examine smaller heights
+         left = middle + 1;
+   }
+   return minHeight;
+}    
+
+void variableWidthFolding(int theHeight)
+{// Fold components into a minimum width rectangle of height theHeight.
+ // Values of theW[1..n+1] and kay[1..n] are computed
+ // by this method.
+   for (int i = n; i &gt; 0; i--)
+   {// compute theW[i] using Eq. 54.5
+      int wmax = 0,                   // wmax(i,k)
+          minW = widthSum + 1;        // min value for W_i so far
+
+      for (int k = i; k &lt;= n; k++)
+      {
+         if (hsum[i][k] &gt; theHeight)
+            // infeasible
+            break;
+         if (w[k] &gt; wmax)
+            wmax = w[k]; 
+         if (hsum[i][k] + r[i] + r[k + 1] &lt;= theHeight &amp;&amp;
+             wmax + theW[k + 1] &lt; minW)
+         {
+            minW = wmax + theW[k + 1];
+            kay[i] = k;
+         }
+      }
+      theW[i] = minW;
+   }
+   return;
+}
+
+void traceback(int kay[])
+{// Output fold points.
+   if (kay[1] &gt;= n)
+      cout << "There are no fold points" << endl;
+   else
+   {// there is at least one fold point
+      int i = 1;
+      cout << "The fold points are " << endl;
+      while (kay[i] &lt; n)
+      {
+         i = kay[i] + 1;
+         cout << i + " ";
+      }
+      cout << endl;
+   }
+}
+</pre>
+<hr class=coderule>
+
+</FONT>
+</BODY>
+</HTML>

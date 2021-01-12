@@ -1,0 +1,297 @@
+  底层为单向链表
+  template<class T>
+   class WaitQueue
+
+  T:等待队列中会存储挂起的调度实体的信息。比如协程，线程等。具体则由上层组件提供
+
+  数据成员:
+   1)维护链表对象所需要的成员
+     WaitNode* head,*tail,dummy
+     size_t size
+   2)用于同步的锁
+
+  成员函数:
+   1)ConditionRet push(T* ptr,CondFunctor cond);
+     插入到链表尾
+   2)bool pop(T*& ptr);
+     a.弹出队首
+       根据情况，更新head和tail
+
+  作者为等待队列添加的附属功能基本没用到。其和简单的单向链表没什么区别
+
+
+2.协程条件变量
+  template<class T>
+   CoConditionVar
+  T:用于实现channel
+
+  传递给等待队列的元素为Entry
+  Entry数据成员:
+   1)SuspendEntry
+     挂起的Fiber相关信息
+   2)NativeThreadEntry
+     兼容线程。即线程挂起时的相关信息
+   3)LFLock time_lock
+     用于检测操作是否超时
+   4)std::atomic<int> m_suspend_flag{0};
+     SUSPEND_BEGIN,SUSPEND_END,WAKEUP_BEGIN,WAKEUP_END
+   5)T value           ---> 用于channel中
+   6)bool is_waiting   ---> 没用到
+
+  Entry成员函数:
+   bool notify(const Functor& f);
+    a.读取m_suspend_flag 
+    b.若Entry含有SUSPEND_BEGIN状态
+      1.只有SUSPEND_BEGIN 
+        表明Fiber正在挂起
+        那么就等待Fiber挂起结束 ---> 结束后增加SUSPEND_END状态
+      2.含有SUSPEND_BEGIN + SUSPEND_END 
+        表明Fiber已经挂起结束
+      挂起完毕后，针对调度实体进行相应的唤醒操作
+      1)协程
+         先获取time_lock
+         若获取失败，则return false    ---> 基本不可能获取失败 ----> do_wait()是在return时才会try_lock()
+         若获取成功，则调用Processer::WakeUp(m_suspend_entry),[&]{if(f)f(value);}进行协程唤醒
+      2)线程
+         先获取time_lock
+         若获取失败，则return false
+         若获取成功，先f(value)更新共享资源的值
+         再调用线程级别的条件变量的API进行唤醒
+      
+    c.若Entry状态为空 ----> 说明do_wait()已经将Entry压入到队列中，但还没有开始进行Fiber挂起
+      先修改状态为WAKEUP_BEGIN  ----> (do_wait()看见后也就不会去挂起Fiber  ---> notify()接下来也就不用去唤醒Fiber)
+      再尝试获得time_lock
+      获取成功后，则调用f(value),添加状态WAKUP_END
+
+
+    CoConditionVar则维护等待队列:WaitQueue<Entry> waiting;
+    成员函数:
+     wait(),wait_for(),wait_until()都调用do_wait()
+     Status do_wait(LockType& lock,
+                    TimeType* time,
+                    T value = T(),
+                    const CondFunctor& cond = nullptr)
+     逻辑:
+      1)创建一个Entry，将其加入等待队列中
+      2)释放lock  
+      3)释放了锁可能导致上下文切换，以至于其他Fiber先调用notify进行唤醒
+        于是进行Entry的状态判断
+      4)若处于WAKEUP_BEGIN
+        表明正在被唤醒,则等待唤醒动作结束,唤醒以后也就没有必要再继续挂起.
+        等待唤醒结束后就返回
+      5)若没有处于WAKEUP_BEGIN 
+        等一等在考虑挂起: 
+         a.先分析其是否处于协程环境中 --> 判断是否有正在运行的Fiber即可
+         b.若是，则进行协程切换 Processer::FiberYield() ---> 切回到主协程中，直到该Fiber下次被调度选中 ---> 切回来以后再次判断是否处于WAKEUP_BEGIN,若还不是，则进行挂起
+         c.若没有处于协程环境中，则进行线程切换
+      6)修改状态为SUSPEND_BEGIN
+        分析其是否处于协程环境中 
+        a.若是，则进行协程挂起 ---> 调用Processer::Suspend
+        然后进行协程切换Processer::FiberYield()  ---> 切回到主协程的schedule()函数中，切回状态为BLOCK 
+        直到该Fiber被唤醒----> Fiber会从waiting转移到runnable中. 再次被调度选中时，才会切回来
+
+        b.若不是，则进行线程切换 --> 调用线程级别的条件变量的API
+        挂起完毕，修改状态为SUSPEND_END
+
+      7)作者的返回语句为:
+        return entry->time_lock.try_lock() ? 
+                      Status::TIMEOUT :     
+                      Status::NO_TIMEOUT;
+        协程必须唤醒后，代码才能切回到此。
+        唤醒程序会持有time_lock -----> 此处的time_lock会获取失败
+        
+        
+     bool notify_one(const Functor& f=nullptr)
+     删除并获取等待队列的队首Entry
+     若其没有处于waiting状态，则直接f(entry->value) ----> 用于channel中
+     否则调用entry->notify(f)进行唤醒 
+
+
+3.协程Mutex
+  CoMutex
+  数据成员:
+  1)std::mutex
+    用于临界区的保护
+  2)CoConditionVar<bool>
+  3)bool notified 
+  4)atomic_long m_count = 1
+    用原子变量反映当前CoMutex被lock()和unlock()的情况
+
+  成员函数:
+  1)lock()
+    void CoMutex::lock(){
+      if(--m_count == 0) //从1->0，首次上锁
+        return;
+      
+      //之后的lock()调用会挂起Fiber
+      std::unique_lock<LockType> lock_guard(m_lock); //mutex是线程级别的保护措施 ---> 对已lock的mutex再lock会导致线程阻塞 ---> 线程阻塞会导致线程上的所有协程阻塞 ---> 是否有瑕疵呢
+      if(notified){                                 //先于lock()调用unlock() ----> 那么就不阻塞
+        notified = false;
+        return;
+      }
+      m_cond.wait(lock);                           //调用do_wait，将Entry加入到等待队列中后，就释放了m_lock.其他Fiber的lock()和unlock()可以继续进行
+    }
+
+  2)unlock()
+    if (++m_count == 1)   //从0->1，没有等待的协程，不需要唤醒
+        return ;
+    std::unique_lock<LockType> lock_guard(m_lock);
+    if (!m_cond.notify_one())  //notify_one()返回false的时机 ---> 调用了多次unlock() ---> WaitQueue中已经没有Entry.但又不想错过notify_one()信号
+        notified = true;
+
+
+
+CoMutex:          lock()                                            unlock()
+         a1    atomic operation                            b1    atomic operation
+         a2    m_mutex.lock()                              b2    m_mutex.lock()
+         a3    cond.wait(m_mutex)                          b3    cond.notify_one()
+         a4    push Entry to WaitQueue                     b4    pop Entry from WaitQueue
+         a5    m_mutex.unlock()
+         a6    WAKEUP_BEGIN ?                              b5      SUSPEND_BEGIN ?
+               yes|         no|                                     yes|           no|
+                  |           |                                        |             |
+         a7   等待唤醒      等一会儿,若能被唤醒,就不挂起       b16 等待挂起结束    说明flag为空
+              结束后就      若没有被唤醒，则开始进行挂起           然后进行唤醒    表明其从a5切换过来
+              返回          操作                                   wakeup fiber    说明还没有进行挂起操作         
+                            a8:flag |= SUSPEND_BEGIN               or thread       那么也就不需要唤醒操作
+                            a9:suspend fiber or thread                             flag |= WAKEUP_BEGIN
+                           a10:flag |= SUSPEND_END                                 f(value)
+                           a11:FiberYied or thread yield                           flag |= WAKUP_END
+
+注意点:
+1)m_mutex保证notify_one()的互斥性,即Fiber在释放mutex时是互斥的
+ 但wait()并不是完全互斥的，这也是设计的精妙处.
+ 考虑:假如f1先上锁，f2调用lock()时会进入wait()
+      但若在f2挂起之前，f1先释放锁，那么f2就不用挂起
+      基于此思想，就必须在wait()中unlock m_mutex    -----> f1才能进入notify_one()
+      此后wait()代码就不受保护,随时可能被切到notify_one()中,因此要对各种可能的情况进行分析
+      这里wait()和notify_one()通过 原子变量来表示状态，以此进行通信来同步
+2)等一会儿？该如何等呢 
+3)为什么需要进行a11操作?
+  因为a9的挂起操作只是进行了相关变量的设置，并没有正在地进行代码切换
+  
+
+
+4.协程读写锁:CoRWMutex
+  读写锁的基本功能
+    a.多个读者可以并发地读
+    b.读写互斥
+    c.写写互斥
+  数据成员:
+   1)LFLock m_lock
+     共享资源的保护
+   2)long lock_state
+     反映当前锁的状态: 0 -> 没人持有锁
+                      -1 -> 写者正持有锁
+                      >0 -> 读者正持有锁。可能有多个
+     上锁和解锁的直接操作对象
+   3)bool m_write_first
+     是否写者优先
+   4)CoCondition<bool> read_cond,write_cond
+     阻塞，容纳，唤醒读写者
+  
+  成员函数:
+   1)void CoRWMutex::read_lock(){
+      std::unique_lock<LFLock> lock_guard(m_lock);
+retry:
+      if(m_write_first){         
+        if(lock_state >= 0 && write_cond.is_empty()){ //锁的状态:无锁或者是读锁 + 没有等待的写者 --> 满足这两个条件读者才能上锁
+          ++lock_state;                               //读者+1
+          return;
+        }
+      }else{                                          //读者优先
+        if(lock_state >= 0){                          //只要不是写锁，就++lock_state ---> 读者+1
+          ++lock_state;
+          return;
+        }
+      }
+      read_cond.wait(m_lock);  //在wait中会释放m_lock
+      goto retry;              //唤醒才重新尝试上锁
+    }
+   解读:
+     m_write_first的功能:
+     假如f1已经上锁，写者f2上锁失败，阻塞在wait()，读者f3正准备上锁
+     若此时f1释放了锁(没人再持有锁),f2和f3都有机会上锁.若写者优先，则f2则应优先拿锁
+     但作者的处理还是有瑕疵:f2从wait()中醒来，goto retry并且lock_state == 0条件通过.若此时切换到f1,f1的条件也会通过,++lockstate后返回.然后再切换到f2.虽然f2依旧可以拿到写锁，但读者f3并没有阻塞
+
+  2)void CoRWMutex::write_lock(){
+      std::unique_lock<LFLock> lock_guard(m_lock);
+retry:
+      if(lock_state == 0){  //只有处于无锁状态才可能拿到写锁
+        lock_state = -1;
+        return;
+      }
+      //阻塞等待
+      write_cond.wait(m_lock);
+    goto retry;
+  }
+  
+
+4.template<class T>
+  LockedChannel
+  T为channel中数据类型
+  
+  数据成员:
+   1)std::mutex
+   2)typedef CoConditionVar<T*> CondVar;
+     CondVar write_cond,read_cond;  ---> 记录阻塞的读写者
+     为什么是T*呢?一会儿自有妙用
+   3)ring_buffer
+     采用环形队列存储数据
+   4)capacity
+     当capacity为0时 ---> 只能写入一个数据
+     写入数据时，若没有阻塞的读者，则会阻塞写者
+     读取数据时，若没有阻塞的写者，则会阻塞读者
+     当capacity>0时
+     写入数据时，若ring_buffer已经写满，则会阻塞写者
+     读取数据时，若ring_buffer为空，则会阻塞读者
+
+  成员函数:
+   1)push_impl(const T& t)
+     将数据压入到ring_buffer中 ---> ring_buffer中没有锁，不安全
+   2)pop_impl(T& t)
+     弹出并获取队首数据
+
+   3)bool push(T t, bool wait, FastSteadyClock::time_point deadline = FastSteadyClock::time_point{});
+     wait:是否需要阻塞等待写入完成
+     deadline:阻塞的时间上限
+     逻辑:
+     a.push_impl(t)
+     b.检测队列的size变化
+     c.若从0->1,则唤醒一个读者
+       read_cond.notify_one([&](T* p){pop_impl(*p);});  
+       在pop(T& t,wait,deadline)中,若没有数据可读,则会阻塞读者read_cond.wait(m_mutex,&t)
+       wait()会生成Entry --> Entry.value = &t ---> t是要返回的值，在Entry中value保存了其指针 
+       由于Entry是wait()和notify_one()共享的，所以可以在notify_one()中，对value进行操作.比如: *value = data
+
+       此时再来看notify_one()中的lambda 
+       明确在notify_one()中会针对Entry的value调用f(value)
+       即有: T* p = value
+             pop_impl(*p)      ---> 将刚压入的队首元素弹出交给*p  ---> 而t = *p 
+       
+       
+       read_cond.notify_one()调用成功 ----> read_cond.wait()也就调用返回  ---> pop()进行接下来的处理
+    
+     d.当队列已满时，push_impl(t)会失败，阻塞写者
+     e.if(!wait)  return false;
+       不允许等待就返回
+     f.否则调用:
+       m_status = write_cond.wait(m_lock,&t);
+       
+       在pop()中
+       若有数据可读，
+       则会调用pop_impl(t)
+       若size从m_capacity变化为m_capacity-1,则需要唤醒一个写者write_cond.notify_one([&](T* p){push(*p);});   ---> &t传给T* p  ---> 将数据压入到ring_buffer中
+   
+    
+2.协程条件变量 cond
+  当一个Fiber阻塞在cond上时，cond会将该Fiber的信息添加到等待队列中(步骤1)，然后将Fiber挂起(步骤2)
+  cond为共享变量，操作时，要加锁
+  作者的优化点:
+  在步骤1和2之间，可能另外一个Fiber会唤醒cond
+  那么本Fiber就可以不用挂起
+
+  所以会在步骤1以后将释放锁 ---> 其他Fiber就可以拿到锁，进行cond唤醒
+  但唤醒和挂起孰先孰后并不能控制
+  所以需要设置共享状态变量，来供对方检测 ---> 将共享变量设为原子变量
+  

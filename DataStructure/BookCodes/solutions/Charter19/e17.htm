@@ -1,0 +1,126 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 19, Exercise 17<BR>
+<BR>
+</H1>
+
+<ol>
+<li>
+First examine the tasks making decisions on those for which
+<code class=code>T<sub>i,1</sub> = T<sub>i,2</sub></code>.
+For these tasks, we choose way <code class=var>1</code>
+when
+<code class=code>C<sub>i,1</sub> &lt;= C<sub>i,2</sub></code> and way
+<code class=var>2</code> when
+<code class=code>C<sub>i,1</sub> &gt; C<sub>i,2</sub></code> because there
+can be no advantage to doing these tasks using the higher cost way.
+<li>
+If we have tasks for which
+<code class=code>T<sub>i,1</sub> &lt; T<sub>i,2</sub></code> and
+<code class=code>C<sub>i,1</sub> &lt;= C<sub>i,2</sub></code>,
+then we opt to do these tasks the first way because the first way
+takes less time and does not cost any more than the second way.
+<li>
+If we have tasks for which
+<code class=code>T<sub>i,1</sub> &gt; T<sub>i,2</sub></code> and
+<code class=code>C<sub>i,1</sub> &gt;= C<sub>i,2</sub></code>,
+then we opt to do these tasks the second way because the second way
+takes less time and does not cost any more than the first way.
+<li>
+Renumber the remaining tasks <code class=code>1, 2, ... m</code>.
+Relabel the ways to perform each of these remaining tasks so that
+<code class=code>T<sub>i,1</sub> &lt; T<sub>i,2</sub></code> and
+<code class=code>C<sub>i,1</sub> &gt; C<sub>i,2</sub></code>.
+For these remaining tasks,
+we obtain the following dynamic programming equations:
+<br><br>
+<code class=var>
+c(m,j) =  infinity, j &lt; T<sub>m,1</sub><br>
+c(m,j) = C<sub>m,1</sub>, T<sub>m,1</sub> &lt;= j &lt; T<sub>m,2</sub><br>
+c(m,j) = C<sub>m,2</sub>, otherwise<br>
+<br><br>
+and
+<br><br>
+<code class=var>
+c(i,j) =  infinity, j &lt; T<sub>i,1</sub><br>
+c(i,j) = C<sub>i,1</sub> + c(i+1, j-T<sub>i,1</sub>), T<sub>i,1</sub> &lt;= j &lt; T<sub>i,2</sub><br>
+c(i,j) = min{C<sub>i,1</sub> + c(i+1, j-T<sub>i,1</sub>),
+             C<sub>i,2</sub> + c(i+1, j-T<sub>i,2</sub>)}, otherwise<br>
+</code>
+<br><br>
+for <code class=var>1 &lt;= i &lt; m</code>
+</ol>
+<br><br>
+We may determine the least cost way to perform the project as follows:
+<dl>
+<dt><strong>Step 1</strong>
+<dd>
+Make decisions on tasks that fall into categories 1, 2, and 3.
+This takes <code class=var>O(n)</code> time.
+<dt><strong>Step 2</strong>
+<dd>
+Relabel the remaining <code class=var>m</code> tasks and the
+ways to perform each task as described in
+item 4 above. This relabeling takes <code class=var>O(m)</code> time.
+<dt><strong>Step 3</strong>
+<dd>
+Compute the time,
+<code class=var>t'</code>,
+allowed for the remaining tasks
+by subtracting from
+<code class=var>t</code> the time taken by the <code class=var>n-m</code>
+tasks for which decisions were made in Step 1.
+<dt><strong>Step 4</strong>
+<dd>
+Compute <code class=var>c(m,j)</code> for <code class=code>0 &lt;= j &lt;= t'</code>
+using the equation for <code class=var>c(m,j)</code> obtained in item 4 above.
+This takes <code class=var>O(t')</code> time.
+<dt><strong>Step 5</strong>
+<dd>
+Compute <code class=var>c(i,j)</code> for 
+<code class=var>i = m-1, m-2, ... 1</code>, in that order,
+using the equation for <code class=code>c(i,j)</code>
+developed in item 4 above. For each <code class=var>i</code>,
+compute <code class=var>c(i,j)</code> for
+<code class=code>0 &lt;= j &lt;= t'</code> (this can be done in any
+order).
+It takes <code class=var>O(mt')</code> time to compute all of these
+<code class=var>c(i,j)</code> values.
+<dt><strong>Step 6</strong>
+<dd>
+<code class=var>c(1,t')</code> gives the least cost needed to complete
+the remaining <code class=var>m</code> tasks.
+The way each should be done is determined by using a traceback procedure
+for <code class=var>c(1,t')</code>.
+Assume that <code class=var>c(1,t') != infinity</code>. Therefore,
+it is possible to complete the remaining tasks taking no more than
+<code class=var>t'</code> time.
+<br><br>
+The traceback for <code class=var>c(i,j)</code> is recursive.
+When <code class=var>i = m</code>, there are two cases to consider.
+If <code class=var>c(m,j) = C<sub>m,1</sub></code>, do task
+<code class=var>m</code> in way <code class=var>1</code>, otherwise
+do this task in way <code class=var>2</code>.
+<br><br>
+When <code class=var>i < m</code>, there are also two cases to consider.
+If
+<code class=var>c(i,j) = C<sub>i,1</sub> + c(i+1, j-T<sub>i,1</sub>)</code>,
+then task <code class=code>i</code> is done in way <code class=var>1</code>
+and we do a traceback for <code class=var>c(i+1, j-T<sub>i,1</sub>)</code>
+to determine the remaining decisions. Otherwise,
+task <code class=code>i</code> is done in way <code class=var>2</code>
+and we do a traceback for <code class=var>c(i+1, j-T<sub>i,2</sub>)</code>
+to determine the remaining decisions.
+The traceback takes <code class=var>O(m)</code> time.
+</dl>
+<br><br>
+From the above description and analysis, we see that the overall complexity
+is <code class=var>O(nt)</code>.
+</FONT>
+</BODY>
+</HTML>

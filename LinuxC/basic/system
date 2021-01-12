@@ -1,0 +1,89 @@
+
+系统编程铁律:只要执行来系统调用或者库函数，就应检查返回状态以确定调用是否成功
+
+1 系统调用
+ 用户进程通过系统调用 请求内核 提供某些服务
+ CPU从用户态切换到核心态，调用具体服务程序来提供服务
+ 系统调用过程
+ 1)应用程序通过C函数库中wrapper函数发起系统调用,通过堆栈传递调用参数
+ 2)wrapper函数职能:
+   a.将堆栈中的参数copy到寄存器中
+   b.将特定的系统调用编号copy到%eax中
+   c.调用int 0x80,发起中断--->程序进入内核态
+ 3)内核会调用system_call()响应中断
+   a.在内核栈中保存寄存器值 ---> 保护调用者的寄存器，传参
+   b.审查系统调用编号的有效性
+   c.索引syc_call_table，调用相关的服务例程
+   d.将结果状态返回给system_call()
+ 4)函数调用返回，从内核栈中恢复各寄存器值，并将系统调用返回值置于栈中
+ 5)返回到wrapper,CPU切换回用户态
+ 6)若系统调用服务例程序出错，则将返回出错编号
+   wrapper使用改值设置全局变量 errno
+ 7)wrapper函数返回用用户调用程序，并返回整型值--->表明系统调用是否成功
+
+2 C语言标准库函数
+ 1)有些不会使用系统调用----->例如字符串操作函数
+ 2)有些构建于系统调用之上--->提供比系统调用更为方便的调用接口
+   比如: write()系统调用只能输出字节块。而printf()函数格式化输出和数据缓存功能
+
+3 linux下最常用的C函数库:GNU C--->glibc
+  确定glibc的版本:
+  1)在shell环境下查看
+    a.直接运行glibc动态库文件-->将其视为可执行文件---->/lib/libc.so.6
+    b.若程序A动态链接到glibc,则运行ldd(列出动态依赖)程序,再检查输出的库依赖列表
+      ldd myprog | grep libc 
+  2)在应用程序中查看
+    a.测试常量:__GLIBC__ __GLIBC_MINOR__---->供程序在编译时测试使用
+    b.调用函数:gnu_get_libc_version()---->确定运行时的glibc版本
+
+4 系统调用失败时，会返回-1，标识出错。
+  并且会将全局变量errno设置为正值，标识具体的错误
+  <errno.h>文件提供来对errno的声明，以及一组针对各种错误而定义的常量
+  例如: cnt = read(fd,buf,numbytes)
+  if(cnt == -1){     //出错了
+   if(errno == EINTR){   //针对具体错误，具体处理
+     fprintf(stderr,"read was interrupted by a signal\n")     
+   }else{
+    //other error
+   }
+  } 
+  少数系统调用在调用成功后，也会返回-1。比如getpriority()
+  如何判断此类系统调用是否出错？
+  现将errno置0，在检查errno的值
+
+  系统调用失败后，通常的处理方式:根据errno值打印错误消息
+  1) void perror(const char* msg) --->msg后会紧跟一条与当前error值相对应的消息
+  2) char* strerror(int errnum)   --->return pointer to error string corresponding to errnum
+                                  --->若errnum无法识别呢? 返回NULL或者"Unknown error num"
+
+5 该教材诊断系统调用的函数
+ 1) void errMsg(const char* format,...)---->格式化输出错误信息。包括与当前errno值相对应的错误文本。参数列表类似printf()
+ 2) void errExit(const char* format,...)--->类似errMsg,但会终止程序.
+                                             a.调用exit()终止
+                                             b.若环境变量EF_DUMPCORE定义为非空字符串，则调用abort()退出，同时生成core dump问价，供调试器调试使用
+ 3) void err_exit(const char* format,...)-->类似errExit(),两个差异
+                                             a.打印错误信息前，不会刷新标准输出
+                                             b.调用_exit()终止进程--->略去对stdio的刷新以及exit handler的调用
+    err_exit()大显身手之处:编写的库函数创建了子进程，但子进程因为发生错误而终止时，其能避免对 子进程继承父进程的stdio缓冲区副本 进行刷新
+ 4) void errExitEN(int errnum,const char* format)->类似errExit,但只会打印与errnum参数中给定的错误号相对应的文本
+    在POSIX线程程序中，errno定义为宏，展开后是 返回可修改左值 的 函数调用。而POSIX线程函数结果会返回错误号。所以采用errExitEN更加高效。
+    例如: int s;  s = pthread_create(&thread,NULL,func,&arg)
+                  if(s != 0) {errExitEN(s,"pthread_create")}
+ 5) void fatal(const char* format,...)-->诊断一般性错误。在stderr中格式化输出。然后像errExit()那样终止程序
+ 6) void usageErr(const char* format,..)-->诊断命令行参数错误。在stderr中格式化输出:Usage:xxxx.然后调用exit()终止程序
+
+ 
+6 系统调用和库函数API的行为受各种标准制约
+  标准制定者
+  Open Group(SUS)--标准机构
+  BSD和System V Release4
+  编写可移植性程序时，会希望 各个头文件只显露遵循特定标准的定义(常量，函数等)
+  如何做到？
+  添加特性测试宏
+  比如 #define _BSD_SOURCE 1--->编译器检测到以后就会开启对BSD定义的支持
+
+7 标准系统数据类型
+  应用程序采用 标准的系统数据类型 才能保证程序的可移植性
+  比如: pid_t mypid;----->允许应用程序在任何符合SUSv3标准的系统上正确表示进程ID
+
+                                                   

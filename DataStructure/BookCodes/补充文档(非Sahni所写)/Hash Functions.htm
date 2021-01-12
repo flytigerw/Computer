@@ -1,0 +1,107 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Hash Functions<BR>
+Copyright 2004  Sartaj Sahni<br>
+<BR>
+</H1>
+<br><br>
+<a href = "#Multiplication">Multiplication</a>
+<br>
+<a href = "#MiddleOfSquare">Middle Of Square</a>
+<br>
+<a href = "#Folding">Folding</a>
+<br>
+<a href = "#DigitAnalysis">Digit Analysis</a>
+<br><br>
+
+As remarked in the book, the most popular hash function is division.
+Some of the other hash functions are described below.
+
+<br><br>
+
+<a name = "Multiplication"></a>
+<font color=blue><big><big>Multiplication</big></big></font><br>
+
+The home bucket for an element <code class=var>e</code>
+with key <code class=var>k</code> is computed using the function
+<br><br>
+<center>
+<code class=var>f(k) = floor(m * FractionalPart(k*A))</code>
+</center>
+<br><br>
+Here <code class=var>m</code> is an integer constant
+and <code class=var>A</code> is a constant real number such that
+<code class=var>0 &lt; A &lt; 1</code>.
+The range of the hash function <code class=var>f</code> is
+the integers <code class=var>0, 1, 2, ...</code>
+<code class=var>m-1</code>.
+<br><br>
+Donald Knuth's book <code>The art of computer programming::Sorting
+and searching</code>, volume 3, Addison-Wesley, 1973 suggests using
+<code class=var>A = (sqrt(5) - 1)/2 = 0.6180339887</code>.
+<br><br>
+Suppose that the key <code class=var>k</code> is <code class=var>100</code>,
+<code class=var>A =
+0.6180339887 </code>, and <code class=var>m = 20 </code>.  The home bucket is
+<code class=var>f(k) = floor(20 * FractionalPart(100 * 0.6180339887))
+= floor(20 * FractionalPart(61.80339887)) = floor(20 * 0.80339887)
+= floor(16.0679774) = 16 </code>.
+
+<br><br>
+
+<a name = "MiddleOfSquare"></a>
+<font color=blue><big><big>Middle Of Square</big></big></font><br>
+
+In this the key <code class=var>k</code> is squared and the
+middle <code class=var>p</code> bits used as the home address.
+Here <code class=var>p</code> is a constant and the hash function range
+is the integers <code class=var>0, 1, 2, ..., 2<sup>p</sup>-1</code>.
+
+
+<br><br>
+
+<a name = "Folding"></a>
+<font color=blue><big><big>Folding</big></big></font><br>
+
+In this method the key is interpreted as an integer
+using some radix (say <code class=var>10</code>).
+The integer is divided into segments,
+each segment except possibly the last having the same number of digits.
+These segments are then added to obtain the home address.
+<br><br>
+As an example, consider the key <code class=var>76123451001214</code>.
+Assume we are
+dividing keys into segments of size <code class=var>3</code> digits.
+The segments for our
+key are <code class=var>761, 234, 510, 012</code>, and
+<code lcass=var>14</code>.  The home bucket is
+<code class=var>761 + 234 + 510 + 012 + 14 = 1531</code>.
+<br><br>
+In a variant of this scheme, the digits in alternate segments
+are reversed before adding.  This variant is called <strong>folding
+at the boundaries</strong> and the original version is called
+<strong>shift folding</strong>.
+Applying the folding at the boundaries method to the above example,
+the segments after digit reversal are
+<code class=var>761, 432, 510, 210</code>, and <code class=var>14</code>;
+the home bucket is <code class=var>761 + 432 + 510 + 210 + 14 = 1927</code>.
+
+<br><br>
+
+<a name = "DigitAnalysis"></a>
+<font color=blue><big><big>Digit Analysis</big></big></font><br>
+
+When the elements that are going to be in the hash table are known
+in advance, we can analyze the keys and select a subset of the digits
+to form the home address.  The subset is obtained by eliminating those digits
+whose values are most skewed and hence are less useful in spreading
+the elements uniformly across the space of bucket addresses.
+</FONT>
+</BODY>
+</HTML>

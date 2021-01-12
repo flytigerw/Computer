@@ -1,0 +1,166 @@
+
+
+
+
+
+1.具名参数
+  能为函数调用提供更多的信息,更具有可读性,且不容易出错
+  比如:
+  float fun(float a,float b,float weight){
+    return a*weight + b*(1-weight);
+  }
+  普通调用:fun(1.3f,2.4f,0.1f)                    --> 若参数顺序出错,则结果完全出错
+  使用具名参数调用:fun(weight=0.1f,a=1.3f,b=2.4f) --> 为参数赋名,减少出错率
+
+
+2.异类词典VarTypeDict
+  <K,V>容器.K为编译期常量.V可以为运行期的对象.V的类型可以不同
+  映射的创建和索引的工作主要在编译期完成,只会引入少量的运行期成本
+
+
+3.构造模块前先考虑模块如何使用,用户如何调用模块接口完成相应功能
+  期望的使用例子:
+  //声明一个异类词典
+  //Set<K>(V) : 设置参数名对应的参数值
+  //Get<K>()  : 获取参数名对应的参数值
+  struct FParams : public VartypeDict<A,B,Weight>{};
+
+  //函数接收异类词典容器的实例
+  template<typname TIn>
+  float fun(const TIn& in){
+    auto a = in.template Get<A>();
+    auto b = in.template Get<B>();
+    auto weight = in.template Get<Weight>();    //在编译期完成参数值的获取的大部分工作,在运行期只需要进行指针的运算
+    return a*weight + b*(1-weight);
+  }
+
+  int main(){
+    cout << fun(FParams::Create()
+                .Set<A>(1.3f)
+                .Set<B>(2.4f)
+                .Set<Weight>(0.1f)) 
+         << endl;
+  }
+
+4.K必须为编译期常量
+  若要通过K搜索到V,那么K必须支持"="
+  类名就是很好的选择  --> 其他选择的缺点见32页
+  struct FParams : public VarTypeDict<struct A,struct B,struct Weight>{};
+
+
+5.实现见书34+PPT+源码
+
+6.policy:作用于模板,控制其行为的模板参数
+  比如:
+  template<typname TAccuType,       累加 or 累乘
+           bool DoAve,              是否求平均值
+           typname ValueType>       控制计算过程中的数值类型
+  struct Accumulator{\.....\}
+  该累积概念受到三个policy的控制
+  
+  policy的取值为编译期常量
+
+  一般会为各个policy赋予默认值,对应默认行为
+  比如:
+  template<typname TAccuType = Add,
+           bool DoAve = false,
+           typname ValueType = float>
+  struct Accumulator{/..../}
+
+  如果要改变默认行为,比如将ValueType控制为double
+  那么模板类的声明为:
+  Accumulator<Add,false,double>   -->   虽然前面两个参数依旧是默认值,但还是需要显示列出.
+                                        否则编译器会将TAccuType和double匹配
+  这种声明方式比较冗余而且容易出错(比如可能因搞不懂前面的模板参数而设错值)
+
+  如果能使用具名参数,则会改善良多
+  比如写成这样:Accumulator<ValueType = double>
+  但C++不支持"Key(name) = Value"的书写形式.但可以使用policy对象达到类似的效果
+  
+7.policy对象:可看做policy的实例 --> 类似 类与对象的关系
+  其为编译期常量,包含了<K,V>信息
+  如果Accumulator支持policy对象,那么期望的使用方式为:
+  Accumulator<PDoubleValueType>   等价于  Accumulator<Add,false,double>
+  Accumulator<PDoubleValueType,PAve>   ---> 将policy对象赋予模板时的顺序可以是任意的
+
+8.policy对象的构造与使用
+  1)分离式
+    事先构造出所有的policy对象.
+
+  2)同步式
+    policy对象模板:元函数.接受模板参数,构造出policy对象
+    将policy对象构造时机迁移到使用之处.这样就无需提前准备大量的policy对象
+    例子:
+    PValueTypeIs<typename T>
+
+    Accumulator<PValueTypeIs<double>>
+    Accumulator<PValueTypeIs<int>>
+
+9.一个实际的系统可能包含很多 概念 --> 需要很多类似Accumulator的模板
+  每个模板都会使用policy对象,有些policy对象可能会被多个模板共享
+  那么如何管理这些policy对象呢?
+
+  思路:将policy对象按照某些策略进行划分
+       具有相似性质的policy对象划分为一个group
+       以group为管理单位
+  划分策略:
+  1)按照功能划分.但有些功能相似的policy对象之间可能存在互斥性.比如PAddAccu,PMulAccu   --> Minor Class
+  2)按照用处划分,Accumulator可能需要使用多个policy对象
+    这些对象在概念上可能并无关系,为方便Accumulator使用,可将其封装在一起               --> Major Class
+  易知,Major Class划分范围比Minor Class广
+       
+  每个policy需要用两个标签来标识:major class + minor class
+
+  怎样描述group? 45页
+  Major Class 内含多个Minor Class
+  每个Minor Class内含多个policy对象 和 一个默认policy对象
+
+  用类作为group的承载体:
+  struct AccPolicy{         //Major Class
+
+    //Minor Class 1 --> 类型policy
+    struct AccuTypeCate{
+      struct Add;
+      struct Mul;
+    }
+    //default policy of Minor Class 1
+    using Accu = AccuTypeCate::Add;
+
+    //Minor Class 2
+    struct IsAveValueCate;
+    static constexpr bool IsAve = false;
+
+    //Minor Class 3 --> 数值policy
+    struct ValueTypeCate;
+    using Value = float;
+
+  };
+
+10.struct A {void fun();}
+   struct B : A{void fun();}    //重写定义fun()
+   struct C : B{
+     void wrapper(){
+       fun();
+     }
+   }
+   fun()在B中有定义
+   所以编译器在向上搜索fun()的定义时,会止步于B::fun()
+   此时可称B::fun() dominates A::fun()
+
+   编译器会优先选择具有支配地位的函数
+  
+   虚继承和多继承的情况:
+   struct B : virtual A{void fun();};
+   struct C : virtual A{};
+   struct D : B,C{
+     void wrapper(){
+       fun();
+     }
+   };
+   B::fun() dominates A::fun()
+   C::fun() == A::fun()
+
+
+
+
+

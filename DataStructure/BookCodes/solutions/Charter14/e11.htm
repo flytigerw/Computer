@@ -1,0 +1,63 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 14, Exercise 11<BR>
+<BR>
+</H1>
+
+<dl compact>
+<dt>(a)
+<dd>
+We can sort elements using the steps (1) initialize a binary search tree
+with the elements to be sorted and (2) output the elements in sorted
+order using the inorder method.  The time required to sort
+<code class=var>n</code> elements using these two steps is
+<code class=var>O(time to initialize the tree + n) = O(time to initialize
+the tree)</code>.  Therefore, the asymptotic complexity of the
+two step sort method is the same as
+that to  initialize an <code class=var>n</code> element binary search tree.
+Since there can be no sort algorithm whose complexity is less than
+<code class=var>O(n log n)</code>, there is no algorithm that
+initializes an <code class=var>n</code> element binary search tree and takes less than
+<code class=var>O(n log n)</code> time.
+<br><br>
+<dt>(b)
+<dd>
+We construct the following sort algorithm (1) create <code class=var>n</code>
+binary search trees, each containing one of the elements to be sorted;
+(2) perform <code class=code>ceil(log<sub>2</sub>n)</code> rounds of
+combining pairs of binary search trees, in round one <code class=var>n/2</code>
+pairs of trees of size
+one are combined to obtain trees of size two, in round two
+<code class=var>n/4</code> pairs of trees
+of size at most two are combined to obtain trees of size four, and so on;
+(3) output, in inorder,
+the elements of the single size <code class=var>n</code> element tree
+that remains.
+<br><br>
+Let <code class=var>t(a+b)</code> be the time taken to combine
+two binary search trees of size <code class=var>a</code> and
+<code class=var>b</code> respectively.  The time taken by step (2)
+is at most <code class=var>nt(2)/2 + nt(4)/4 + nt(8)/8 + ...</code>.
+This time is less than <code class=var>O(n log n)</code> when
+<code class=var>t(a+b) &lt; O(a+b)</code>.
+Therefore, when
+<code class=var>t(a+b) &lt; O(a+b)</code>,
+the total sort time is less than <code class=var>O(n log n)</code>
+(note that steps (1) and (3) take <code class=var>O(n)</code> time each).
+Since it is not possible to sort in less than
+<code class=var>O(n log n)</code> time, the time to combine two
+binary search trees of size <code class=var>a</code> and
+<code class=var>b</code> respectively must be
+at least
+<code class=var>O(a+b)</code>.
+
+</FONT>
+</BODY>
+</HTML>

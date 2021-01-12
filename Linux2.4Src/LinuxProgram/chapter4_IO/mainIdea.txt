@@ -1,0 +1,27 @@
+
+1 所有IO操作系统调用都以 文件描述符 指代打开的文件
+  文件描述符为非负整数
+
+2 3个标准fd
+  0   stdin
+  1   stdout
+  2   stderr
+  shell会打开这三个fd
+  程序继承shell fd的副本--->程序也会有这三个fd
+  在shell日常操作中，这三个fd始终打开。
+  若命令行对指定输入输出进行重定向操作，则shell会修改fd，然后再启动程序
+
+3 fd=open(pathname.flags,mode);
+  打开pathname指定的文件。
+  flags指定文件的打开方式：只读，只写，读或写
+  若文件不存在，则创建文件，文件名为pathname. mode为新文件的访问权限
+  返回fd,供后续程序使用该文件
+  status=close(fd);
+  释放fd以及相关内核资源
+
+  numread=read(fd,buffer,count);
+  读取fd所指向的文件的内容到buffer中
+  至多读取count
+  返回实际读取的字节数
+  numwrite=write(fd,buffer,count);
+  写文件操作

@@ -1,0 +1,123 @@
+
+1.inetd: a special daemaon designed to facilitate the creation of servers
+
+2.Two common designs for network servers using sockets
+  1)Iterative
+    The server handles one client at a time,processing the client's request completely before proceeding to next client
+    It's suitable only when client requests can be handled quickly since each client must wait until all of preceding clients have been serviced
+    A typical scenaraio for employing iterative server is where the client and server exchange a single request and response
+
+  2)Concurrent
+    Designed to handle multiple clients simultaneously
+    It's suitable when a significant amount of time is required to handle each request,or where the server and client engage in an extended conversation,passing messages back and forth
+    Simplest design:Creating a new child process for each client.Each server child performs all the task necessary to service a single client.Since each of these processes can operate independently,multiple clients can be handled simultaneousls.The principal task of main server is to create new child process for each client.A variation is to create child thread
+
+3.For high-load servers(Web server:handling thousands of requests per minute) the cost of creating new process or even the thread for each client imposes a significant burden on the server
+
+  Alternative Designs
+  1)Preforked and Prethreaded servers
+    The server precreates a fixed number of child processes or threads.These children constitute a server pool
+    Each child in the server pool handles one client at a time.Instead of terminating after handing the client,the child fetches the next client to be serviced and service it
+    Careful details:
+    a.The server pool should be large enough to ensure adequate response for client requests
+      It means the parent server must monitor all of the unoccupied children
+      If it's near the peak load,then increase the size of server pool so that there are always enough child processes avaliable to serve the client
+      If the load decreases,then reduce the size,since having excess processes on the system can degrade the overall system performance
+    
+    b.The children in the server pool must follow some protocol to allow them exclusively select individual client connection
+      Usually it's sufficient to have each child in the pool block in an accept() call on the listening socket 
+      So the server creates listening socket before creating any child.Each of the children inherits the fd for listening socket during fork()
+      When a new client connection arrives,only one of the children will complete the accept() call
+      Since accept() is not an atomic func,some mutual-exclusion measures should be taken to ensure that only one child at a time performs the accept() call
+
+    c.Handling multiple clients from a single process
+      Employ one of the I/O models (I/Omultiplexing,singal-driven I/O,epoll) that allow single process to simultaneously monitor muliple fds for I/O events
+      The server must take on some scheduing tasks that are normally handled by kernel
+      In a solution that involves one server process per client,we can rely on the kernel to ensure each server process can get a fair share of access to the resources of the server host
+      But when using single server process to handle multiple clients,the server must do some work to ensure that one or few clinets don't monopolize the the server while others are starved
+
+    d.Server farm
+      
+4.We can see literally hundreds of different services listed in /etc/services
+  It implies a system can theoretically run a large number server processes
+  However,most of them would be doing nothing but waiting for infrequent connection reqs or datagrams
+  Nevertheless all of them occupy slots in the kernel process table,consume memory and swap space,thus placing a load on the system
+  
+5.inetd daemon is designed to eliminate the need to run large numbers of infrequently used servers
+  Two benefits:
+  1)Instead of running a seperate daemon for each service,a single daemon-inetd monitors a specified set of socket ports and starts servers as required.Thus the numbre of process running on the system is reduced
+  2)The programing of starting servers by inetd is simplified.Because inetd perform several steps that are commonly required by all network servers on startup
+
+6.inetd is normally started during the system boot
+  It performs several steps after becoming the daemon process
+  1)For each service specified in the configuration file /etc/inetd.conf,it creats a socket of appropriate type and binds it to the specified port
+    Each TCP socket is additionally marked to permit incoming connections via a call to listen()
+
+  2)Using select() sysCall to monitor all of the sockets created in the preceding step for datagrams or incoming connection reqs
+
+  3)The select() call blocks until either a UDP socket has datagram avaliable to read or a connection req is received on a TCP socket
+    In the case of TCP socket,inetd performs an accept() call before proceding next step
+
+  4)To start the server specified for this socket,inetd() calls fork() to create new process that then calls exec().Following steps are followed before exec()
+    a.Close all of the fds inherited from its parent.Except the one on which the UDP datagram is avaliable or the TCP connection has been accepted
+    b.Duplicate the socket fd on fds 0,1,2 and close the socket fd
+      So the execed server is able to communicate on the socket using three standard fds
+    c.Optionally set the user or groupIDs for the server to the values specified in /etc/inetd.conf
+   
+   5)If a connection was accepted on TCP socket in 3),then inetd() close the connected socket since it is needed only in the execed server
+   6)jump to step 2)
+
+7.Example lines from /etc/inetd.conf
+  echo stream tcp nowait root internal
+  Each line consists of the following fields,delimited by white space
+  1)Service name
+    In conjunction with protocol field,this is used to look up /etc/inetd.conf to determine which port number inetd should monitor for this service
+
+  2)Socket type
+    The type of socket used by this service
+    stream or dgram
+
+  3)Protocol
+    It can contain any of the Internet protocol listed in /etc/protocols
+    Usually tcp or udp
+  
+  4)Flags
+    Either wait or nowait 
+    It specifies whether or not the server execed by inetd takes over the management of the socket for thi service
+    If it manages,then the flag is specified as wait.It causes inetd to remove socket from fd set that it monitors using select() until the execed server exits
+   
+   5)Login name
+     It consists of either the username from /etc/passwd or the group name from /etc/group.
+     It determines the user or groupIDs under which the execed server is running
+     Since inetd runs with an effective userID of root,its children are also privileged and can thus call setuid() or setgid() to change process credentials if desired
+   
+   6)Server program
+     It specifies the pathname of the server program to be execed
+   
+   7)Server program arguments
+
+8.Stream socket servers invoked by inetd are normally designed to handle single client connection and the n terminate.
+  For such servers,flags should be specified as nowait
+  If execed server is to accept connections,flag should be specified as wait,in which case inetd doesn't accept connections but instead passes the fd for listening socket to the execed server as fd 0
+
+9 UDP servers invoked by inetd is normally designed to read and process all outstanding datagrams on the socket and then terminate
+  It usually requires some sort of timeout,so that the server terminates when no new datagrams arrive within a specified interval
+  By specifying wait,we can prevent inetd from simultaneously trying to select() on the socket,which would have unintended consequence that inetd would race UDP server to check for datagrams and if it won the race,start another instance of the UDP server
+
+10.As an effiency measure,inetd implements a few services itself instead execing seperate servers to perform taskk
+   Such UDP and TCP echo services are internal services that inetd implements
+   Whenever we change the /etc/inetd.conf file,we need to send SIGHUP sgianl to inetd to request it to reread the file
+   killall -HUP inetd
+
+11.inetd simplifies the programming of servers,especially the concurrent servers
+   It does the follwing steps
+   1)Perform all the socket-related initialization,calling socket(),bind(),and listen() for TCP servers
+   
+   2)Perform accept() for new connections for TCP servers
+
+   3)Create a new process to handle incoming UDP datagram or TCP connections
+     This process is automatically set as a daemon
+   
+   4)Duplicate the fd of the UDP socket or TCP connected socket on fd 012 and close all other fds since tehy are unused in execed servers
+
+   5)Exec the server program

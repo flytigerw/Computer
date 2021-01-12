@@ -1,0 +1,46 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 14, Exercise 5<BR>
+<BR>
+</H1>
+
+
+<HR class = coderule>
+<pre class = code>
+<strong class=var>AbstractDataType</strong> <em cass=var>dIndexedBSTree</em>
+{
+   <strong class=var>instances</em>
+      same as for <code class=code>indexedBSTree</code> except that the keys need not be distinct
+   <strong class=var>operations</em>
+      <em cass=var>find(k):</em> return the pair with key <em class=var>k</em>
+      <em cass=var>find(index):</em> return the <em class=var>index</em>th pair
+      <em cass=var>insert(p):</em> insert pair <em class=var>p</em> into the search tree
+      <em cass=var>erase(k):</em> delete the pair with key <em class=var>k</em> and return it
+      <em cass=var>erase(index):</em> delete the <em class=var>index</em>th pair
+      <em cass=var>ascend():</em> output all pairs in nondecreasing order of key
+}
+<hr class=coderule>
+</pre>
+
+<!--
+<br><br>
+We may use either the interface <code class=code>IndexedBSTree</code>
+or define a new interface that extends
+<code class=code>IndexedBSTree</code>, but contains no new methods.
+The new interface is given below.
+<HR class = coderule>
+<PRE class = code>
+public interface DIndexedBSTree extends IndexedBSTree
+   {}
+</pre>
+<HR class=coderule><BR><br>
+--!>
+</FONT>
+</BODY>
+</HTML>

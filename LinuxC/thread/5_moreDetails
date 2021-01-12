@@ -1,0 +1,72 @@
+1 每个线程都有自己的线程栈
+ 通过线程属性对象create thread时，可用pthread_attr_setstacksize()设置栈大小
+                                       pthread_attr_setstack()可同时设置栈大小和位置
+
+2 线程和信号  
+  二者结合使用将会很复杂，应尽可能避免
+
+3 信号diposition --> 进程层面 --> 所有线程共享对每一信号的diposition --> 线程A通过sigaction install handler for sigx
+                                  所有线程都可以调用该handler来处理sigxx
+  任一线程收到信号且其缺省动作为stop或terminate --> 会stop或terminate所有线程
+
+  信号的发送
+  a.面向线程
+    1)信号的产生源于 线程上下文 中对特定硬件指令的执行(SIGBUS,SIGFPE,SIGILL,SIGSEGV)
+    2)线程试图对 broken pipe进行写操作时产生的SIGPIPE信号
+    3)通过pthread_kill()或者pthread_sigqueue 向同一进程下的其他线程发送信号
+  b.面向进程
+    其他都是面向进程的 --> 用户键入字符，kill()等
+  
+  信号的接收与处理
+  多线程程序接收信号 --> 若该信号有handler --> 则内核任选一条线程来接收信号，并在该线程中调用handler进行处理
+
+  信号掩码
+  各线程可以独立阻止和放行各种信号 --> 有自己的信号掩码 --> 每个线程也就有自己的pending信号集
+
+  若handler中断了pthread_mutex_lock调用 --> 调用总会自动重新开始
+                 pthread_cond_wait --> 要么重新开始，要么返回0，表示遭遇了虚假唤醒
+
+  备选信号栈 
+  每个线程都有自己的一份，并不继承创建者的
+
+4 相关API 
+  a.int pthread_sigmask(int how, const sigset_t* set, sigset_t* oldset)
+    新线程会从创建者处继承信号掩码，并通过此函数进行修改
+  b.int pthread_kill(pthread_t thread, int sig)
+    在同一进程中可以保证线程ID唯一性
+    不能向其他进程中的线程发送信号
+  c.int pthread_sigqueue(pthread_t tid, int sig,const union sigval value)
+    信号夹带数据
+
+5 异步信号
+  Pthreads API 都不是 async-signal-safe 函数 --> 无法在handler中安全调用
+  所以处理异步信号时，不应该将 handler作为接收信号到达的通知机制
+  解决:
+   a.所有线程 都 阻塞进程可能接收到的所有异步信号 --> 主线程阻塞，后续创建的每个线程都会继承这份信号掩码
+   b.再创建专有线程，调用sigwaitinfo() or sigtimedwait() or sigwait()接收信号 --> 阻塞接收，即同步接收异步产生的信号 -->收到信号后可以安全地 non-async-signal-safe函数 
+     int sigwait(const sigset_t* set, int* sig)
+     阻塞等待set中的任一信号到达
+
+6 线程和exec()
+  任一线程调用exec() --> 调用程序被完全替换--> 除开exec()调用线程，其他线程都立即消失 
+  没有任何线程会针对 thread-specific data 调用destructor，也不会调用cleanup handler
+  mutex，cond都会消失
+  
+  线程和fork()
+  将调用线程 copy 到子进程中，TID一致 --> 其他线程在子进程中消失，但不会调用cleanup handler和destructor 
+  问题:假设线程A copy到子进程中 -> A1
+           线程B 在子进程中disappear
+  a.所有的全局变量的状态以及Pthreads对象会在子进程中得以保留 --> 可能处于不一致状态(线程修改到一半就disappear了)
+    比如由线程B lock 的 mutex --> 线程A1无法unlock和lock
+  b.由于没有调用cleanup handler和destructor,可能导致在子进程中存在内存泄露
+
+  解决:
+  a.fork()+exec() --> 新程序覆盖原有内存，解决内存泄露
+                      会让所有Pthreads对象消失
+  b.创建fork handler
+    pthread_atfork(prepare_func, parent_func, child_func)
+    fork创建新的子进程之前先执行prepare_func 
+    在fork返回前，将分别在父子进程中执行parent_func 和 child_func 
+  
+7 线程实现模型
+  用户级，内核级，混合级

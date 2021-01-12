@@ -1,0 +1,157 @@
+
+
+template<class Iter>
+struct iterator_traits{
+  typedef typename Iter::value_type           value_type;
+  typedef typename Iter::difference_type      difference_type;
+  typedef typename Iter::iterator_category    category_type;
+  typedef typename Iter::pointer              pointer;
+  typedef typename Iter::referrnce            referrence;
+  ............
+}
+
+
+1.迭代器类别
+  1)value_type
+    迭代器所指对象的type
+  
+  2)difference_type 
+    两个迭代器之间的距离单位
+    a.class type的iter
+      template<class Iter>
+      struct iterator_traits{
+        ....
+        typedef typename Iter::difference_type  difference_type;
+      }
+
+    b.针对原生指针的偏特化 ---> ptrdiff_t
+      template<class T>
+      struct iterator_traits<T*>{
+        ......
+        typedef ptrdiff_t difference_type;
+      }
+
+    例子:
+    template<class Iter,class T>
+    typename iterator_traits<iter>::difference_type 
+    count(Iter first,Iter last,const T& value){
+      typename iterator_traits<iter>::difference_type n = 0;
+      for(;first != last; first++)
+        if(*first == value)
+          n++;
+      return n;
+    }
+
+    c.referrence_type 
+      从 迭代器所指向对象 能否被改变 对迭代器进行分类
+      a.mutable iterator
+        例如:int*
+        对其进行deferrence时，其应返回可修改其指向内容的左值
+        *p = 1;
+      b.constant iterator
+        例如:const int*
+        对其进行deferrence时，得到const int  ---> 无法被赋值
+        *p = 1; ---> is not allowed
+
+      若函数要传回左值，都是以by referrnce进行的
+      T& func(return *this)
+      若迭代器是时mutable iterator且其value_type为T,那么*p应该为T& ----> 若为T,则无法修改其指向的内容
+
+    d.pointer type
+      左值，代表迭代器p所指之物的地址
+      Ex:
+      Item& operator*()  {return *ptr;}
+      Item* operator->() {return  ptr;}
+
+    针对pointer-to-const的偏特化版本
+    template<class T>
+    struct iterator_traits<const T*>{
+      typedef const T&    referrence_type;
+      typedef const T*    pointer_type;
+    }
+   
+    e.iterator_category
+      根据移动特性和可实行的操作，迭代器分为5类
+      1)Input Iterator      ---> read only   ---> 不能改变其指向的内容
+      2)Output Iterator     ---> write only
+      3)Forward Iterator    ---> 继承自1),2) ---> 可读可写，但只能++
+      4)Bidirectional Iterator --> 继承自3)  ---> 可读可写，且可以++和--
+      5)Random Access Iterator --> 继承自4)  ---> 可读可写，可以++,--,还可以有算术操作 p+n
+
+    Ex:
+     //迭代器萃取机榨出迭代器种类
+     template<class Iter>
+     struct iterator_traits{
+       ....
+       typedef typename Iter::iterator_category   iterator_category;
+     }
+     //针对原生指针的偏特化
+     template<class T>
+     struct iterator_traits<T*>{
+       typedef random_access_iterator_tag     iterator_category;
+     }
+
+     //得到种类的标签对象
+     template<class Iter>
+     inline typename Iter::iterator_category 
+     iterator_category(){
+       typedef typename Iter::iterator_category category;
+       return category();
+     }
+
+     例如:distance() ---> 求两个迭代器之间的距离
+     template<class InputIterator>
+     typename iterator_traits<InputIterator>::difference_type  ----> 以算法能接受的最低级别迭代器为名称
+     distance(InputIterator first,InputIterator last){
+       
+       return __distance(first,last,iterator_traits<InputIterator>::category_type());
+
+     }
+
+     template<class InputIterator>
+     typename iterator_category<InputIterator>::difference_type 
+     __distance(InputIterator first,InputIterator last, input_iterator_tag){
+       iterator_traits<InputIterator>::difference_type n = 0;
+       while(first != last){
+         ++first;
+         n++;
+       }
+         return n;
+     }
+
+     template<class RandomAccessIterator>
+     typename iterator_traits<RandomAccessIterator>::difference_type 
+     __distance(RandomAccessIterator first,RandomAccessIterator last, random_access_iterator_tag){
+       return last-first;
+     }
+
+     distance() 可适用于所有类型的迭代器
+                output_iterator 和 bidirectional_iterator 的操作和 input_iterator是一样的
+                output_iterator 和 bidirectional_iterator 继承自input_iterator,故可以转型成input_iterator
+
+2.自定义的迭代器必须包含这5种类型定义后才能被 iterator_traits 提取类型供STL算法使用
+  STL定义了iterator class,自定义的iterator只要继承它就能保证符合STL规范
+  template<class Category,
+           class T,
+           class Distance=ptrdiff_t,
+           class Reference = T&,
+           class Pointer = T*>
+  struct iterator{
+      typedef Category    iterator_category;
+      typedef T           value_type;
+      typedef Distance    difference_type;
+      typedef Reference   referrence_type;
+      typedef Pointer     pointer_type;
+   }
+  该struct不包含任何成员，只有别名定义，继承它没有任何额外负担
+  其有3个默认template 参数，故只需要给出前两个
+  Ex:
+  template<class Item>
+  struct listIter : public iterator<bidirectional_iterator_tag,Item>{
+    .....
+  }
+
+设计适当的迭代器是容器的责任。唯有容器本身才知道该设计出怎样的迭代器来遍历自己
+算法则可以独立于迭代器和容器之外自行发展，只要设计时以迭代器为接口
+
+

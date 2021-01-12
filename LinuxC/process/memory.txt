@@ -1,0 +1,97 @@
+1 对于动态数据结构:链表，二叉树等，其大小在运行时所获取的信息决定
+  需要动态分配内存
+
+2 堆:一段长度可变的连续虚拟内存
+  起点:未初始数据段末尾  --&end
+  边界:program break
+  边界随着堆内存的分配与释放而动态变化
+
+3 改变堆内存大小
+  本质上就是调整program break
+  抬升program break----->增加可访问的虚拟内存------>对应的内存页也不会立即分配----->首次访问虚拟地址时才分配页面
+  int brk(void* address)--->虚拟内存以页进行分配,address实际会四舍五入到下一内存页的边界
+  void* sbrk(intptr_t increment) --->返回前一个program break ---> 新分配内存区域的起始
+  sbrk(0) -->返回当前program break,用于追踪内存分配
+
+4 malloc与free
+ 1)void* malloc(size_t size)
+ 分配size_t大小的堆内存,未构造,返回新分配内存区域起始地址 ----> void*可转为任意指针
+ malloc分配的内存块8字节对齐
+ malloc可能会失败---->比如program break到达虚拟地址上限---->返回NULL---->对malloc进行错误检查
+
+ 2)void free(void* ptr)
+ 释放ptr所指向的堆内存块
+ 并不修改program break
+ 而是将内存块放入空闲内存列表中，供后续的malloc函数循环使用
+ 在用户空间维护空闲内存列表---->减少通过系统调用的方式分配内存
+ 
+ 若ptr为NULL,则什么也不做
+  
+ free在释放内存时会将将相邻的空闲内存块合并为一整块大的空闲内存块
+ 避免空闲列表中包含大量的空闲内存碎片---->难以满足后续的malloc请求
+
+5 进程终止时,占用的所有内存都会归还给os 包括malloc分配的堆内存 ----->即使不free也会被回收
+  
+6 malloc和free实现原理
+  1)malloc:扫描空闲list，寻找第一个空闲块大小 >= 所需大小
+           若=，将其分配出去
+           若>，将其切割,剩余内存归还到空闲list中
+           若没有找到，调用sbrk()，大幅增加program break,再进行切割分配
+    malloc分配内存块时，会额外分配几个字节来记录这块内存大小的数值
+  2)free:将内存块放回到空闲列表中
+         若空闲列表为双链表,则free使用内存块本身部分空间作为指针链接last和next内存块
+
+7 malloc和free使用注意点
+  1)不应改变这块内存范围以外的内容
+  2)不能多次释放同一内存块----->多次释放,glibc发出SIGSEGV信号
+  3)传给free的指针只能是malloc函数包中的函数返回的指针。包括:malloc,realloc,...
+  4)对于长时间运行的进程，应尽快释放使用完毕的内存，避免堆内存直达虚拟内存上限
+
+8 其他分配内存的方法
+  1)void* calloc(size_t num, size_t size)
+    为多个相同对象分配内存
+    返回内存起始地址.分配失败，返回NULL
+    这片内存会被初始化为0
+  2)void* realloc(void* ptr, size_t size)
+    通常用于调整连续内存的大小
+    调整后，内存地址可能发生改变--->之前引用这块内存的指针将无效
+    增大内存的策略:
+    a.去合并在free list中紧随其后且满足大小要求的内存块
+    b.若原内存块位于堆顶,则对堆空间进行扩展.sbrk
+    c.若位于堆中部,紧随其后的内存块又不满足大小要求，
+      则重新找一块满足要求的内存，将原来的数据copy过来
+      free之前的内存块
+      
+  3)void* memalign(size_t boundary,size_t size)
+    分配地址对齐的内存
+    分配的起始地址是boundary的整数倍,boundary为2的整数次幂.  
+    
+    SUSv3标准下的函数:
+    int posix_memalign(void** memptr,size_t alignment, size_t size)
+    返回的内存地址通过memptr返回
+    alignment为sizeof(void*)*2的整数次幂
+    sizeof(void*)依赖硬件架构，通常为4或者8
+    出错时返回错误号---->正整数
+    
+    比如分配65536字节的内存，起始地址为4096
+    void* memptr;
+    int s=posix_memalign(memptr,sizeof(void*)*1024,65536);
+    if(s != 0){
+      handle error
+    }
+
+    调用free释放
+   
+   4)void* alloca(size_t size)
+     若当前调用函数位于栈顶，则可通过分配额外栈帧的形式增加可用内存---->调整栈指针
+     不能通过free释放，也不能用realloc调整
+     当调用alloca的函数返回时,栈帧退去---->内存也就归还了
+
+     栈溢出时--->分配失败--->收到SIGSEGV信号
+
+     alloca相比malloc的优势
+     a.更快。编译器将alloca作为inline函数处理,并通过直接调整sp来实现
+     b.不需要维护free list
+     c.在longjmp或者siglongjmp中更加安全 
+       longjmp会释放setjmp到longjmp之间的栈帧---->可安全释放alloca分配的空间
+       而若中间有函数通过malloc分配了堆内存，则不会被free掉而造成内存泄露

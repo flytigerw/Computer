@@ -1,0 +1,635 @@
+1 各种大小一致的对象.Linux 2.4内核的页式内存映射为3层:PGD(页目录)，PMD(中间目录)，页表(PT)
+3)
+  那么线性地址也就分为四段:PGD偏移 + PMD偏移 + PT偏移 + 页内偏移
+
+  采用三层的原因:兼容各种CPU结构
+  比如
+  1)i386为32位的两层映射
+    在软件层面，内核将地址分为3段，忽略掉PMD偏移
+    在硬件层面，MMU不知道PMD的存在
+  2)Pentinum Pro为36位的三层映射
+
+2.进程给出32位地址 对应 4G的虚存空间
+  Linux将其分为两部分:
+  1)最高的1G (0xC000000 ~ 0xFFFFFFFF)为系统空间
+    用于内核，所有进程共享
+    线性映射到物理内存的低位区:0 ~ xxxx
+    映射公式:Physical Address = Virtual Address - 0xC0000000
+
+  2)较低的3G (0x0000000 ~ 0xBFFFFFFF)为用户空间
+    理论上，每个用户进程可寻址的空间为3G
+    但实际上要受到可用内存大小的限制
+
+3.每个进程在GDT中占有两个表项 
+  1)进程的LDT
+    Linux内核中基本不使用
+  2)进程的TSS
+  在16位段寄存器中，有13为用作GDT表下标 
+  所以GDT表可以含有8192个描述符项
+  系统开销:
+  1)第1项永远是0
+  2)第2项和第3项分别用于内核的代码段和数据段
+  3)第4项和第5项分别用于当前进程的代码段和数据段
+  4)其他
+
+  除开系统开销，总共有8180个表项可用 ---> 理论上，进程的最大数量为4090
+
+
+4.i386在段式内存变换的基础上发展出页式内存变换
+  页式内存变换 可替代 段式内存变换
+
+  但i386依旧保留了页式内存变换
+  使得进程给出的虚拟地址必须要进行两次映射
+  1)虚拟地址 通过段式变换 映射为线性地址
+  2)线性地址 通过页式变换 映射为物理地址
+
+  段氏映射在中断处理中还留有余用
+
+  
+5.i386地址映射的全过程例子 ---> pdf43 
+
+6.段式映射过程中，所有进程共用一个GDT
+  页式映射过程中，每个进程都有自己的页目录PGD,其基地址保存在进程的mm_struct结构中
+  调度进程进入运行时，内核会用其基地址来设置控制寄存器CR3
+  MMU硬件每次从CR3中取得当前进程页面目录的基地址
+
+7.Linux内核中的段表映射 形同虚设，只不过是为了迎合i386的硬件结构
+  CPU给出的虚拟地址经过段表映射后，并没有发生改变，段式权限检查也并没有什么用
+  
+  所以可以直接认为，CPU给出虚拟地址，经过页式映射后得到物理地址
+  32位页式映射过程:
+  1)CPU给出32位的虚拟地址
+  2)高10位用于在页目录中查询
+    页目录中每项占32位
+    其中高20位用于索引页表基地址   --->  页表是4K对齐的，所以基地址的低12位为0
+    所以低12位可以记录标志信息，比如页表是否存在...
+
+  3)找到页表后，用虚拟地址的中间10位去查询页表
+    页表项也占32位
+    其中高20位用于内存页的基地址   --->  内存页是4K对齐的，所以基地址的低12位为0
+    所以低12位可以记录标志信息，比如该内存页是否存在，是否已经被修改，访问权限
+
+    若页表项值为0，表明还没有为该虚拟地址建立页面映射
+    若不为0，则会先检查P标志位
+    若P为0，表明对应的页面并不在内存中，已经被交换到外存中.于是产生缺页异常，将页面从外存载入到内存中
+
+  4)找到内存页基址后，与虚拟地址的最后12位组装成32位的内存地址
+
+8.内核会对整个 物理内存 进行建模
+  在内核中含有全局量page* mem_map;  
+  其为数组，每一项为page，存储着一个物理页面的特征信息 以及 其他用于内核管理多个页面所需要的信息
+  页表项中的高20位对于硬件和软件有着不同的意义:
+  1)MMU硬件 :物理内存页基址
+  2)内核软件:mem_map中的page的索引序号
+
+  page中的全部字段:pdf54
+
+  page有3种类型
+  1)ZONE_NORMAL
+  2)ZONE_DMA
+    专供DMA使用
+  3)ZONE_HEIGH
+  对应的划分3个内存页面管理区(zone_struct -- pdf56)，用于实现buddy算法
+  
+10.每个进程都有自己的虚拟空间
+   进程不一定会使用全部的虚拟空间，而可能会使用若干 离散的虚存区间
+   每个虚存区间被抽象为vm_area_struct结构 -- pdf50
+   重要字段:
+   1)unsigned long vm_start,vm_end
+     该虚存区间的地址范围
+   2)struct vm_area_struct* vm_next
+     多个虚存区间按照地址的高低次序链接在一起
+   3)vam_page_prot,vm_flags
+     虚拟区间中的页面的访问权限以及其他属性
+   4)AVL结构
+     内核会用虚拟地址，找到其所属的区间
+     若每次都沿着单链表进行线性搜索，则会影响效率
+     所以当区间数超过阈值时，内核会将多个区间组织为AVL树
+   5)与磁盘文件的联系
+     a.当内存页面不够分配时，需要根据LRU算法将最近最久没使用的页面交换到磁盘上
+       不仅在要页表中记录该页已不存在，还要在进程的虚存中进行记录，让进程知道自己有哪些页面已经被swap
+     b.Linux提供系统调用mmap()
+       其可以将一个打开的文件映射到用户空间中
+       此后就可以像访问内存一样来访问这个文件的内容，而不必通过lseek(),read(),write()等文件操作
+       所以需要在进程的虚存中进行记录，让进程知道自己有哪些虚拟页面与文件相映射
+
+   6)与上层的联系
+     struct mm_struct* vm_mm
+
+
+11.mm_struct结构
+   是对进程整个用户虚存空间的抽象，每个进程只有一个
+   重要字段:
+   1)虚存空间相关
+     a.vm_area_struct* mmap
+       多个虚存区间构成单链线性队列
+     b.vm_area_struct* mmap_avl
+       多个虚存区间被组织为AVL树，以提高查询效率
+     c.vm_area_struct* mmap_cache
+       最近一次使用到的虚存空间
+     d.int map_count
+       虚存区间个数
+
+  2)进程的页面目录地址pgd
+    当进程被调度运行时，将其转为物理地址，加载到CR3中
+
+  3)并发保护相关
+    信号量mmap 和 页表锁page_table_lock   
+  
+  4)引用计数相关
+    一个进程只能有一个mm_strcut结构
+    但多个进程可能共享同一个mm_struct
+    比如:fork()后，父子进程就共享同一个mm_struct
+    所以含有引用计数器: mm_users和mm_count
+    二者都是原子变量
+
+  5)进程虚拟空间中的各个段的边界
+    start_code,end_code,start_data,end_data
+
+  
+  mm_struct和vm_area_struct表示了进程对虚拟页面的需求
+  page,zone_struct则表示了物理页面的供应
+  在需求和供应之间，由页目录，中间目录，页表作为桥梁，进行协调转换
+
+  一个虚拟地址保证 属于某个虚存区间中的 某个虚拟页面
+  但并不保证该虚拟页面已经与一个物理页面建立了映射
+  更不保证该物理页面就在内存中
+  所以需要MMU进行协调转换
+
+
+12.在内核中，经常要用到这样的操作:给定某个进程的虚拟地址，要求找到其所属的虚存区间 ---> pdf 63
+
+13.假设将一个已打开文件通过 mmap() 映射到内存中
+   而后又通过 munmap() 将映射取消 ---> 会在虚拟地址空间中留下一个空洞
+   用户程序可能会越界访问到整个空洞
+   而空洞中的地址为无效地址，访问会引起映射失败，产生一次缺页异常
+   内核调用do_page_fault(struct pt_regs* regs,unsigned long error_code)来响应处理异常  ---> pdf65
+   参数意义:
+   1)regs
+     中断响应机制保存的现场 ---> CPU中寄存器的副本
+   2)error_code
+     第0位:为0表示物理页面没找到
+           为1表示是因为访问权限而导致页面访问异常
+     第1位:为0表示读页面时反生缺页异常
+           为1表示写页面时反生缺页异常
+     第2位:为0表示异常来自内核
+           为1表示异常来用用户空间
+
+   大致流程:
+   1)获取被访问的地址
+     在产生缺页异常时，会将访问地址保存到CR2寄存器中
+     通过内联汇编获取
+     __asm__(
+      "movl %%cr2,%0"   //将CR2中的内容送到%0操作数中
+      :"=r"(address)    //=r为表示任意一个寄存器，绑定到address，记为%0
+     );
+   2)引起缺页异常的原因有很多，其中包括当前进程访问到空洞中的无效地址
+     所以就需要获得当前进程的虚存，以判断访问地址是否位于空洞中
+     struct task_struct* tsk = current  
+     struct mm_struct* mm = tsk->mm
+   
+   3)先考虑特殊情况
+     if(in_interrupt() || !mm)
+        goto no_context;
+     a.in_interrupt() 返回非0
+       映射的失败发生在某个中断服务程序中，因而与当前进程无关
+     b.mm 为NULL
+       表明该进程的内存映射尚未建立，因而也与当前进程无关
+     c.in_interrupt() 返回0，但mm不为NULL 
+       异常还是发生在某个中断服务程序中，但位于in_interrupt()的检测范围之外
+     
+   
+   4)接下来就要判断访问地址位于虚存中的哪个位置
+     因为mm_struct可以被多个进程共享，所以访问前要加速
+     down(&mm->mmap_sem)
+     然后再查找
+     struct vm_area_struct* vma = find_vma(mm,address)    ---> 返回第一个 虚存区的结束地址 > address 的虚存区
+     查找结果:
+     a.vma不存在
+       表明 访问地址>用户空间中所有虚存区的结束地址 --> 访问地址位于高处的系统区 --> 非法访问
+       goto bad_area
+     b.vma存在
+       1.vma的起始地址 < 访问地址
+         说明访问地址位于有效的虚存区中 --> 地址的内存映射已经建立，但对应的内存页已经被交换到外存中
+         goto good_area
+       2.vma的起始地址 > 访问地址
+         说明访问地址为空洞中的无效地址
+         有两种空洞:
+         1)堆栈下方的大空洞
+           此时vma应有VM_GROSDOWN标志位
+           见14
+         2)因为取消文件映射而产生的空洞
+           goto bad_area
+
+    如果是因为在用户空间中访问到无效地址而引起中断，那么error_code的第2位会设置为1
+    然后传给do_page_fault()，其会转向bad_area
+    bad_area根据error_code的值来做相应的处理
+    若error_code & 4，那么就向用户进程发送信号SIGSEGV   ---> pdf68
+
+    从缺页异常程序(中断/异常)返回之前，内核会去处理当前用户进程中的悬而未决的信号
+
+14.堆栈的扩展(在Linux中，堆区和栈区是同样的vm_area_struct)
+   当%esp已指向堆栈区的起始地址时
+   若再调用某个子程序，则会访问到堆栈区下方的大空洞 --> 会引起页面异常
+   系统会检测此次越界是否是正常的堆栈操作
+   检测依据:调用子程序时，最多压入32字节
+            所以只需检测 %esp-32是否<=堆栈区 的起始地址即可
+
+   如果是正常的堆栈操作
+   且堆栈的大小没有超过限制(每个进程的task_struct中含有rlim数组，其记录每种资源的分配上限，RLIMIT_STACK就是对用户堆栈大小的限制)
+   那么就进行堆栈扩展:
+   1)expand_stack() --> pdf70
+     其会增加 堆栈区对应的虚存区 的范围  ---> 将起点向下拉即可
+     而并没有为新增加的虚存范围建立页面映射，跳到good_area进行判断处理
+
+   2)good_area:  --> pdf71
+     其会根据error_code的值做相应的处理
+     在此情景中，则会进行缺页异常的处理 ---> 申请新的页面，并建立映射
+
+   3)handle_mm_fault()
+     a.pgd = pgd_offset(mm,address)
+       索引到页目录项 ---> 内容为中间目录的基地址
+       页目录总是存在
+     b.pmd = pmd_alloc(pgd,address)
+       若pgd中的中间目录基地址为空，则会先新建一张中间目录，将基地址写入到pgd中
+       再索引到中间目录项 ---> 内容为页表的地址
+     c.pte = pte_alloc(pmd,address)
+       若pmd中的页表基地址为空，则会先新建一张页表，将基地址写入到pmd中
+       再索引到页表项 ---> 内容为组合页基址
+
+       新建页表:
+        一张页表占用一个内存页面，所以首先为其申请内存页面
+        a.从缓池中取       --> get_pte_fast()
+          内核释放一张页表时，会先将其放到缓冲池中，而不会将其物理内存页面释放
+        b.申请一张内存页面   --> get_pte_kernel_slow()
+           有可能已经没有空余的内存页面，所以要先根据LRU淘汰页面到磁盘中，再申请空余页面
+
+     d.handle_pte_fault(mm,vma,address,write_access,pte)
+       若pte中的内存页基址为空，则会先申请一张空余内存页，将其基地址写入到pte中 
+       再组合页基址+页内偏移得到物理地址
+
+       申请一张空余内存页:do_no_page() pdf75
+       1.多个进程可将同一个文件映射到各自的虚存空间中
+         那么在内存中通常只保存一份物理页面即可
+         当有一个进程需要写入该文件时，才会去申请额外的页面，并将原页面内容复制到其中
+         然后建立副本页面与该进程的虚存之间的映射
+       2.当前情景:%esp已经指向堆栈区的起始为止
+                  现有压栈操作 --> 会向堆栈区下方的大空洞写入数据
+                  这是因为写操作而引起的缺页异常，需要扩展堆栈区，并分配新的内存页面与扩展的虚存区建立映射
+         所以do_no_page()会调用do_anonymous_page()进行页面分配和映射建立
+
+15.内存吃紧时，内核会"淘汰"最近最久没有使用的页面
+   淘汰:将页面内容写入到 用于页面交换的设备(文件) 中
+        在页表项中标记该页已不在内存中
+        在page数组中找到该页面对应的page结构，标记该内存页可用
+   内核将 用于页面交换的设备(文件) 建模为swap_info_struct --> pdf79
+   一个swap_info_struct对应一个交换区
+   重要字段:
+   1)lowest_bit,highest_bit
+     交换文件中用于swap的范围 --> swap_range
+
+   2)unsigned short* swap_map --> 数组结构
+     swap_range中的数据也以页面为单位
+     swap_map存储了swap_range中的页面的使用情况 --> 相当于账本,记录该交换区的各个页面的使用人数
+     swap_map[0]表示的页面不会用于swap
+     该页面包含了交换文件自身的一些信息以及一个表明哪些页面可供使用的位图
+
+   
+   Linux内核允许使用多个交换区
+   于是构成数组:struct swap_info_struct swap_info[MAX_SWAPFILES]
+
+   内核用swp_entry_t索引交换区上的一个页面
+   其为32位无符号正数:offset(24位) + type(7位) + 0
+   type  :页面位于哪个交换区中 --> 对应swap_info的下标
+   offset:页面在该交换区中的偏移
+
+   释放交换区上的页面:__swap_free(swp_entry,count)  --> pdf81
+   核心:只需找到该页面对应的"账本"，修改该页面的使用人数即可
+
+16.若CPU给出虚拟地址a,而地址a映射的页面p已经被交换到交换区中
+   那么就会发生缺页异常
+   内核首先会申请一张空闲页，然后从交换区把页面数据读入到内存中
+   若已经没有空闲页，则会先根据LRU策略淘汰某些页面
+   Linux 2.4内核采取的预先淘汰的策略:在系统相对空闲时，根据LRU策略淘汰某些页面
+                                     让系统始终维持一定量的空闲页面
+
+   LRU淘汰策略可能会发生"抖动":页面被淘汰到交换区上不久就又被程序访问 --> 页面又被换入到内存中
+                               这种频繁的同一页面的换入和换出很浪费系统资源
+   解决方法:修改淘汰动作
+   1)依旧将页面内容写入到 交换区 中
+   2)在页表项中标记该页已不在内存中
+   3)将该页面对应的page结构从 活跃队列 转入到 不活跃脏/干净队列中
+   如果一个页面换出后又立即受到访问而产生缺页异常，那么就可以从暂存队列中找回相应的页面，并为之建立映射
+
+   内存页面的状态:
+   1)空闲
+     其会位于某个页面管理区(zone)中的空闲队列中
+     页面的使用计数count=0,可以使用
+   2)活跃
+     当前至少有一个用户进程的页表项指向该页面 count > 1
+     每当为页面建立或者恢复映射时(比如进行进程间的内存共享)，都会++count
+     其会位于active_list中 --> 以LRU序组织
+
+   3)不活跃
+     a.不活跃脏
+       内核会定期将active_list中的末尾的页面转移到inactive_dirty_list或者某个zone中的inactive_clean_list中 --> 会断开该页面的映射
+       inactive_dirty_list以LRU序组织所有的不活跃脏页面
+
+     b.不活跃干净
+       内核会定期将inactive_dirty_list中末尾的页面写入到交换区
+       并将该页面转移到 某个页面管理区 的inactive_clean_list中
+       与空闲状态的区别:页面中内容可能在短时间内还会被读取到    --->  用于缓解"抖动"
+                        所以页面还暂时不能被其他人使用
+       当有需要时，可将zone中的inactive_clean_list中的页面 全部/部分 转移到 zone中的空闲队列中，再从空闲队列中分配页面
+                   或者直接从inactive_clean_list中拿取页面
+                   
+   不活跃的页面受到访问时，会将其转为活跃状态，并恢复映射
+   所有的page通过hash表进行散列索引 ---> 加速查找策略
+   可见:page会侵入多种结构属性.比如active_list的双链表结构，hash表中的链表结构
+   active_list和inactive_dirty_list都是全局性的LRU队列.队列头保存在struct address_space swapper_space中 pdf85
+   inactive_clean_list则属于zone
+
+17.物理页面的分配
+   1)在NUMA和UMA中分配连续的页面的操作有些许差异    ---> pdf89
+     NUMA中含有多个节点,每个节点都有一个page数组以及三大管理区
+     需要逐个节点的考量，看是否其满足分配需求
+     UMA中就只有一个节点
+   2)单个节点内的内存页分配--> __alloc_pages(zonelist_t* zonelist,unsigned order  ) --> pdf91
+     大致思路:
+     可直接拿取的空闲页面(已经生产好的商品):各个zone的空闲队列和inactive_clean_list
+     可间接拿取的空闲页面:将inactive_dirty_list中的脏页面洗净
+     内核还设置了空闲页面的低水位线
+     可以生产商品的人:内核线程kswapd,bdflush,kreclaimd
+     考虑各种情况，屡败屡战
+
+18.页面的定期换出
+   由内核线程kswapd负责
+   kswapd也像进程，其有自己的进程控制块task_struct结构，和其他进程一样受内核的调度
+   像线程的原因:其没有自己的独立的地址空间，使用内核的地址空间
+   它的代码静态链接在内核中，可以直接调用内核中的各种子程序
+   而普通进程只能通过系统调用，使用预定义好的一组功能
+   代码pdf 102
+
+   重要知识:
+   1)页面预读
+     读磁盘是个比较费时的操作
+     每次读磁盘时都只读一个页面的性价比比较低
+     所以可以一次性多读几个页面 ---> 预读
+     读几个呢? --> 参数page_cluster与物理内存大小相关
+   2)kswapd的主体是一个for循环
+     大概的任务:
+     a.检查可供分配的的内存页面数是否短缺
+       可供分配的内存页面来源:zone中的空闲页面，inactive_clean_list，inactive_dirty_list(可以洗干净)
+     b.如果比较短缺，就调用do_try_to_free_pages()来腾出一些内存页面
+       大概方法:将inactive_dirty_list中的脏页面"洗干净" --> 将页面内容写入交换区
+                将active_list中末尾的页面断开映射，转为不活跃状态
+     c.sleep for 1s
+
+19.页面的换入:do_swap_page() ---> pdf137
+       
+     
+
+20.内核专用内存缓存管理机制
+   系统通过buddy机制进行页面粒度的内存分配
+       通过slab机制在内核中进行小粒度的内存分配
+   slab机制大体思路:
+   1)为每个常见的内核对象建立一个缓存 --> kmem_cache结构
+   2)kmem_cache为对象缓存区的一级管理结构
+     其记录对象和slab的一些基本信息，比如对象的大小，constructor和destructor，slab的大小...
+     其管理者三个slab队列
+     a.slabs_full     : slabs中的对象都已分配使用
+     b.slabs_partial  : slabs中的对象并没有完全分配使用
+     c.slabs_free     : slabs中的对象都没有分配使用
+   3)slab为对象缓存区的二级管理结构
+     结构为:
+     a.struct list_head  list;
+       链表结构,多个slab可形成双向链表  ----->  slab队列
+     b.void *s_mem;   
+       对象的缓存区 --> 对象数组
+     c.unsigned int    inuse;    
+       缓存区中已经有多少对象分配使用
+     d.kmem_bufctl_t   free;
+       缓存区中第一个空闲对象的序号
+     e.unsigned long   colouroff;
+       让不同slab上的同一位置的对象在高速缓存中的位置错开
+       比如相邻的两个slab都占一个页面
+       这两个页面都通过 组相连映射 映射到同一个cache组中
+       那么两个页面中第一个与cacheline对齐的对象数据可能都映射到同一个cacheline中 --> 冲突
+       所以可以用colouroff将第二个页面中的对象数据向后错开一个cacheline
+
+   4)slab的中每个对象都会进行基本的初始化
+     上层拿到对象后，再进行进一步的初始化 --> 比如初始化字段A
+
+
+   4)kmem_cache也是内核常用的对象，那么其自身也应通过slab机制进行分配
+     在内核中含有kmem_cache cache_cache
+     其管理的对象为kmem_cache
+     当需要为一个内核对象建立 专用缓存kmem_cache时，就从cache_cache管理的某个slab中分配一个kmem_cache对象
+
+21.使用slab机制管理内核对象skb的实例 ---> pdf148
+   1)调用kmem_cache_create()为对象skb建立缓存
+     从cache_cache中分配一个kmem_cache对象 
+     然后估算最佳的slab组成 ---> slab由几个页面组成，kmem_cache应该在slab外集中存放，还是就放在每个slab的尾部...
+     此时kmem_cache管理的slab队列还为空
+     当需要分配一个skb对象时，发现并无空闲对象，于是新建一个slab 
+
+   2)分配一个skb对象:alloc_skb()
+     重点关注从kmem_cache中分配skb: skb = kmem_cache_alloc(skbuff_head_cache, gfp_mask);
+     分配策略:
+     a.先看slabs_partial中是否还有空余对象
+     b.若没有，则考察slabs_free
+     c.若slabs_free为空，则新建一个slab: 跳到__kmem_cache_alloc()中的alloc_new_slab标记处的kmem_cache_grow()
+     d.若有空余对象，则根据slab.free的指示找到空余对象，分配出去
+       然后更新slab.free  --> 不一定+1 --> 见457
+   
+   3)新建一个slab步骤
+     a.参数检查 以及 计算slab的colour_off
+     b.为slab分配页面 --> 用buddy机制分配1,2,4...个页面
+     c.将新建的slab纳入 "管理机构" 中:kmem_cache_slabmgmt()
+       小对象的slab结构和对象放在同一页面中:slab = obj+colour_off;:
+       大对象的slab结构则存放在kmem_cache中的slabp_cache中:slab = kmem_cache_alloc(cache->slabp_cache, local_flags)
+
+   4)然后对 新建slab的对象缓存区中的对象 进行基本的初始化:kmem_cache_init_objs() --> pdf149
+   
+   5)释放一个对象:将对象归还到对应的缓存中
+     kmem_cache_free(kmem_cache_t kmem_cache,void* obj);
+     a.首先要找到obj所在的slab
+       根据obj的虚拟地址得到obj所在的页面基址 --> 在page数组中索引，得到page结构
+       在kmem_cache_grow()中，会设置page的prev为其所属的slab  --> pdf160
+     b.调整slab.free --> 指向被释放的obj
+     c.计数器-1:--slab.inuse
+       若slab之前属于slabs_full,那么将其转移到slabs_partial
+       若slab之前属于slabs_partial,现在inuse减到0，那么将其转移到slabs_free
+   
+   6)空闲的slab由kswapd内核线程周期性地调用kmem_cache_reap()释放
+     大概思想
+     a.每次只扫描一个kmem_cache中的slabs_free队列
+       所以需要用变量记录上次扫描的kmem_cache
+     b.每次释放slabs_free中80%的slab
+     c.调用kmem_slab_destory()释放slab
+       释放过程:先对slab中对象逐个调用dctor --> 可能回调会通知其他模块
+                然后再释放slab中的页面 --> free_pages
+                如果slab的中对象为大对象，那么还有释放slabp_cache中保存的slab_t:kmem_cache_free(cachep->slabp_cache, slabp);
+
+     
+22.内核通用内存缓存的管理
+   内核含有通用缓存池:
+   static cache_sizes_t cache_sizes = {
+     {32,NULL,NULL},
+     {64,NULL,NULL},
+     {128,NULL,NULL},
+     {256,NULL,NULL},
+     ........
+   }
+   typedef struct cache_sizes {
+      size_t     cs_size;
+      kmem_cache_t  *cs_cachep;
+      kmem_cache_t  *cs_dmacachep;      //用于DMA
+   } cache_sizes_t;
+   此时kmem_cache面向数据大小 --> kmem_cache中的缓存区缓存固定大小的内存块 --> 可返回给上层，用于构造各种大小一致的对象
+
+   上层函数:
+   1)kmalloc(size_t size,int flags)
+     在缓存池找到cs_size >= size的缓存
+     然后从缓存中分配一块内存:__kmem_cache_alloc()
+   2)kfree(const void* obj)
+     调用kmem_cache_free()，修改slab的计数器，调整slab的free即可
+
+22.Linux2.4为每个进程分配4G的虚拟地址空间
+   0-3G用于用户态(user space),3G-4G用于内核态(kernel space)
+   kernel space的分布:
+   1)3G - 3G+high_memory
+     这一部分地虚拟地址可以直接进行线性映射:physical address = virtual address - 3G
+     可见，若在这一部分虚拟地址空间中 分配了连续的虚拟内存，那么其对应的物理内存也一定是连续的
+     连续的物理内存可以更加充分的利用cache
+     
+     如果这1G的kernal space都用于线性映射，那么kernel也就只能访问1G的物理地空间
+     所以用high_memory对kernel space进行划分:
+     a.小于high_memory的虚拟地址用于直接线性映射    -->   内核页表中的映射表项固定
+     b.大于high_memory的 部分虚拟地址 用于动态映射  -->   在内核页表中动态建立映射表项
+
+     内核页表与进程页表:
+     a.进程被调度执行时，kernel会用进程自己的页目录基址 去设置CR3寄存器 --> 被MMU读取，进行虚拟地址到物理地址的映射
+     b.进程运行时，CPU给出虚拟地址,然后通过 MMU+页表 映射到物理地址
+     c.若进程运行在用户态，CPU给出的合法虚拟地址范围:[0,3G]
+       MMU使用进程页表进行映射
+     d.当进程切换到内核态，CPU给出的合法虚拟地址范围:[3G,4G]
+       MMU使用内核页表进行映射                                         
+
+   2)3G+high_memory ~ 3G+VMALLOC_START
+     8MB的空洞间隔:不做任何地址映射，用于安全防护，防止不正确的越界内存访问
+   
+   3)3G+VMALLOC_START ~ 3G+VMALLOC_END
+     动态映射区
+   
+   4)3G+PKMAP_BASE ~ FIXADDR_START
+     PKMap Region
+
+   5)FIXADDR_START ~ 4G
+     FixMap Region
+     
+23.CPU对外设的访问方式:
+   1)IO映射式
+     外设的存储单元 与 内存 分属于不同的体系
+     需要设立专门的指令来访问外设.比如X86的IN和OUT指令
+     但IO指令的地址空间较小,只适用于外设存储单元较少的情况
+     而现在外设的存储单元有很多，比如图形显卡.
+
+   2)内存映射式
+     将外设的控制寄存器，状态寄存器等存储单元看做内存的一部分
+     CPU可以像访问内存一样来直接访问外设的存储单元，所以不需要单独设立用于IO的指令
+     在Linux2.4内核中，使用ioremap()建立外设存储单元到内存的映射
+   
+   每个外设存储器都有自己的内部地址空间:[0,max]
+   每个外设存储器在总线上都会被分配一个物理地址
+   CPU给出的都是虚拟地址,所以要建立虚拟地址到物理地址的映射   
+
+   ioremap() --> pdf166
+   大概步骤:
+   1)IO访问由内核负责
+     所以需要在kernel space中分配一部分虚拟地址，来与IO存储器的物理地址建立
+     这部分虚拟地址需要进行动态映射(可建立，可撤销)，于是在VMALLOC_START ~ VMALLOC_END中分配
+   
+   2)VMALLOC_START ~ VMALLOC_END这一虚拟地址区间的管理:
+     a.也用虚存区的概念进行建模
+       即:每次从其中分配一部分虚拟地址时，就将其建模为一个虚存区vm_strcut(pdf 169) --> 类似vm_area_strcut，但相对简单
+          多个vm_struct按照地址高低链接起来.表头为vm_list
+          然后在内核页表中为虚拟地址建立映射
+     b.假如需要分配size大小范围的虚拟地址
+       实际分配时，会增加一个页面的范围: vm_struct.size = size + PGAE
+       该页面为空洞，用于捕捉可能的越界访问 ???????????
+     c.内核线程kswapd定期从task_struct队列中找到占用内存页面最多的进程
+       然后调用swap_out_mm()换出一些页面
+       而内核进程没有自己的task_struct结构
+       所以kswapd也就看不到内核虚拟地址映射的物理页面 --> 不会被换出，常驻于内存 --> 除非是内核使用完后，主动释放页面
+     
+24.brk()与malloc()的关系:
+   malloc()就像小仓库部，当进程需要动态的堆内存时就向小仓库要
+   小仓库不足时就通过brk()向内核批量进货
+
+   堆内存对应的虚拟地址空间范围为:start_brk ~ program_break --> 建模一个虚存区vm_area_struct
+   当程序没有使用堆内存时，program_break == start_brk 
+   当程序调用malloc()请求堆内存时，malloc()会先调用brk()扩大堆虚存区范围 --> 抬升program_break
+   但并没有立马为增加的 堆虚存区范围 建立与物理内存的映射
+   当用户程序访问到 新增的堆虚存区时，会发生缺页映射，然后才会分配物理内存，并建立映射
+   malloc()的另一作用:管理堆内存 --> 即管理start_brk ~ program_break 这一虚拟地址空间
+                      
+   brk(unsigned long brk)代码:pdf172
+   当brk < program_break时，就要取消brk ~ program_break这部分虚拟内存的映射 --> do_munmap() --> pdf173
+   当brk > program_break时，则要扩展堆虚存区
+   扩展前，要检查
+    1)新边界是否是堆的大小超过了当前进程的限制
+    2)新增的空间是否与已经存在的某个区间冲突
+    3)检查是否还有足够的内存页面
+   然后调用do_brk()进行扩展 --> pdf186
+
+
+
+
+25.int do_munmap(struct mm_struct* mm, unsigned address, size_t len)
+   相对通用的函数:取消某个进程的 某个虚拟地址范围Virtual Range 的映射
+   大概步骤:
+   1)找到这个地址所在的虚存区
+   2)Virtual Range可能跨越多个虚存区
+     所以用for循环将涉及到的虚存区收集起来
+     并将这些虚存区从AVL树中删除
+
+   3)然后逐个处理
+     a.进程可以调用mmap()将一个文件的内容映射到用户空间中的某个虚存区，然后像访问内存一样访问整个文件
+       如果这个文件又被别的进程打开 --> 文件共享，需要保证互斥 --> 用inode的i_writecount计数器保证写互斥
+       所以，若该虚存区是文件虚存区:
+        1.如果要解除映射的只是 文件虚存区的一部分，那么就相当于对此区间的写操作，所以要--i_writecount
+        2.如果要解除整个文件虚存区，则不用--i_writecount
+        3.然后将文件虚存区从目标文件的inode结构内的i_mapping队列中脱链
+     
+     b.然后调用zap_page_range(pdf 176)解除该虚存区的物理页面映射
+       并释放所映射的内存页面，或对swap区上物理页面的引用
+       ........................
+       重点:pdf180
+       一个有用户空间映射，可换出的内存页面的page结构同时在三个队列中:
+       1)address_apce中clean_pages,dirty_pages,locked_pages三个队列之一
+       2)active_list,inactive_dirty_list,inactive_clean_list三个LRU队列之一
+       3)hash表的单链表
+       如果当前进程是该页面的最后一个用户，则要调用delete_from_swap_cache_nolock()将页面从上述队列中脱离出来
+     
+     c.调用unmap_fixup()对该虚存区进行后续处理
+       比如，需要对该虚存区进行一分为二
+       又或者解除映射后，某些页表已经为空，需要对所占用的页面加以释放 
+
+   
+
+26.mmap(void* start,size_t len,int port,int flags,int fd, off_t offset)
+   可以将一个已打开文件的内容映射到User Space
+   让用户进程可以像访问内存一样访问文件
+   参数:
+   1)fd+offset 
+     要映射的文件范围
+   2)start+len
+     映射到User Space哪一段虚存中 --> 参考值
+   3)port
+     控制所映射区间的访问模式，比如可读，可写等
+   4)flags
+     其他控制参数
+   具体代码:pdf 190
+   要点:在User Space建立一个虚存区，并在真正访问时，再通过缺页异常建立映射
+        页面换出时，需要将其将内容刷新到对应的文件中

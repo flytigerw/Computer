@@ -1,0 +1,990 @@
+1.Linux内核在进程创建为其分配的资源
+  1)task_struct
+  2)系统栈空间
+  二者一共占有两个连续的页面  -->  通过buddy机制分配
+  所以系统栈空间是静态确定的，不能动态扩展
+  所以内核的中断服务程序(在系统栈中运行)不应嵌套太深，或者使用太多，太大的局部变量
+
+
+2.task_struct结构   ---->   pdf281
+  重点字段:
+  1)state
+    进程的运行状态
+    Linux2.4内核为进程制定了以下状态:
+    a.TASK_RUNNING
+      表示进程可以被调度运行
+      进程的task_struct位于 运行队列中
+    b.TASK_INTERRUPTIBLE
+      浅睡眠状态，可因信号而醒来    --->    可中断睡眠
+      相关函数:interruptible_sleep_on() 和 wake_up_interruptible()
+      当进程在系统调用中需要等待某一事件发生时，就进入可中断睡眠 --> 等待事件的信号
+    c.TASK_UNINTERRUPTIBLE
+      深睡眠状态，不可被信号打扰
+      相关函数:sleep_on()和wake_up()
+    d.TASK_STOPPED
+      用于调试
+      当运行进程收到SIGTOP(断点)信号后会将状态修改为TASK_STOPPED,自身会被挂起
+      在收到SIGCONT信号后又恢复运行
+    e.TASK_ZOMBIE
+      表示进程已经去世，但户口尚未注销
+  2)cap_effective,cap_inheritable,cap_permitted
+    每个进程被赋予了各种不同的权限
+    比如一个进程是否有权重新引导操作系统，取决于该进程是否具有CAP_SYS_BOOT授权
+  3)rlim数组
+    进程的资源限制
+  4)进程运行时的一些统计信息:比如per_cpu_time，缺页次数等等
+    当进程通过do_exit()结束后，会将统计信息"报告"给父进程
+  5)与进程树相关的指针
+    进程可通过fork()生成子进程
+    与同一fork()相关的进程可构成进程树 --> pdf287
+  6)hash表中的双链结构
+    根据进程号pid在进程树中找到指定进程并非容易
+    可以通过hash表对pid进行散列
+  7)线性的双链结构
+    所有的task_stuct也会组成双链表
+  8)运行队列结构
+  9)进程的资源指针:文件，信号，虚存空间等
+
+
+3.两种生成子进程的方法:
+  1)int create_proc(int (*fn) (void*), void* arg, unsigned long options)
+    先为其分配基本的进程资源，包括task_struct和系统栈
+    将其加入到运行队列中,设置其被内核调度时的返回地址就是fn所指之处
+    更适合线程的创建
+
+  2)Linux采用fork()+execve()
+    a.fork()
+      先分配子进程所需的基本资源:task_struct,系统栈,页表
+      task_struct复制于父进程,但稍有不同 
+      所以父子进程共享大部分的资源，比如代码，文件，信号等
+      子进程也共享父进程的数据段，但只能以读的形式访问 ---> 在子进程的页表中，与数据段有关的页表项的标志位都设置为只读
+      当子进程 修改数据段中的数据时 会触发页面只读异常 --> 不能再共享，所以要为子进程分配独立的页面 --> 分配新的内存页，将源内存页中的数据拷贝过来，再更新子进程页表
+      fork()将父进程所有的资源都复制给子进程
+      clone()可将资源选择性的复制给子进程 --> 可实现线程
+
+    b.execve()
+      fork()出来子进程可通过execve()将自己的 二进制可执行文件 加载到内存中，修改task_struct以及页表，从而形成独立的子进程
+    例子:pdf 290
+
+
+4.int do_fork(unsigned long clone_flags,    --> 克隆的控制位:最低位为信号类型，表示子进程去世时应向父进程发出的信号
+                                                其他位见pdf295
+              unsigned long stack_start,
+              struct pt_regs* regs,
+              unsigned long stack_size)
+  重点过程:
+  1)为子进程分配两个连续的物理页面,低端用作子进程的task_struct结构，高端用作系统栈
+    然后复制父进程的task_struct
+    struct task_struct* p = alloc_task_struct()
+    *p = *current;
+
+  2)一个user通常有多个用户进程
+    每个用户进程通过task_struct.user与上层的user进行联系
+    user的结构:struct user_struct --> pdf296
+    每个user都有一个uid
+    所有的用户通过hash表进行散列
+    每个user能拥有的用户进程数是有限制的，所以要检查其是否已经超限
+    if(atomic_read(&p->user->processes) >= p->rlim[RLIMIT_NPROC].rlim_cur)
+      goto bad_fork_free
+    如果没有，则需要更新user的相关信息
+    
+    对于内核线程，其不属于任何用户
+    系统能创建的内核线程数也是有限制的
+    if (nr_threads >= max_threads)
+          goto bad_fork_cleanup_count;
+
+  3)每个进程都有一个exec_domain
+    Linux，BSD，Solaris等操作系统都是Unix变种，都符合POSIX规定，但相互之间实现的细节仍有不同
+    比如一个在Solaris上开发的程序，其执行域为PER_SLOARIS
+    若要在Linux系统上执行该程序，就需要为其准备Solaris程序需要的modules
+    task_struct含有字段exec_domain，其结构见pdf296
+    重点关注module字段:
+     Linux系统的设备驱动程序设计为 动态的module ---> 在运行时可以动态地安装和拆除
+     这些module与进程的exec_domain有关
+     比如:若需要执行一个Solaris程序，那么就要为其安装所需要的module
+          只要有一个Solaris程序在运行，那么Solaris所需要的module就不能拆除--> 所以需要为module设置引用计数器,创建子进程时，需要++
+  
+  4)不同平台下的进程的可执行文件不同，比如a.out格式，elf格式等
+    对这些不同格式的支持是通过动态安装驱动模块来实现的
+    在task_struct中有字段binfmt，结构为struct linux_binfmt --> 其也有module字段,在此次也需要++引用计数器
+
+  5)将参数中的clone_flags整合到子进程的task_struct
+    copy_flags(clone_flags,p)
+  
+  6)为子进程分配pid
+
+  7)进程树相关的设置
+    父进程含有一个子进程队列:wait_childexit
+    父进程可调用waitxx()等待子进程队列中的某个子进程结束
+
+  8)子进程的 待处理信号队列 的初始化
+
+  9)根据clone_flags,选择性将父进程资源拷贝到子进程
+    a.copy_files(clone_falgs,task_struct* child)
+      若CLONE_FILES为1，则子进程共享父进程的已打开文件
+        进程的打开文件的资源用files_struct表示，内含count字段表示有多少进程在共享这些文件资源
+        在此处，需++count
+        此后父子进程共享同一个文件的读写上下文 --> 若其中一个进程修改了文件读写指针,则另外一个进程也能看见这种修改
+      
+      若为0，则需要为子进程分配文件资源
+        文件资源由内核管理
+        所以用kmem_cache_alloc()进行内存分配
+        然后将父进程的files_struct中的内容拷贝到子进程files_struct中
+        此后父子进程各自拥有独立的文件上下文环境 --> 二者可能会打开同一文件，访问时需要进行同步
+
+    b.copy_fs(clone_falgs,task_struct* child)
+      涉及的标志位:CLONE_FS
+      共享或复制fs_struct -> 记录了进程的根目录root，当前工作目录pwd，文件操作权限管理的umask...
+
+    c.copy_sighand(clone_falgs,task_struct* child)
+      涉及的标志位:CLONE_SIGHAND
+      共享或复制sigal_struct -> 记录了进程处理各种信号的handler
+
+    c.copy_mm(clone_falgs,task_struct* child)
+      共享或复制mm_struct -> 记录了进程的用户虚存空间
+      当CLONE_VM为1时，子进程的页目录基址 = 父进程的页目录基址 ---> 父子进程完全共享整个用户虚存空间
+      当CLONE_VM为0时，要先为子进程分配一个页目录，再对mm_struct进行深拷贝 --> 拷贝内部的vm_area_struct和页表 --> dup_mmap()
+  每拷贝父进程的一个虚存区，就要为该虚存区建立页面映射
+      需要先为子进程分配页表，然后再逐个考察父进程页表项的值 --> 其能反映该虚存区中虚拟页面的映射情况 --> 根据映射情况来填充子进程页表
+                            
+      父进程的页表项值的情况:
+       1.表项值为0
+         表明该虚拟页面并没有建立映射，或者是"空洞"
+         因此不需要做任何事
+       2.表项的最低位，即_PAGE_PRESENT标志位为0
+         表明映射已经建立，但物理页面已被交换到swap区中
+         此时表项值为 物理页面在swap区中的地址
+         现在子进程也是该物理页面的用户，所以要通过swap_duplicate()递增它的引用计数
+         然后将此表项值拷贝到子进程页表中
+       3.映射已建立，但物理页面不是有效的内存页面 -> 比如在外设接口卡上的物理页面，其基地址称为"总线地址",其不由页面的换入/换出机制管辖 --> 不能动态映射
+         父子进程只能共享 --> 将表项值拷贝到子进程页表中
+       4.对于父进程的可写页面，Linux采用COW(Copy On Write)技术
+         先将页表项值修改为写保护，再将表项值拷贝到子进程中 
+         那么父子进程的虚拟可写页面都变成只读页面，而且含有相同的内存映射
+         只要任一进程企图修改该虚拟页面中的数据，就会触发 写保护页面异常 --> 处理程序会为该进程分配新的物理页面，并将源页面的数据拷贝过来，并修改该虚拟页面的映射情况 --> 父子进程中对应的页表项值改成可写
+
+       
+       5.对于父进程的只读页面，则直接通过拷贝页表项值来实现页面共享
+       
+  10)alloc_task_struct()会为子进程分配两个连续的页面
+     页面低端的task_struct结构已基本构建完毕
+     现需要构建高端的系统栈 --> 让子进程拥有与父进程一样的调用轨迹
+     copy_thread(int nr,unsgined long clone_flags,
+                 unsigned long esp,unsigned long size,  --> 可指定子进程的用户栈
+                 struct task_struct* p,                  
+                 struct pt_regs* regs)                  --> 进程因系统调用或中断进入内核时，在系统栈的顶部保存着CPU进入内核前的"快照" --> 各种寄存器的内容也形成pt_regs结构
+     首先需要将pt_regs拷贝到子进程系统栈的顶部:
+      p指向两个连续页面的基地址 ->(unsigned long)p+THREAD_SIZE就指向两个连续页面的顶部  -> 系统栈的顶部
+      (struct pt_regs*)((unsigned long)p+THREAD_SIZE)-1 --> 拷贝的目标点
+     拷贝完后的修改:
+      1)childregs->eax = 0  --> 子进程从系统调用返回后的返回值
+                                比如子进程从fork()返回后，返回值就为0
+                                    父进程从fork()返回后，返回值为-1 --> 系统调用出错
+                                                              或者>0 --> fork的系统调用号 
+      2)childregs->esp = esp -> 设置子进程的用户栈
+                                对于fork()和vfork(),其就是父进程的用户栈
+                                clone()则允许调用者为子进程设置单独的用户栈
+
+     其他信息设置:
+      task_struct中含有结构thread_struct
+      其记录进程在切换时的系统栈指针，返回地址等信息
+      现在子进程有了自己的系统栈，故有:p->thread.esp=(unsigned long)childregs      -> 当前的系统栈指针
+                                       p->thread.esp0=(unsigned long)(childregs+1) -> 系统栈顶部
+      p->thread.eip保存进程下一次调度运行时的切入点 --> 在此处可理解为子进程系统调用后的返回地址
+        
+  11)其他设置
+     比如设置子进程的exec_domain = 父进程的exec_domain
+             子进程退出时向父进程发送的信号
+     如果子进程是线程，则还要将其纳入到父进程的thread_group中
+     然后将子进程纳入内核的task_struct线性队列，进程hash表，可执行进程队列->子进程就可以被调度运行
+
+  12)
+      
+fork(),vfork(),clone()三者之间的差别
+1)pid_t fork(void)
+  内核中系统调用服务函数:
+  int sys_fork(struct pt_regs regs){            
+    return do_fork(SIGCHILD,
+                   regs.esp,&regs,
+                   0)
+  }
+  特点:1)只有SIGCHILD标志位，其他标志位都为0  --> 子进程会复制全部的资源:files,fs,sighand,mm
+       2)regs.esp --> 父子进程共享用户栈
+
+2)pid_t vfork(void)
+  内核中系统调用服务函数:
+  int sys_vfork(struct pt_regs regs){            
+    return do_fork(CLONE_VFORK|CLONE_VM|SIGCHILD,
+                   regs.esp,&regs,
+                   0)
+  }
+  特点:1)CLONE_VM,regs.esp --> 子进程自身没有独立的虚存空间和用户栈,需与父进程共享   
+       2)CLONE_VFORK
+
+3)int clone(int (*fn)(void* arg), void* child_stack, int flags, void* args)
+  系统调用时，会将这些参数保存在寄存器中，依次为: x,ecx,ebx,y 
+  内核中系统调用服务函数:
+  int sys_clone(struct pt_regs regs){            
+    unsigned long clone_flags = regs.ebx;
+    unsigned long newsp = regs.ecx;
+    if(!newsp)
+      newsp = regs.esp;
+    return do_fork(clone_flags,newsp,&regs,0);
+  }
+  特点:1)flags --> 用户可自行定义 父子进程需共享哪些资源
+       2)int (*fn)(void* arg),void* child_stack --> 子进程从系统调用返回后，可进入到给定函数中执行--> p->thread.eip=fn
+                                                    而且可以在自定义的用户栈中执行
+                                                    函数执行完以后会返回到clone(),其接下来会调用exit()-->销毁task_struct以及相关资源
+                                                    
+      
+
+5.int execve(const char* filename,char* const argv[],char* const envp[])
+                    ebx                 ecx                 edx
+  比如:
+  char* argv[] = {"ls","-al","/ect/passwd",NULL}    
+  char* envp[] = {"PATH = /bin",NULL}
+  execve("/bin/ls",argv,envp)
+  内核中的系统调用服务函数:
+  int sys_execve(struct pt_regs regs){
+    char* filename = getname((char*)regs.ebx) -> 将用户空间中的字符串拷贝到内核空间中
+                                                 拷贝流程:
+                                                 1)通过slab机制在内核中分配一个页面作为缓冲区
+                                                   因为字符串可能很大，而内核中空间不能滥用
+                                                   所以将字符串放到缓冲区中
+                                                   2)然后调用strncpy_from_user()进行拷贝
+
+    //filename 检查
+    
+    关键点:调用do_execve(filename,(char**)regs.ecx,(char*).regs.edx,&regs)
+  }
+
+  do_execve()流程:
+  1)调用open_exec(filename)打开可执行程序文件
+  2)Linux内核将 可执行程序 抽象为 struct linux_binprm
+    其包含了可执行程序的metadata -> 比如程序的环境变量，程序文件位置，程序权限等--> pdf320
+  3)完善binprm变量  ---> pdf321
+    重点:a.调用kernel_read()将文件开头的128字节(可执行文件的header)读入到binprm的缓冲区中
+         b.将可执行参数argv[]和运行环境argv[]从用户空间拷贝到内核空间中的binprm中
+    当binprm中的所有字段都完善后，接下来就要装入和运行目标程序
+
+  4)调用search_binary_handler()
+    在内核中含有队列formats
+    队列成员表示 识别和处理各种可执行文件格式的 handler ---> 结构为struct linux_binfmts
+    根据之前读入的128字节的header,遍历formats队列,调用每个handler的load_binary(函数指针):其会识别header,看是否是自己能处理的格式，若是，则装入该可执行程序
+    若没能找到匹配的handler，则根据header中的信息，看是否有 可动态安装的handler位于文件系统中
+    若有，则将其读入挂在formats上，再遍历formats队列
+    header中的前几个字节表示文件的magic number  -->  handler名
+    elf格式  : 0x7F e l f
+    jave格式 : c a f e
+    Shell格式: #!/bin/sh
+
+6.例子:a.out格式的可执行文件 装入并运行 过程
+  a.out格式的handler:pdf 325
+  其load_binary指向load_aout_binary函数
+  执行流程:
+   1)检查header是否是a.out格式
+   2)子进程要么和父进程进行资源共享，要么就拥有父进程的资源副本
+     现在子进程必须根据 自己的可执行文件内容 来创建自己的资源 
+     先调用flush_old_exec()与父进程的资源断绝关系，并初步建立起自己的资源
+     a.调用make_private_signals()
+       若在调用sys_fork()时，没有指定CLONE_SIGNAL标志位
+         则子进程拥有父进程的singal table资源的副本 --> 该资源的引用计数=1
+         那么此时就不需要额外的创建signal table资源
+       若指定了CLONE_SIGNAL标志位
+         则子进程共享父进程的signal table资源 --> 该资源引用计数=2
+         此时子进程就需要创建自己的signal table资源 --> 调用kmem_cache_alloc()分配
+         然后调用release_old_signals()递减父进程的signal table资源的引用计数
+       
+        
+     b.调用exec_mmap()
+       子进程需要创建自己的 用户虚存空间资源 --> struct mm_struct
+       若在调用sys_fork()时，没有指定CLONE_VM标志位
+         则子进程拥有父进程的 用户虚存空间资源的副本 --> 该资源的引用计数=1
+         副本资源中的虚存区不可复用，进行丢弃   -->  调用kmem_cache_free()进行资源回收
+                       而页表能复用，将页表项清0
+         然后再重新创建自己的虚存区资源
+
+       若指定了CLONE_VM标志位
+         则父子进程共享 用户虚存空间资源  --> 该资源的引用计数=2
+         子进程需要创建自己的资源:虚存区资源+页表资源
+       
+       调用fork()时，子进程会创建父进程的 用户虚存空间资源的副本
+       再调用execve()时，子进程又会将副本丢弃，再重新创建 --->  做了较多的无用功 --> 所以，若在创建子进程后会立马调用execve()，则推荐使用vfork() --> 指定了CLONE_MM标志位 : 共享资源
+                               和CLONE_VFORK标志位 : 因为父子进程共享用户虚存空间
+                                                     所以父子进程不能并发执行 --> 否则会导致用户栈的内容紊乱
+                                                     所以父进程会睡眠等待至 子进程创建自己的 用户虚存空间资源
+                                                     子进程在execve()或者exit()中调用mm_release()唤醒父进程
+       
+       调用mm_alloc()分配新的 用户虚存空间资源
+       调用activate_mm()将当前进程的用户空间切换到新分配的用户空间 --> 虽然其只是一个空壳，但此时进程在内核空间中运行，用户空间的切换对其并没有影响
+       调用mm_release()唤醒父进程
+       
+       如果sys_fork()创建的是线程，那么其task_struct中的mm为NULL --> 线程没有自己的用户虚存空间
+       当线程被调度运行时，其task_struct中的active_mm则指向父进程的mm_struct --> 借用父进程的用户虚存空间 --> 父进程的mm_struct的count引用计数+1
+             停止被调度时，将active_mm设置为NULL  --> mm_struct的count引用计数-1
+       若现在线程调用execve()升级为进程，则不再需要借用父进程的用户虚存空间 --> 调用mmdrop(activate_mm)递减mm_struct的conut引用计数 --> 递减到0后，会销毁虚存空间资源 --> 调用kmem_cache_free回收mm_struct资源，回收页表资源
+       
+       如果sys_fork()创建的是进程，且父子进程共享mm_struct
+       现在子进程已经创建了自己的用户虚存空间，所以需要递减mm_struct的user引用计数:mmput() -> 也会调用mmdrop
+       
+       从exec_mmap()返回到flush_old_exec()时
+       子进程已经有了独立的用户虚存空间，但尚且只是一个空壳
+
+     c.task_struct中含有字符数组comm[],用于保存进程执行的程序名
+       所以要将bprm->filename(程序名)拷贝过去 
+     
+     d.如果当前"进程"是线程
+       那么该线程就位于进程的线程组中
+       现在线程要升级为进程，则需要调用de_thread()从线程组中脱离出来
+               
+     f.父进程中信号表中的值的情况:SIG_IGN,SIG_DFL,指向某个用户空间中的子程序
+       若子进程拥有父进程信号表资源的副本
+        由于子进程已经放弃了 父进程的用户空间，所以子进程信号表的表项不能指向父进程用户空间中的子程序
+        所以会调用flush_signal_handlers()这些表项值设为SIG_DFL
+     
+     g.调用flush_old_files()关闭子进程中的某些文件
+       task_struct中files_struct反映进程的文件资源
+       其含有位图:close-on-exec --> 表示子进程在执行execxx()时，需要将哪些文件关闭
+       若在sys_fork()时指定了CLONE_FILES标志位，则父子进程共享 打开文件的上下文.
+        此时若在子进程中将文件关闭了，则父进程也能看见文件被关闭
+       若没有指定该标志为，则子进程拥有父进程 打开文件资源的副本 
+        那么对于同一个打开文件，父子进程含有各自的打开文件上下文
+        若此时子进程将文件关闭了，则不影响父进程的打开文件上下文 --> 在父进程眼中，文件依旧是打开的
+       通常进程的0(STDIN),1(STDOUT),2(STDERR)都是不会关闭的
+
+   3)从flush_old_exec()中返回后,子进程与父进程资源已基本断绝关系,自己的资源尚且是个空壳
+     接下来就要根据 可执行文件中的内容 来逐步完善自己的资源
+     比如设置task_struct的start_code,end_code,end_data等字段
+         调用do_brk()为正文段，数据段分配 虚存区间.
+         读取文件中的正文段，数据段到内存页面中，并建立虚存区间和物理页面的映射
+         对于bss段，则直接分配虚存区间和内存页面，然后建立映射即可
+         对于栈段，则会在用户栈的顶部(STACK_TOP -> 3GB)建立一个虚存区
+           并将 系统执行参数和环境变量所占的内存页面(bprm中的page数组) 与此虚存区建立映射
+         然后将用户输入的argv和envp构建在栈顶部 --> create_aout_tables()
+
+   4)最后调用start_thread() --> 设置execve()系统调用返回后的执行地址(新程序的起始地址)，执行栈(新程序的栈起始地址)
+     当execve()返回后，就会执行新的程序了
+
+
+7.字符形式的可执行文件(shell,perl等脚本文件)的执行
+  脚本文件的第一行为:#!脚本解释程序的路径名(/bin/sh,/usr/bin/perl..)参数
+  由load_script()进行脚本文件的装载,大致过程:
+  1)检查文件中第一行是否满足格式要求
+  2)若满足，则得到脚本解释程序的路径名
+  3)将执行参数保存在bprm中
+    然后只要装载并运行该脚本解释程序即可 --> 同上述的 二进制可执行文件的装载运行:open_exec(),prepare_binprm(),search_binary_handler()
+  
+
+8.exit() 
+  进程/线程调用此函数来结束生命周期，OS会回收相关的资源，然后调度运行另一个Task
+  CPU不会从系统调用exit()中返回，其会转而去执行另一个Task
+  过程:
+  1)内核中断服务程序不能调用exit()
+    调用in_interrupt()来检查CPU当前是否正在运行 中断服务程序  --> pdf349
+  2)0号和1号进程也不能退出
+    检查当前进程的pid即可
+  3)进程在调用exit()之前可能已设置了定时器 --> task_struct中的real_timer被挂入内核中的定时器队列 --> 所以现在需要将其从队列中脱链
+    del_timer_sync(&tsk->real_timer)
+  4)然后回收task_struct中的各种资源 --> 调用kmem_cache_free()或者kfree()
+    比如虚存空间，信号表，已打开文件，信号量  -->pdf 350
+     
+  5)进程的运行需要 exec-domain module和 可执行文件的handler的支持
+    所以进程退出时，需要递减相关的引用计数.若递减至0，则将其放回到文件系统中
+
+  6)子进程去世后，需要将状态变为TASK_ZOMBIE --> 进程不会再接收调度
+    此时进程的大部分资源已被回收，还留有残骸:task_struct+系统栈
+    其中task_struct中含有大量的统计信息  --> 子进程的运行记录
+    于是可通知父进程来料理后事 --> 回收子进程的统计信息,释放子进程的task_struct+系统栈
+
+    ZOMBIE进程存在的另一个原因:若在exit()中就将进程的task_struct+系统栈销毁
+                               那么在选择下一个task_struct运行前 就会有一个空隙
+                               如果在该空隙键有中断产生，由于没有系统栈，所以是无法处理的 --> 当然也可以提供额外的栈来处理中断 --> 麻烦
+    
+    通过调用exit_notify()来完成以上所述,过程:
+    a.更新task_struct亲属网
+      比如:一个进程含有一个主task_struct
+           该进程可通过sys_fork()生成多个子进程或者线程 --> 都有一个task_struct
+           子进程/线程又可以通过sys_fork()生成子进程或者线程
+           所有有关联的task_struct通过相关字段构成 task_struct亲属网
+            1.每个task_struct含有生父(p_opptr)和养父(p_pptr)
+              在task_struct创建时，生父和养父是一致的
+              但当 进程/线程A 通过ptrace() 追踪 进程/线程B时,B的养父就会被更新为A
+            2.task_struct的p_cptr指向最年轻的子task_struct
+                           p_ypstr,p_osptr分别指向弟弟和哥哥
+
+           现在树中的某个task_struct(设为x)即将被销毁，那么就需要去处理所有与之有关联的task_struct
+            如果x代表线程，那么其肯定位于父进程的thread_group中
+            首先获得与x毗邻的下一个task_struct y
+            如果thread_group中只有线程x(x代表进程)，那么y就为init进程的task_struct
+
+            然后搜索系统中所有的task_struct z,若其生父为x,那么现在将其修改为y  --> init进程就像孤儿院
+             即z.p_opptr = &y
+             并根据z中的pdeath_signal的设置，来考虑是否想起发送信号，告知生父的噩耗
+             以上就是forget_original_parent()的功能
+           
+            处理x与养父t在session和group方面的关系: --> pdf356
+             一个用户登录到系统中后，其可以通过控制终端启动许多进程
+             这些共用同一控制终端的进程形成一个session
+             一个进程可能启动多个进程:比如shell进程通过ls|wc -l启动两个进程
+                                      这两个进程形成一个group
+             其他略
+
+    b.将task_struct的状态修改为TASK_ZOMBIE
+    c.调用do_notify_parent()向养父发送信号，通知养父来料理后事.
+    d.然后遍历子task_struct
+      让其养父=生父 --> 在exit()后，当前进程的子进程的生父和养父一致
+      若子task_struct为ZOMBIE,则调用do_notify_parent()让养父来处理后事  
+      具体见pdf 358
+    e.若当前进程为session leader
+      那么还要将整个session与主控终端切断联系，并释放终端 --> diassociate_ctty() -->pdf360
+      没了主控终端的进程就属于后台进程
+
+  7)最后调用schedule(),让CPU切换到另一个task_struct中运行
+    当前task_struct已经为ZOMBIE,不会被调度运行
+    所以不会从schedule()返回到do_exit()中 --> do_exit()也不会返回
+      
+
+9.wait4 (pid_t pid, int *status, int options, struct rusage *rusage);
+  进程可调用此函数来接收子进程的去世通知信号，然后去料理子进程的后事
+  参数:
+  1)pid
+    指定要等待的子进程
+    ==1 ->  等待任意子进程
+    >0  ->  等待pid等于该值的子进程
+    ==0 ->  等待组ID等于调用进程ID的任一子进程
+    <-1 ->  等待组ID等于pid绝对值的任一子进程
+  2)status
+    传出参数,用户可根据此取得子进程的退出状态
+  3)options
+    WNOHANG     : 若由pid指定的子进程没有终止，不阻塞，立即返回 --> 非阻塞等待
+    WUNTRACED   : 若有pid指定子进程已经暂停，但其状态自暂停后尚未报告，则返回其状态
+  4)rusage
+    传出参数 -> 子进程使用的资源汇总
+
+  流程:
+  1)父进程维护了一个等待队列 
+    其记录所有要wait的子进程
+    生成一个新的节点纳入队列中
+
+  2)repeat:
+    a.将状态修改为TASK_INTERRUPTABLE --> 该task_struct不会被调度到，除非有另外的task_struct将其唤醒 --> 将其状态修改为TASK_RUNNING
+    b.do{
+        1.找到满足参数pid的子task_struct
+          然后检查子task_struct的状态
+          1)STOPPED
+            若指定了WUNTRACED标志位，或者该task_struct正在被trace
+              则获得该task_struct的资源使用情况,并将其拷贝到用户空间 -> 参数rusage指定的用户空间
+              然后goto end_wait4    
+
+          2)ZOMBIE
+            对pid指定的task_struct进行收尸
+            a.获得该task_struct的资源使用情况,并将其拷贝到用户空间 -> 参数rusage指定的用户空间
+              若拷贝失败，则保留子进程的遗骸，子进程状态为ZOMBIE
+              所以在exit()中，当父进程在结束生命前为子进程托孤时，会检查子进程的状态是否为ZOMBIE，若是，则调用do_notify_parent()给养父报丧
+
+            b.如果该task_struct的生父和养父不一致
+              由于子进程在exit()中调用do_notify_parent()时，只会给养父报丧
+              而其生父可能也调用waitxx()等待子进程，所以有必要给其生父报丧
+              所以先将其从生父的族谱中移除:REMOVE_LINKS
+              再令养父=生父
+              最后将其其加入到生父的族谱中,并调用do_notify_parent()给养父报丧  -> 给生父报丧
+
+            c.若一致，则释放task_struct资源:release_task()
+              将该task_struct从全局hash表中移除
+              然后回收task_struct+内核栈的资源
+            goto end_wait4
+
+        2.现在task_struct指向进程的main task_struct
+          有可能要等待的子进程是该进程clone出的另一个线程的子进程
+          所以在main task_struct中找不到 满足pid要求且状态为STOPPED或者ZOMBIE 的子task_struct
+          于是将task_struct切换到该进程的线程组的下一个线程
+          tsk = next_thread(tsk)
+      }while(tsk != current)      //找不到满足要求的子task_struct -> 可能该子task_struct正在运行中
+
+    c.若指定了WNOHANG标志位，则goto end_wait4 --> 非阻塞等待
+      若没有指定，则调用schedule()，切换到其他进程中运行  --> 自己的状态为INTERRUPTIBLE --> 不会被调度到，除非子进程在exit()时调用wake_up_process()将父进程的状态修改为RUNNING  --> 阻塞等待
+      goto repeat   --> 被调度到，说明有子进程已经调用exit() 
+  
+  3)end_wait4:
+    恢复父进程的状态为RUNNING
+    将新增的节点从等待队列中移除
+    返回
+    
+    
+10.进程调度要考虑的问题:
+  1)调度的时机
+  2)调度的策略:依据怎样的策略来选择下一个要运行的进程
+  3)调度的方式:可剥夺式  :OS可强制剥夺 当前进程对CPU的占有权
+               不可剥夺式:OS不可强制剥夺.... ---> 除非当前进程主动放弃CPU，否则其他进程不能获得运行机会
+  
+  常见调度方式:
+  1)时间片轮转+优先级
+    为每个进程分配一个运行时间片
+    运行时间结束后，发生时钟中断
+    此时OS可根据进程的优先级来选择下一个要运行的进程
+  2)
+  
+  Linux中进程转换图:pdf369
+
+  用户在 用户空间中可通过nanosleep()主动放弃CPU的暂时使用权并加上时间限制
+         在内核空间可能会因为受阻的系统调用(比如read(),write()..)而主动的放弃CPU的使用权
+
+  Linux2.4的内核调度:有条件的可剥夺
+  当进程运行在用户空间时，满足一定条件后(比如运行足够长时间)，内核可剥夺其CPU的使用权，调度其他进程运行
+  当进程运行在内核空间时，除非其主动放弃CPU的使用权(比如因为阻塞的系统调用而放弃)，否则内核不能剥夺其CPU的使用权
+    当进程从内核空间返回到用户空间的前夕再进行剥夺调度  --->  进程进行系统调用的开销相对较大，自己已经运行较长时间，应该让贤于其他进程运行
+
+  为什么在进程在内核空间中运行时不能剥夺其CPU呢?
+    在早期，处理器为单核.如果进程在内核空间中不能剥夺，那么就不用考虑内核态程序的互斥性
+    但在多核时代，这已经行不通
+
+  Linux2.4中的进程调度策略:Round-Robin,FIFO,OTHER
+
+    
+11.系统服务程序可调用schedule()来剥夺当前task_struct的CPU使用权
+   并立即选择另一个task_struct来运行
+   要点:
+   1)if(!current->active_mm)
+      BUG()
+     task_struct的mm是否为NULL是区分task_struct是进程还是内核线程的标志
+     task_struct被调度运行时，CPU通过task_struct的active_mm来获取其虚存空间
+
+   2)当前进程的现场
+     prev = current
+     this_cpu = prev->processor --> 当前进程在哪个CPU上运行
+  
+   3)sched_data =& aligned_data[this_cpu].schedule_data
+     用于保存供下一次调度时使用的信息
+     struct schedule_data{
+       struct task_struct* cur;    //该CPU上运行的是哪一个task_struct
+       cycles_t last_schdule;      //该task_struct上一次发生调度的时间
+     }
+
+   4)if(prev->policy == SCHED_RR)
+     调度政策为SCHED_RR的进程含有一个时间配额(counter)和优先级(nice)
+     counter在每次时钟中断时都要递减
+     a.若counter为0
+       则根据nice值重新为其分配counter值
+       并将task_struct移到可执行队列的尾巴
+     b.然后根据task_struct的state做相应的处理
+       1.INTERRUPTIBLE
+         比如在调用sys_wait4()时，task_struct的state就被修改为INTERRUPTIBLE
+         处理:看是否有待处理的信号，如果有，令state=RUNNING
+              然后去处理信号
+       2.RUNNING
+         继续运行
+       3.其他
+         即task_struct处于UNINTERRUPTIBLE,STOPPED,ZOMBIE状态时，就将进程从可执行队列中撤下来
+  
+   5)然后从可执行队列中挑选下一个待运行的task_struct
+     挑选规则:调用goodness()计算task_struct的权值
+              其会总和考虑counter,nice(表示谦让的程度，数值越低，优先级越高)
+     对于调度政策为SCHED_FIFO的进程，其采用正向优先级rt_priority
+     详见pdf379
+  
+   6)然后开始准备切换
+     如果 挑选出来的task_struct代表 不具备用户空间的内核线程 -> 即mm和active_mm都为NULL
+     那么 就让其借用 当前task_struct的虚存空间 -> active_mm = current->active_mm
+     因为 内核线程不需要使用用户空间，而所有task_struct的内核空间都是一样的，所以可以借用
+
+     若 挑选出来的task_struct代表 进程 --> mm != NULL
+     则调用switch_mm()进行用户空间的切换:核心语句:将mm中记录的页目录基址加载到cr3寄存器中
+     因为现在进程运行在内核空间中，用户空间的切换并无大碍 --> 因为所有进程的内核空间的映射都是一样的
+
+     然后调用switch_to()进行堆栈的切换:
+     switch_to(cur,next,cur)
+     内联汇编简化版:
+     pushl esi
+     pushl edi
+     pushl ebp       //将A的现场保存在A的系统栈中        --> task_struct在切换前都要保存现场
+
+     movl  esp,%0    //保存A的系统栈指针到task_struct中
+     movl  %3,esp    //将栈指针(esp)切换为B的系统栈指针  --> 接下来代码的工作区为B的系统栈
+     movl  $1f,%1    //将地址1f作为A的切回运行地址       --> 每个task_struct的切回运行地址都为1f
+     pushl %4        //压入B的切回运行地址
+     jmp __switch_t  //jmp到函数__switch_to              --> 此时esp指向的内容为:1f
+                                                             当函数__switch_t运行完以后，会调用ret指令 --> 将1f弹出赋给程序计数器 
+                                                             手动模拟了一次函数调用
+
+
+1:                                                       --> 切回后的运行代码:恢复现场
+     popl  ebp
+     popl  edi
+     popl  esi
+    
+     :"=m"(cur->thread.esp),"=m"(cur->thread.eip),"=b"(cur)
+     :"m"(next->thread.esp),"m"(next->thread.eip)
+      "a"(prev),"d"(next),"b"(prev)
+
+     cur :当前的task_struct,设为A
+     next:挑选的task_struct,设为B
+     %0 : A的系统栈指针
+     %1 : A的切回运行地址
+     %3 : B的系统栈指针
+     %4 : B的切回运行地址
+
+     例子:pdf386,pdf389
+    
+     函数__switch_t()功能:
+     1.切换TSS,将TSS的内核栈指针切换为next->esp0
+       Intel的意图:为每个进程设置一个TSS,通过切换TSS(设置寄存器TR)来实现进程切换 ---> 硬件切换
+       但Linux内核并没有采用此，而是采用了软件切换
+       所以这个功能没有没有卵用
+     2.更新寄存器fs和gs的内容
+     3.更新IO操作权限的位图
+
+
+12.强制性调度:进程被强制性地剥夺CPU的使用权 --> schedule()并不是task_struct主动调用,而是由系统服务程序调用
+   在Linux 2.4中，当满足一定条件时，会将当前task_struct的need_resched字段设置为1
+   当task_struct从内核空间返回到用户空间时，OS会根据此字段来判断是否调用schedule()  --> pdf371
+
+   在单CPU中，主要有以下情况:
+   1)每次发生时钟中断时，时钟中断服务程序都会递减当前task_struct的时间配额(counter)
+     若counter减到0，则令task_struct.need_resched=1
+     代码:pdf 390
+   
+   2)OS内核提供wake_up_process()来唤醒一个task_struct 
+     唤醒要点:将目标task_struct的状态修改为RUNNING,并将其添加到运行队列中 --> 目标task_struct有可被调度运行的机会
+              然后调用reschedule_idel():其会比较当前task_struct与目标task_struct的优先级
+                                        若目标task_struct的优先级更高
+                                        则令当前task_struct.need_resched = 1 
+   
+   task_struct也可以采用 与上述类似的方式 来主动放弃CPU控制权
+   1)sched_setscheduler()
+     其用于改变进程的调度policy
+     比如，默认用户登录到系统后，第一个进程的适用调度policy为OTHER -> 无实时要求的交互式应用
+           通过fork()创建子task_struct时，就会将调度policy遗传下去
+           task_struct可调用sched_setscheduler()来改变调度policy
+           修改成功后，会令task_struct.need_resched=1
+           代码:pdf394
+   
+   2)sched_yield()
+     当前task_struct可调用此来礼让其他task_struct运行
+     要点:若检查到还有其他task_struct准备就绪，就令task_struct.need_resched=1
+          当从该系统调用返回前夕，当前task_struct就会被调度让行
+
+13.运行中的task_struct有时需要进入睡眠状态，并发起一次调度，让出CPU
+   待时机成熟时，再被唤醒运行
+   有两种情况:
+   1)被动的进入睡眠状态
+     比如:由于外设运行速度较慢，所以在与外设交互时，常常需先等待外设准备就绪
+          在外设准备期间，CPU有两种运行措施:
+          a.空转等待 --> 不停地轮询外设是否准备就绪
+          b.阻塞等待 --> 当前task_struct进入阻塞态，让出cpu
+                         当外设准备就绪后，再唤醒该task_struct
+          通常都采用阻塞等待,所以与外设有关的系统调用几乎都是阻塞式的(read(),write()...) --> 可设置flag,采用非阻塞式
+   
+   2)主动的进入睡眠状态
+     OS提供相关的系统调用，可让task_struct主动进入睡眠状态
+     
+     a.nanosleep(time)
+       在睡眠一定时间后由内核唤醒,或者中途被信号唤醒
+       sys_nanosleep(struct timespec* rqtp,struct timespect* rmtp)
+       参数:rqtp表示请求的睡眠时间
+            rmtp表示被唤醒后，剩余的睡眠时间 ---> 此时函数返回-1,上层用户可通过rmtp的值来决定下一步的操作
+
+       程序流程:
+        1)检测睡眠时间是否<2ms,若是,则采用延迟而非睡眠
+          struct timespec{
+            time_t   tv_sec;       //单位为秒
+            long tv_nsec;          //单位为毫微秒
+          }
+          i386的内核配置中，时钟中断周期为10ms --> task_struct的睡眠精度为10ms --> 并不能达到毫微秒的精度
+          所以，当前task_struct的睡眠请求时间<2ms，且自身又有实时要求时，sys_nanosleep会调用udelay()来处理
+           udely()要点:
+           1.其并没有让task_struct进入睡眠状态，而是通过延迟来消耗CPU时间
+           2.延迟分为软件延迟和硬件延迟
+           3.硬件延迟:借助tsc汇编指令
+           4.软件延迟:系统初始化，内核会检测CPU来设置参数:loops_per_sec
+                      然后内核将 睡眠时间换算成 空转次数，再进行空转即可
+          为什么会需要这么短的延迟要求? -> 有些外设要求连续两次操作的时间间隔不能小于某个特定值
+
+        2)将睡眠时间转换为 时钟中断次数:timespec_to_jiffies(sleep_time)
+          内核以时钟中断的次数作为计时的尺度
+          内核中含有全局计数器jiffies --> 记录系统自初始化以来发生的时钟中断次数
+          timeout = timespec_to_jiffies(sleep_time)
+          到期的"时间点":expire = jiffies + timeout
+          
+        3)修改task_struct的状态为INTERRUPT  --> 可被信号唤醒
+        4)调用schedule_timeout(timeout)
+          根据timeout的数值来采取不同的处理:
+          a.MAX_SCHEDULE_TIMEOUT
+            当请求的睡眠时间太长，长到不能用有符整数表达时
+            timespec_to_jiffies()就会返回常熟MAX_SCHEDULE_TIMEOUT
+            其表示让task_struct进行无限期睡眠，除非其被信号唤醒
+            所以直接调用schedule()切换到其他task_struct --> 只能通过信号唤醒的方式才能被调度切回
+          b.<0
+            将task_struct的状态复原为RUNNING,并提示参数错误
+
+          c.正常值
+            1.计算到期"时间点":expires = jiffies + timeout
+            2.创建timer，并添加到 timer列表中
+              struct timer{
+                unsgined long expires;          //到期时间点
+                void (*func) (unsigned long)    //到期后进行回调处理  --> 绑定为process_timeout
+                unsgined long data;             //回调处理的参数      --> 绑定为当前的task_struct
+                struct list_head list;              
+              }
+              每次时钟中断时，时钟中断服务程序都会对比jiffies和timer中的expires
+              若发现timer已过期，则回调之:process_timeout(data) --> 其将data解释为task_struct，然后调用wake_up_process()将之唤醒 
+            3.调用schedule()，切换到其他task_struct
+              从schedule()返回之时就是 当前task_struct睡醒以后 重新被调度运行之时
+              睡醒:a.睡足时间，由timer唤醒
+                   b.中途受扰，由信号唤醒
+
+            4.从schedule()返回后，将timer从timer列表中删除
+              最后返回剩余的睡眠时间:expire - jiffies
+            
+                   
+     
+     b.pause()
+       接收到指定信号后就会被唤醒
+       程序流程:将进程状态修改为INTERRUPTIBLE
+                然后调用schedule()
+                收到信号后才会被唤醒
+
+
+timer列表的组织方式:
+
+1)最简单的方式:将所有元素线性组织在一条列表中
+               发生时钟中断时就进行线性搜索，找到与当前jiffies相匹配的timers
+  缺点:线性搜索大量元素的代价较高
+
+2)针对线性组织进行改进:可将其组织为最小堆 --> 查看最小元素的代价为:O(1) 
+                                              看最小元素的expires是否与jiffies匹配
+                                              若匹配，则将最小元素从最小堆中取出:O(log2n)
+
+                       或者组织为hash表 --> 看是否与jiffies相匹配的timer
+
+3)针对组织在一条列表中进行改进:可以组织为多条列表
+  比如:可以构建256条列表 --> List lists[256]
+       然后根据expires的低8位来决定timer位于哪一个List中
+       设有指针:List* p = lists
+       其就像时钟上的时针一样，每发生一次时钟中断，其就向前挪动一个位置(++p)
+       然后检查当前List中是否含有与jiffies相匹配的timers
+       因为一个List中含有多种时间点的timer,所以要进行线性搜索,或者可以将List组织为最小堆或者hash表
+  
+  用另外一种话语来描述上述思想:
+    List数组        -> 时钟
+    List            -> 时钟里的时间槽
+    List中的timer   -> 时间槽里的timer
+    List* p         -> 时针 -> 指向时间槽
+    每发生一次时钟中断，时针就沿着时钟向前移动一步  --> 时间的绝对流逝
+    jiffies反映当前的绝对时间
+    时针指向的时间槽 里可能含有与 当前绝对时间相匹配的timer
+    然后检查时间槽里面是否有与jiffies相匹配的timer
+
+    由于其根据timer的绝对时间的低8位来计算timer应位于的时间槽
+    所以同一时间槽里就有多个时间点的timer
+
+
+
+4)单级时间轮的问题:将timer放到时间槽中时，是根据其绝对时间来确定安放位置的
+                   而时钟本身不能反映绝对时间，其只能反应一个时间周期
+                   总有点逻辑不兼容的感觉
+
+  时钟论:以jiffies代表绝对时间
+         时钟只能反映某个时间段
+         时针就是时钟当前的时间基点，它代表的绝对时间可由jiffies导出
+         由于不同的时钟刻度不一致，所以时针代表的绝对时间的粒度也就不一致，比如有些时钟能精确到秒，而有些时钟只能精确到分
+         时钟当前可反映的时间段为:时针代表的绝对时间 + 时钟周期*时间刻度
+
+         时针向前移动一格，时钟当前可反映的时间范围也会向前推进
+         那么 之前时针指向的时间槽里的timer的expires 也就不再位于 时钟当前可反映的时间范围之内
+         所以需要对这些timer进行处理
+
+  多级时间轮:构建多个不同时间刻度的时钟
+             插入timer时，当前所有的时钟各自都能反映一个 具体时间范围->R1，而且范围不相交
+             时钟里的每个时间槽都能反映R1中的一个小的时间范围->R2
+             将timer插入到 能反映其时间的时钟的时间槽里 --> timer的expires必然位于某个R1中的某个R2中
+
+             第一级时钟的时间刻度为一个jiffy，其模拟了时钟中断的发生 -> 时钟中断每个一个jiffy就发生一次 
+             第一级时钟的时针向前移动时
+              表示原时针指向的时间槽里的timer已到点 
+              所以timer的处理方式:将timer从时钟里取出，并调用timer里的回调函数
+
+             假如第一级时钟的周期为256
+             那么第二级时钟的刻度为256个jiffy
+             第二级时钟的时针向前移动时
+              表示原时针指向的时间槽里的timer的expires 也就不再位于 第二级时钟当前可反映的时间范围之内
+              但其仍位于 第一级时钟当前可反映的时间范围之内
+              所以timer的处理方式:将其转移到第一级时钟里
+            
+            Linux2.4构建了五级时钟 
+            将32的expires分为五部分:6 6 6 6 8
+            时钟的刻度分别为:1jiffy  2^8 jiffy  2^14jiffy .....
+            插入过程:
+             1.计算timer的expires应位于哪一级时钟中
+               各级时钟当前反映的时间范围
+               第一级:jiffies - jiffies+256
+               第二级:时针反映的绝对时间:t = (jiffies+256) & ~(255) -> 不要低8位
+                      范围为: t - t+64*256
+               ....
+             2.计算timer应位于时钟的哪一个槽中
+               第一级:时针+(expires-jiffies)
+               第二级:时针+(expires-jiffies)/256
+               ...
+              
+
+14.进程可使用信号量来完成对共享资源的互斥访问
+   struct semaphore{
+     atomic_t count;                //semaphore资源记账簿
+     int sleepers;                  
+     wait_queue_head_t wait;        //资源等待者
+   }
+   count为1就是二元信号量 --> mutex
+   atomic_t的实现:
+   typedef {volatile int counter;} atomic_t     --> 用volatile修饰:原子变量的读写都是内存操作
+
+   理论情况:
+   task_struct要使用semaphore资源，就必须先在记账簿上登记 --> --count 
+    若登记前，还有semaphore资源 --> count>0 --> 那么登记后就能立马拿到semaphore资源
+    若登记前，已经没有semaphore资源 --> count<=0 --> 那么登记后，count的绝对值就表示当前有多少task_struct在等待资源
+
+   task_struct使用完semaphore资源后，需要归还资源 --> 在记账簿上登记 --> ++count --> 新增一个可用资源
+    归还资源时，记账簿的账面情况:
+    1)<0,表示当前有task_struct正等待资源
+      现新增一个可用资源后，就可以唤醒task_struct去竞争这一可用资源
+    2)>=0,表示当前没有task_struct在等待资源
+      所以只需修改记账簿(++count),不需要做额外的工作
+   
+   实际编程情况:
+   task_struct调用down()申请semaphore资源:
+   down(sem){
+     __asm__ __volatile__(
+
+       LOCK "decl %0"           //i386中通过锁总线的方式来完成对内存变量的原子操作 --> 代价较高
+                                //ia64中通过CAS思想来完成原子操作
+       
+       js 2f                    //若登记后,count<0,表示登记前count<=0 --> 已经没有可用资源了
+                                                                          不能立即拿到资源，可能需要等待
+
+     1:                         //若登记后,count>=0,表示登记前count>0 --> 含有可用资源
+                                                                          可以立即拿到
+     2:
+       call __down_failed
+       jmp 1b
+
+       :"=m"(sem->count)       // %0 - semaphore.count 
+       :"c"(sem)               // %1 - semaphore
+       "memory"
+     )
+    }
+
+    __down_failed会调用_down(): --> pdf 406
+    1.生成一个等待队列节点，其包含了当前task_struct的关键信息
+      然后将节点挂在等待队列上
+    2.将task_struct的状态修改为:UNINTERRUPTIBLE
+    3.接下来就要考虑是否挂起该task_struct
+      额外考虑点:若在挂起之前，若已经有一个task_struct归还了semaphore资源  --> ++count
+                 那么当前task_struct就不用挂起了
+                 那么如何在此处检测是否有一个semaphore资源已经被归还了呢?
+      内核采用了一种非常巧妙的方法:
+
+      lock-----           调用_down时，第一次进入临界区.
+        ++sleepers;       
+        for{
+
+          var tmp = sleepers
+                                               
+          atomic{ret = (count += tmp-1)}      //important --> 会抵消--count的效果
+
+          if(ret >= 0){                       //说明在进一步挂起前，已经有一个++count发生
+            sleepers = 0;
+            break;
+          }
+
+          sleepers = 1;
+          unlock();--------                  //其他_down()可以进入临界区
+
+          schedule();                        //被唤醒且被调度到，开始去竞争 被释放的semaphore资源
+
+          lock(); ---------                  //醒来后，进入临界区中竞争semaphore资源
+        }
+      unlock() ----------
+      将节点从等待队列中取出
+      tsk->state = RUNNING
+      wake_up(&sem->wait)         -->   自己成功拿到semaphore后，还会去唤醒其他等待中的task_struct
+      
+
+      内核这段代码在逻辑上总感觉说不通
+      但它能保证，若semaphore资源用完后有task_struct在等待，调用up时，看到的count值都为-1
+      比如:初始count=1,有ABCD四个task_struct顺序调用down()
+      A: --count -> 0 
+         进入临界区:++sleepers -> 1   count=ret=0  -> sleepers=0,break--> 退出临界区,正常运行
+
+      B: --count -> -1
+         进入临界区:++sleepers -> 1   count=ret=-1 -> sleepers=1 --> 退出临界区，进入schedule() --> 睡眠状态为TASK_UNINTERRUPTIBLE --> 不会因收到信号而被唤醒
+
+      C: --count -> -2
+         进入临界区:++sleepers -> 2   count=ret=-1 -> sleepers=1 --> 退出临界区，进入schedule
+
+      D: --count -> -2
+         进入临界区:++sleepers -> 2   count=ret=-1 -> sleepers=1 --> 退出临界区，进入schedule
+                                    |
+                                若在此处A调用了up()-> 会看到count为-1
+                                那么count=ret=0    -> sleepers=0,break -> 退出临界区，唤醒一个等待中的task_struct.
+                                假如A先被唤醒调度到，其会看到:count=0,sleepers=0 --> 然后count=ret=-1 -> sleepers=1 -> 再次进入schedule()中
+    
+   task_struct调用up()归还semaphore资源:
+   up(sem){
+     __asm__ __volatile__(
+
+       LOCK "incl %0"
+       jle 2f                   //若++count <= 0,则表明之前有正在等待的task_struct.
+                                //现在有了新的可用semaphore资源，应该唤醒他们去竞争
+     1:
+     2:
+       call __up_wakeup
+       jmp 1b
+     :"=m"(sem->count)          //%0 - count
+     :"c"(sem)                                
+     :"memory";
+     )
+   }
+
+   __up_wakeup调用__up(sem) --> 调用wake_up(&sem->wait) --> 展开为:__wake_up((x),TASK_UNINTERRUPTIBLE | TASK_INTERRUPTABLE,WQ_FLAG_EXCLUSIVE) 
+   大概思路:遍历等待队列中的每个节点，根据标志位来做相应的唤醒处理
+   具体见pdf411
+   
+
+15.内核中的锁
+  struct spinlock_t{
+    volatile unsigned int lock;
+  }
+  上锁:
+  static inline void spin_lock(spinlock_t* lock){
+    __asm__ __volatile__(
+  
+    1:
+     LOCK decb %0         //递减计数器:lock  --> 可能的值:1 0 负数
+     js 2f                //若结果>=0,则表示加锁成功
+    2:                    //否则进行自旋，直到其他人释放锁 --> lock为1 -> 大于0
+     cmpb $0,%0           
+     rep;nop
+     jle 2b
+     jmp 1b
+
+      :"=m"(lock->lock)
+      :
+      :"memory"
+    );
+  }
+  中断是不可被调度
+  原因:
+   1)有些中断使用中断栈，而非内核栈
+   2)不是技术上做不到，而是没有理由那么做
+     中断服务程序应该尽快处理完，以提高IO效率
+  所以中断服务程序中不采用semaphore进行共享资源的互斥访问，而是采用spin_lock
+  
+  解锁:
+  static inline void spin_unlock(spinlock_t* lock){
+    __asm__ __volatile__(
+      movb $1,%0                    该指令本身就具有原子性，不需要LOCK.而decb指令涉及到读-改-写三个周期 
+      :"=m"(lock->lock)
+      :
+      :"memory"
+    )
+  }
+  读写锁的实现:pdf424
+

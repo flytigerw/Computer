@@ -1,0 +1,354 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 15, Exercise 29<BR>
+<BR>
+</H1>
+
+
+We use the node format <code class=var>[color, key]</code>,
+where <code class=var>color</code> is the node color.
+The initial tree is
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 4]              [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 2]           [b, 6]      [b, 10]       [b, 14]
+        /      \         /      \    /       \      /      \
+    [b, 1] [b, 3]  [b, 5]   [b, 7] [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+Removal of <code class=var>6</code> gives us the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 4]              [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 2]        py [b, 5]      [b, 10]       [b, 14]
+        /      \         /      \    /       \      /      \
+    [b, 1] [b, 3]       y  v[b, 7] [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+The <code class=var>y</code> node is an external node.
+Since the <code class=var>y</code> node is a left child
+whose sibling <code class=var>v</code> is a black node that has no
+red children (both children of <code class=var>v</code> are
+external nodes, and external nodes are black), the imbalance type
+is Lb0. The following tree results when an Lb0 color change is done.
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                  py [b, 4]              [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 2] v       y [b, 5]      [b, 10]       [b, 14]
+        /      \                \    /       \      /      \
+    [b, 1] [b, 3]           [r, 7] [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+The <code class=var>y</code> node is now one level higher in the tree.
+The imbalance is again classified as an Rb0 imbalance and another color
+change is done. The new tree is
+<br><pre class=figure>
+                            py [b, 8]
+                            /           \
+                           /             \
+                   y [b, 4]            v [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [r, 2]           [b, 5]      [b, 10]       [b, 14]
+        /      \                \    /       \      /      \
+    [b, 1] [b, 3]           [r, 7] [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+The <code class=var>y</code> node is now one level higher in the tree.
+The imbalance is classified as an Lb0 imbalance and another color
+change is done. The new tree is
+<br><pre class=figure>
+                             y [b, 8]
+                            /           \
+                           /             \
+                     [b, 4]              [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [r, 2]           [b, 5]      [b, 10]       [b, 14]
+        /      \                \    /       \      /      \
+    [b, 1] [b, 3]           [r, 7] [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+Since the <code class=var>y</code> node is the root, we are done.
+<br><br>
+When <code class=var>7</code> is removed, we get the tree
+<br><pre class=figure>
+                             y [b, 8]
+                            /           \
+                           /             \
+                     [b, 4]              [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [r, 2]           [b, 5]      [b, 10]       [b, 14]
+        /      \                     /       \      /      \
+    [b, 1] [b, 3]                  [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+Since the deleted node node was red, the tree is balanced. Next
+when <code class=var>5</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                  py [b, 4]              [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [r, 2] v              y      [b, 10]       [b, 14]
+        /      \                     /       \      /      \
+    [b, 1] [b, 3]                  [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+The type of the imbalance is Rr0 because the deletion was from the
+right subtree of <code class=var>py</code> and the sibling 
+<code class=var>v</code> is a red node that has no red
+children. Performing an Rr0 rotation
+balances the tree. The result is
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]    [b, 10]       [b, 14]
+                            /        /       \      /      \
+                       [r, 3]    [b, 9] [b, 11]  [b, 13] [b, 15]
+</pre>
+When <code class=var>10</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4] py [b, 9]       [b, 14]
+                            /        /       \      /      \
+                       [r, 3]       y  v[b, 11]  [b, 13] [b, 15]
+</pre>
+The imbalance type is Lb0.  After an Lb0 color change we get the tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]           py [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]  y [b, 9]     v [b, 14]
+                            /                \      /      \
+                       [r, 3]           [r, 11]  [b, 13] [b, 15]
+</pre>
+The imbalance type is again Lb0. Following an Lb0 color change we get the
+tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]            y [r, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]    [b, 9]       [r, 14]
+                            /                \      /      \
+                       [r, 3]           [r, 11]  [b, 13] [b, 15]
+</pre>
+Since <code class=var>y</code> is a red node, its color is changed
+to black and the tree is balanced.
+The balanced tree is
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]    [b, 9]       [r, 14]
+                            /                \      /      \
+                       [r, 3]           [r, 11]  [b, 13] [b, 15]
+</pre>
+
+When <code class=var>9</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]  y [r, 11]       [r, 14]
+                            /                       /      \
+                       [r, 3]                    [b, 13] [b, 15]
+</pre>
+The tree is balanced by making <code class=var>y</code> a black node.
+The balanced tree is shown below.
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]           py [b, 12]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]    y           v [r, 14]
+                            /                       /      \
+                       [r, 3]                    [b, 13] [b, 15]
+</pre>
+An Lr0 rotation is done to get the balanced tree shown below.
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 14]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]   [b, 12]       [b, 15]
+                            /            \          
+                       [r, 3]             [r, 13]       
+</pre>
+When <code class=var>15</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 14] py
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]   [b, 12] v       y
+                            /            \          
+                       [r, 3]             [r, 13] w     
+</pre>
+The imbalance type is Rb1(ii). The balanced tree following an Rb1(ii) rotation
+rotation is shown below.
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 13]
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]   [b, 12]       [b, 14]  
+                            /            
+                       [r, 3]           
+</pre>
+When <code class=var>12</code> is removed, we get the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]
+                            /           \
+                           /             \
+                     [b, 2]              [b, 13] py
+                 /          \            /       \
+               /             \          /          \
+             /                \        /            \
+         [b, 1]             [b, 4]     y         v [b, 14]  
+                            /            
+                       [r, 3]           
+</pre>
+The imbalance type is Lb0 and an Lb0 color change
+is performed to get the tree. 
+<br><pre class=figure>
+                               [b, 8] py
+                            /           \
+                           /             \
+                     [b, 2] v             [b, 13] y
+                 /          \                    \
+               /             \                     \
+             /                \                     \
+         [b, 1]             [b, 4]                 [r, 14]  
+                            /            
+                       [r, 3]           
+</pre>
+The imbalance type is now Rb0 and another clor change is done to get the tree
+<br><pre class=figure>
+                               [b, 8] y
+                            /           \
+                           /             \
+                     [r, 2]               [b, 13] 
+                 /          \                    \
+               /             \                     \
+             /                \                     \
+         [b, 1]             [b, 4]                 [r, 14]  
+                            /            
+                       [r, 3]           
+</pre>
+Since <code class=var>y</code> is the root, the tree is balanced.
+<br><br>
+The removal of <code class=var>13</code> leaves behind the unbalanced tree
+<br><pre class=figure>
+                               [b, 8]  
+                            /           \
+                           /             \
+                     [r, 2]               [r, 14] y
+                 /          \                  
+               /             \                
+             /                \              
+         [b, 1]             [b, 4]          
+                            /            
+                       [r, 3]           
+</pre>
+Since <code class=var>y</code> is a red node, we rebalance the tree
+by making <code class=var>y</code> a black node. The result is
+<br><pre class=figure>
+                               [b, 8] 
+                            /           \
+                           /             \
+                     [r, 2]               [b, 14]
+                 /          \                  
+               /             \                
+             /                \              
+         [b, 1]             [b, 4]          
+                            /            
+                       [r, 3]           
+</pre>
+The removal of <code class=var>2</code> leaves behind the unbalanced tree
+<br><pre class=figure>
+                               [b, 8] 
+                            /           \
+                           /             \
+                  py [r, 1]               [b, 14]
+                 /          \                  
+               /             \                
+             /                \              
+            y             v [b, 4]          
+                            /            
+                     w [r, 3]           
+</pre>
+The imbalance type is Lb1(ii). The ensuing Lb1(ii) rotation gives use the
+balanced tree
+<br><pre class=figure>
+                               [b, 8] 
+                            /           \
+                           /             \
+                    [r, 3]               [b, 14]
+                 /          \                  
+               /             \                
+             /                \              
+          [b, 1]             [b, 4]          
+</pre>
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,47 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 31<BR>
+<BR>
+</H1>
+
+First move the largest element to the right end to get
+<br><code class=var>[7 3 6 8 11 14 0 2 12 1 4 13 5 9 10 16]</code><br><br>
+
+Next partition using <code class=var>7</code> as the pivot.
+The result is
+<br><code class=var>[2 3 6 5 4 1 0] 7 [12 14 11 13 8 9 10 16]</code><br><br>
+The element we seek is the <code class=var>k = 5</code> element
+in the left segment. So we proceed to partition this segment using
+<code class=var>2</code> as the pivot. The result is
+<br><code class=var>[1 0] 2 [5 4 6 3]</code><br><br>
+
+The element we seek is now in the right segment and we
+set <code class=var>k = 5 - 3 = 2</code>.
+We proceed to partition the right segment using
+<code class=var>5</code> as the pivot. The result is
+<br><code class=var>[3 4] 5 [6]</code><br><br>
+
+The element we seek is now in the left segment and
+<code class=var>k</code> remains
+<code class=var>2</code>.
+We proceed to partition the left segment using
+<code class=var>3</code> as the pivot. The result is
+<br><code class=var>[] 3 [4]</code><br><br>
+
+The element we seek is now in the right segment and we
+set <code class=var>k = 2 - 1 = 1</code>.
+Since the size of the right segment is
+<code class=var>1</code>, its sole element <code class=var>4</code>
+is returned
+as the answer.
+
+</FONT>
+</BODY>
+</HTML>

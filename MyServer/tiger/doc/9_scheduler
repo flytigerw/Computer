@@ -1,0 +1,164 @@
+Scheduler
+
+1.生命周期
+  1)创建
+    构造函数私有化.用户通过Create()函数创建
+    默认构造时，Scheduler会创建一个Processor
+    Create()会注册进程退出时的回调函数 ---> delete scheduler
+  2)运行
+    调用start()启动
+    功能:
+     1)创建Processer，并为其分配线程
+     2)创建调度Processer的线程
+     3)调用main_proc->process(),开始运行
+    
+  3)销毁
+    在析构函数中设置状态.
+    并调用stop()来join各个线程  ---> Processer,dispatcher,timer的线程
+
+2.Fiber相关操作
+  1)void create_fiber(const fcn_type& fcn,const FiberOption& opt);
+    1)创建Fiber
+    2)Fiber继承自RefCounter ---> 可以设置deleter
+      由于Scheduler统计着Fiber的个数，所以delete Fiber时，必须能够通知到Scheduler 
+      具体做法:
+      a.在scheduler中定义成员函数void delete_fiber(RefCounter* p,void* arg);
+        将该函数绑定到Fiber的deleter
+        为了让deleter知道Fiber所属的Scheduler，绑定时，将this作为参数   //下层析构时，如何通知到上层? ---> 回调
+        f->set_deleter(Deleter(&Scheduler::delete_fiber,this));
+        那么delete_fiber的arg就会解释为Scheduler* ---> Fiber所属的Scheduler 
+        在delete_fiber更新该Scheduler的Fiber个数
+
+  2)add_fiber(Fiber* f)
+    将fiber交付给其所属的Processer
+    有Processer与之对应,那么将其交给正在运行Processer --> 添加到Processer的ready队列中
+
+    作者为Processer定义了m_active变量，表示Processer是否处于激活态.对于非激活态的Processer,不能将Fiber交给它
+
+    即若正在运行的Processer并没有处于激活态，则会遍历所有的Processer,找到一个处于激活态的Processer
+
+  
+3.调度Processer的线程的任务
+  1)记录所有的Processer的状态
+    若其位于阻塞态(通过Processor的is_blocking()来反映),则计算其管理的可运行的Fiber数,记录在blockings中.
+    若其还处于激活态，则置为非激活态
+    若没有位于阻塞态且处于激活态，则++active_counts
+
+  2)统计所有的Processer的可运行Fiber数
+    针对Processor P:
+      a.若其处于非激活态+非阻塞态
+        则将其置为激活态
+        并设置last_active = i; ---> 记录最近的处于激活态的Processer下标,方便在add_fiber中寻找处于激活态的Processor
+      b.若其处于激活态
+        则记录其负载数(记录在actives),并打上时间戳
+      c.若其负载数>0但又处于idle状态 --> 有点迷惑
+        则唤醒条件变量
+  
+  3)若actives为空 ---> 所有Processer处于阻塞态或者非激活态
+    若此时还允许创建Processer(可能有线程数的约束)，则创建新的Processer 
+    若不允许，等待即可
+
+  4)将blockings中Processer的Fiber全部steal出来，存储在idle_fibers中
+  
+  5)将idle_fibers平分给负载最少且位于激活态的Processer
+    actives为multimap<size_t,size_t>结构
+    key:负载数
+    value:Processer下标
+    那么任务最少的Processer范围:auto range = actives.equal_range(actives.begin()->first);
+    分配调用:p->add_fiber(std::move(fibers)); ---> 采用移动语义.在add_fiber中并没有修改Fiber的m_Processer ---> 当Processer调度到该Fiber时，会进行更新
+
+  6)处理平分后剩余的Fibers
+
+  7)actives此时已经不能再反映各个激活态的Processer的负载状况了
+    所以需要重新组织 ----> new_actives
+
+  8)有可能idle_fibers较少 ----> 并不是range中所有的Processer都能分到Fiber ---> 有些Processer可能依旧处于等待Fiber的状态
+    此时则从含有较多Fibers的Processer处steal一些Fibers --> new_actives.rbegin()
+    若new_actives.begin()->first == 0，则就表明还有等待Fiber的Processer
+
+
+4.定时器相关
+  1)static TimerType& GetTimer();
+    创建一个static Timer,为其分配一个线程运行thread_run()
+  2)void Scheduler::use_alone_timer_thread()
+    类似1),只不过为Scheduler创建一个Timer ---> 并不具有全局性质
+
+5.细究Processer的阻塞态和激活态
+  阻塞态:
+   由is_blocking()反映
+    1)if(!mark_schedule || mark_schedule != scheduler_count)
+      //平分给任务最少的Processor
+      return false;
+      即:若标记的调度次数和实际的调度次数不一致时，就不为阻塞态
+    2)return now_ms() > mark_tick+cycle_timeout_us; 
+      mark_tick:上一次打上的时间戳
+      若Fiber运行过久，就认为Processer处于阻塞态
+   
+  Processer()的mark():在统计所有Processer的可运行Fiber数时，若Processer处于激活态，就调用mark()
+  mark()功能:
+    if(running_fiber && mark_schedule != schedule_count){
+      mark_schedule = schedule_count;
+      mark_tick = now_ms();  //打上时间戳
+   }
+   何时:mark_schedule会和schedule_count相等呢?
+   mark_schedule更新点:在mark()中
+   scheduler_count更新点:在schedule()中
+   schedule()的一次调度大概步骤:
+    1)选择一个可运行的Fiber
+    2)++scheduler_count 
+    3)Fiber->swap_in()
+    4)Fiber返回到schedule(),做后续处理，然后选择下一个Fiber
+   若在一次调度中的时间里调用了两次mark(),则第二次就会发生相等的情况
+   造成一次调度过长的情况:Fiber->swap_in()以后运行过久
+                           
+
+  激活态:
+   1)设置m_active为false的时间点:在记录所有Processer的状态时，若其为阻塞态+激活态，则设置其为非激活态 
+   2)设置m_active为true的时间点:在统计所有Processer的可运行Fiber时，若其位于非激活态+非阻塞态时，将其设置为激活态
+
+   若Processer在1)中为阻塞态 ---> Fiber运行超时
+   但在2)之前，Fiber返回到Processer,Processer开启下一次调度 --> ++scheduler_count 
+   那么在2)中调用is_blocking()时就会返回false --> 处于非阻塞态，激活它
+
+
+4.调度线程进行调度时，各个Processors可能处于的状态
+  
+  
+  阻塞态的判断:
+  Processor:schedule()的一次调度大概步骤:
+   1)选择一个可运行的Fiber
+   2)++schedule_count 
+   3)Fiber->swap_in()
+   4)Fiber返回到schedule(),做后续处理，然后选择下一个Fiber
+  若swap_in()以后，Fiber执行过久，则认为Processor处于阻塞状态
+  调度线程如何检测出呢?
+  调度线程使用函数mark()对schedule()的运行状况打标记
+  mark()可能在1,2,3,4中的任何一个阶段被调用,调用时检测mark_schedule == schedule_count ?
+  如果不等，则mark_schedule = scheduler_count，并打上时间戳
+  调度线程会调用is_blocking()检查Processor是否处于阻塞状态
+  若没有，则从上一次mark()以后，Processor已经执行完了一次调度，现在正执行下一次调度 --> Fiber->swap_in() --> 已经++scheduler_count ---> mark_schedule和scheduler_count是不等的 ---> 非阻塞
+  若处于阻塞状态，则Processor还在执行Fiber->swap_in().此时mark_schedule == scheduler_count ---> 再检测now() - timestamp 是否超过阻塞时间阈值
+
+  Processor的状态 --> 由使用者调度线程决定:
+  Processor创建时，处于非阻塞态+激活态.
+  其中的一个Fiber执行过久，导致其处于阻塞态.
+  调度线程通过is_blocking()检测到Processor的阻塞态以后，会将其置为非激活态 --> 阻塞+非激活
+  该Fiber执行完毕，Processor又执行正常地调度，重回非阻塞态.
+  调度线程通过is_blocking()检测到Processor的非阻塞态以后，若发现其还处于非激活态，则将其置为激活态  ---> 非阻塞+激活态
+
+
+5.调度线程的任务
+  1)检测Processor的状态
+    若检测其为阻塞态+激活态,则置为阻塞+非激活态
+    统计处于激活态(非阻塞+激活态)的Processor数 和 记录处于阻塞态的Processor
+
+  2)统计激活态Processor的负载情况
+    在1),2)之间，Processor可能从阻塞转为非阻塞
+    所以,需要在2)中进行检测
+    若的确转为非阻塞态，则将其激活
+
+  3)将阻塞态中的Fiber全部steal出来
+    平分给任务最少激活态的Processor
+
+    
+ 

@@ -1,0 +1,515 @@
+1.Partial read and write on stream socket
+  In some circumstances,read() and write() may transfer fewer bytes than requested
+  A partial read may occur if there are fewer bytes avaliable than were requested in read() call.In this case,read() simply returns the avaliable bytes
+  A partial write may occur if there are insufficient buffer space to transfer all of the requested bytes and there are following circumstances 
+   1)A signal handler interrupt write() after it transferred some of the requested bytes
+
+   2)The socket was operating in nonblocking mode and it's possible to transfer only some of the requested bytes
+
+   3)An asynchronous error occoured after only some of the requested bytes transferred 
+
+   If a partial I/O occurs,EX:read() returns fewer bytes than requested ;blocked write() is interrupted by a signal handler after transferring only part of the requested data
+   Then it's sometimes useful to restart read() or write() to complete the transfer
+   
+   Two functions
+   ssize_t readn(int fd,void* buffer,size_t count)
+   ssize_t writen(int fd,void* buffer,size_t count)
+   They use a loop to restart read() or write(),thus ensuring the requested number of bytes is always transferred unless an error occurs or read() detects the end-of-file
+
+
+2.shutdown() sysCall
+  Calling close() on a socket closes both halves of the bdirectional communication channel
+  Sometimes it's useful to close one half of the connection so that data can be transmitted in just one direction 
+  shutdown() provides this functionality
+  int shutdown(int sockfd,int how)
+  the values of how:
+  1)SHUT_RD
+    Close the reading half of the connection
+    Subsequent reads will return end-of-file
+    Data can be still write into the socket.After SHUT_RD on a UNIX domain stream socket,the peer app receives a SIGPIPE signal and the EPIPE error if it makes furthur attempts to write into the peer socket
+
+  2)SHUT_WR
+    Close the writing half of the connection
+    Subsequent writes to local socket yield the SIGPIPE signal and EPIPE error
+    Once the peer app read all outstanding data,it will see end-of-file
+    Data written by peer app can still be read from the socket
+    This operation allows us signal end-of-file to the peer while still being able to read data that peer sent back to us
+
+   3)SHUT_RDWR
+     Close both read and write half
+   
+  Another respect that shutdown() differs from close() is that it closes the channel regardless of there are other fd referring to the socket
+  Ex:
+  fd2 = dup(sockfd); 
+  close(sockfd);
+  fd2 refers to the socket fd
+  The connection remains open
+  We can still perform I/O on the cinnection via fd2
+
+  fd2 = dup(sockfd);
+  shutdown(sockfd,SHUT_RDWR);
+  I/O can no longer be perfomed via fd2
+
+  A similar scenario:If a fd for a socket is duplicated during fork().If after fork(),one process does a SHUT_RDWR on its copy of the fd,then the other process can no longer perform I/O through its fd
+
+  shutdown() doesn't close the fd.To close the fd,we must additionally call close()
+
+3.Socket specific I/O calls:recv()and send()
+  ssize_t recv(int sockfd,void* buffer,size_t length,int flags)
+  ssize_t send(int sockfd,const void* buffer,size_t length)
+  They provide socket specific functionality that is not avaliable with traditional read() and write()
+  Flags:
+  1)MSG_DONTWAIT
+    Perform a nonblocking recv()
+    If no data is avaliable,the n return immediately with error EGAIN
+    We can obtain the same bahaviour by using fcntl() to set O_NONBLOCK on the socket
+
+  2)MSG_OOB
+    Receive out-of-band data on the socket
+  
+  3)MSG_PEEK
+    Retrieve a copy of the requested bytes from the socket buffer
+    Dont't actually remove them from the buffer.
+    The data can be reread by another recv() or read()
+
+  4)MSG_WAITALL
+    Normally recv() return the lesser of the number of byte requested(length) and the number of bytes actually avaliable in the socket
+    This flag causes the sysCall to block until the length bytes have been received
+    But it may still receive fewer bytes than requested if a:a signal is caught
+    b:the peer on a stream socket terminated the connection
+    c:an out-of-band data byte was encountered
+    d:an error occurs on the socket
+    This flag can replace readn()
+  
+  For send(),the bits may be ORed in flags include the following
+  1)MSG_DONTWAIT
+  2)MSG_OOB
+  3)MSG_MORE
+    It's used with TCP socket to achieve the same effect as the TCP_CORK option,with the difference that it provides corking of data on per-call basis
+    It can be also used with datagram sockets where it has a different meaning.Data transmitted in the successive send() or sendto() sepcifying MSG_MORE is packaged into a single datagram that is transmitted only when a further call is made that doesn't specify this flag
+    This flag has no effect on UNIX domain socket
+  4)MSG_NOSIGNAL
+    When sending data on a connected stream socket,don't generate SIGPIPE signal if the other end of the connection has been closed
+    Instead,send() call fails with error EPIPE
+    We can obtain the same behaviour by ignoring the SIGPIPE signal
+
+4.sendfile() sysCall
+  Apps such as web servers and file servers frequently need to transfer the unaltered contents of a disk file through the socket
+  One way is perfectly acceptable for many apps
+
+  while((n=read(diskfilefd,buf,BUF_SIZE)))
+    write(sockfd,buf,n);
+
+  But it't not inefficient if we transfer large files via a socket
+  We need two sysCalls:one to copy the file contents from kernel buffer cache into user space and the other copys the user-space buffer back to kernel space in order to te transmitted via the socket 
+  Such two-step process is wasteful if the app does't perform any processing of the disk file before transmitting it
+  sendfile() is designed to eliminate this inefficiency
+  File contents are transferred directly into the socket without passing through the user space
+
+  ssize_t sendfile(int out_fd,int in_fd,off_t* offset,size_t count)
+
+  out_fd must refer to a socket and in_fd must refer to a file to which the mmap() can be applied --> usually means the regular file 
+  We can use it pass data from file to a socket and not vice versa
+
+  off_t is value-result argument.On return it contains the offset of next byte following the last byte that was tranferred from in_fd
+  If off_t is NULL,then bytes are transferred from in_fd starting at the current file offset and is updated to reflect the number of bytes transferred
+  On success,sendfile() return the number of bytes actually transferred 
+
+5.Consider a web server delivering a page in response to a request by a web browser.
+  The response consists of two parts:HTTP headers,perhaps output using write(),followed by the page data,perhaps output using sendfile().
+   In this scenario,normally two TCP segments are transmitted:Headers and Page data
+   It's an inefficient use of network bandwidth
+   In fact,headers and page data may be small enough to fit inside a single TCP segment
+   TCP_CORK is desigened to address this inefficiency
+
+   When the TCP_CORK option is enabled on a TCP socket,all subsequent output is buffered into a single TCP segment until either the upper limit on the size of a segment is reached,the TCP_CORK is disabled,the socket is closed or a maximum time of 200 milliseconds passes from the time that the first corked byte is writeen
+
+   We enable and disable the TCP_CORK option using setsockopt()
+   Ex:
+   int optval;
+   //enable 
+   optval = 1;
+   setsockopt(sockfd,IPPROTO_TCP,TCP_CORK,sizeof(optval));
+
+   write(sockfd,...) //headers
+   sendfile(sockfd,...)//page data
+
+   //disable
+   optval = 0;
+   setsockopt(sockfd,IPPROTO_TCP,TCP_PORK,sizeof(optval))
+   
+   We could avoid the possibility of two segments being transmitted by building a single data buffer within our app and then transmit the buffer with a single write()
+
+   By using TCP_CORK we can combine the zero-copy efficiency of sendfile() with the possibility of including the header in the first segment of transmitted file data
+
+6.Retrieving Socket Address
+  int getsockname(int sockfd,struct sockaddr* addr,socklen* addrlen)
+  1)It returns a socket's address family and the address to which the socket is bound
+  2)addrlen
+    It's a value-result argumnet .Before the call it should be initialized to the length of the buffer pointed to by addr.
+    On return,it contains the number of bytes that actually are written into the buffer
+  3)It's useful when the socket was bound by another process and the socket fd was preserved across an exec()
+  4)It's also useful if we want to determine the ephemeral port number that the kernel assigned to a socket when performing an implict bind of Internet domain socket
+    The kernel performs the implict bind in the following circumstances
+    a.After a connect() or listen() call on a TCP socket that has not been previously been bound to an address by bind()
+    b.On the first sendto() on a UDP socket that has not been previsouly bound to an address
+    c.After a bind() call where the port number was specified as 0 --> kernel select an ephemeral port number
+
+    int getpeername(int sockfd,struct sockaddr* addr,socklen_t addrlen)
+    1)It returns the address of the peer socket on a stream socket connection
+    2)It's primarily useful with TCP sockets when server wants to find out the address of client that has made a connection
+      This information can be also obatined by accpet()
+      But if the server was execed by the process that did accept() and then it inherits the socket fd,but the address information returned by parent accept() is no longer avaliable
+
+7.Fields of TCP segments that are exhcanged between endpoints of a TCP connection
+  1)Soucre and Destination port number
+  2)Sequence number
+    It's the offset of the firts byte of data in this segment within the stream of data being transmitted in this direction over the connection
+  3)Acknowledgement number
+    If the ACK bit is set,then it contains the sequence number of the next byte of data that the receiver expects to receive from the sender
+  4)Header length
+    The header length is in units of 32-bits words
+    It's a 4-bit field,the total header length can be up to 60 bytes
+    It enables receiving TCP to determine the length of the variable-lenth options field and the starting point of the data
+  5)Reserved
+    4 unused bits.Set to 0
+  6)Control bits
+    8 bits
+    a.CWR -- congestion window reduced flag
+    b.ECE -- explcit congestion nofification echo flag 
+      CWR and ECE are used as part of TCP/IP's Explicit Congestion Notification algorithm
+
+    c.URG --> urgent pointer field
+    d.ACK --> acknowledgement number field
+    c.PSH
+      Push all received data to the receiving process
+    d.RST
+      Reset the connection
+      It's used to handle various error situations
+    e.SYN 
+      synchronize sequence number
+      Segments with this flag set are exchanged during connection establishment to allow two TCPs to specify the initial sequence number to be used for transferring data in each direction
+    f.FIN
+      Used by sender to indicate that it has finished sending data
+
+   7)Window Size
+     It's used when a receiver sends an ACK to indicate the number of bytes of data that the receiver has space to accept
+   
+   8)Checksum
+     It's 16-bit checksum covering both TCP header and TCP data
+
+  7)Urgent Pointer
+    If URG control bit is set,then it indicates the locaion of so-called urgent data within the stream of data being transmitted from sender to receiver
+
+  8)Options
+    It's a variable-lenth field containing options controlling the option of the TCP connetion
+  
+  9)Data
+
+8.Each byte that is transmitted over a TCP connection is assigned a sequence number by TCP
+  Each of two streams has its own sequence numbering
+  When a segment is transmitted ,it's sequence number is set ot the logical offset of the first byte of data in the segment within the stream of data
+  It allows receiving TCP to assemble the segments in correct order and to indicate which data was received when sending an acknowledgement to sender
+  When the sending TCP transmits a segment,it sets a timer.If an acknowledgement is not received before the timer expires,the segment is then retransmitted
+
+9.TCP state machine and State transition diagram
+  Maintaining a TCP connection requires the coordination of the TCPs at both ends of the connection
+  To reduce the complexity,a TCP endpoint is modeled as state machine
+  It means TCP can be in one of a fixed set of states and it moves from one state to another in response to events
+  TCP states
+  1)LISTEN
+    The TCP is waiting for a connection request from peer TCP   
+  2)SYN_SENT
+    The TCP has sent a SYN on behalf of an app performing an active open and it's waiting for a reply from the peer to complete the connection
+
+  3)SYN_RECY
+    The TCP,formerly in LISTEN,has received a SYN and responded with a SYN/ACK --> a segment with both SYN and ACK and it's waiting for an ACK from the peer to complete the connection 
+
+  4)ESTABLISHED
+    Establishment of the connection to peer TCP has completed.
+    Data segments can now be exchanged in either direction between two TCPs
+
+  5)FIN_WAIT1
+    The app has closed the connection
+    The TCP has sent a FIN to its peer TCP in order to terminate its side of connection and is waiting for an ACK from the peer
+  
+  6)FIN_WAIT2
+    The TCP,formerly in FIN_WAIT1, has received an ACK from its peer
+
+  7)CLOSING
+    The TCP,formerly in FIN_WAIT1,instead has received a FIN from its peer indicating that the peer simultaneously tried to perform an active close
+
+  8)TIME_WAIT
+    Having done an active close, the TCP received a FIN,indicating the peer TCP has performed a passive close
+    Now this TCP spends a fixed period of time in TIME_WAIT state,in order to ensure reliable termination and to ensure that any duplicate segments in the network expire before a new incarnation of the same connection is created
+
+  9)CLOSE_WAIT
+    This TCP has received a FIN a from its peer TCP
+  10)LAST_ACK
+     The app peformered a passive close,and the TCP,formerly in CLOSE_WAIT,sent a FIN to it's peer TCP and is waiting for to be acknowledged
+     When the ACK is received,the connection is closed and associated kernel resources are freed
+
+10.TCP connection establishment
+   At the sockets API level,two stream sockets are connected via following steps:
+   1)server calls listen() to perform a passive open of a socket,and calls accept() which blocks until a connection is established
+   2)client calls connect() to perform a active open of a socket in order to establish a connection with server's passive socket
+
+   Steps performed by TCP to establish a connetion
+   1)The connect() causes client TCP to send a SYN segment to server TCP
+     This segment informs server TCP of the client TCP's initial sequence number
+   
+   2)The server TCP must both acknowledge the client TCP's SYN and inform the client TCP's of its own initial sequence number
+     Both operations can be performed by returning a single segment with both SYN and ACK
+     We can cay ACK is piggybacked on the SYN
+   
+   3)The client TCP sends ACK segment to acknowledge server TCP's SYN
+   The SYN consumes a byte of sequence-number space for the connection
+
+11.TCP connetion termination
+   Closing a TCP connetion normally occurs in the following manner
+   1)An app on one end of the connection calls close() --> This app is performing an active close 
+   2)Later the app on the other end of the connection also calls close() --> passive close 
+
+   We assume that the client does the active close and here are the steps performed by TCP
+   1)Client TCP sends a FIN to server TCP
+   2)After the receipt of the FIN,the server TCP responds with an ACK.
+     Any subsequent attempt by server to read() from the socket yields end-of-file
+   3)When later server TCP close its connetion,it sends FIN to client TCP
+   4)The client TCP responds with an ACK to acnowledge the server TCP's FIN
+   As with SYN,FIN consumes a byte of sequence-number space
+
+11.Calling shutdown() on a TCP socket
+   full-duplex close:an app closes both the sending and receiving channels of TCP socket using close()
+   We can use shutdown to just close one channel of the TCP connection
+   Specifying the how as SHUT_WR or SHUT_RDWR initiates the TCP termination sequence regardless of whether there are other fds referring to the socket
+   Once the sequence has been initiated,the local TCP moves to FIN_WAIT1 state and then into FIN_WAIT2 state while the peer TCP moves to CLOSE_WAIT state
+   If how is specified as SHUT_WR,since the socket fd remains valid and the reading half of the connetion remains open,the peer can continue to send data back to us
+   SHUT_RD operation can't be meaningfully used with TCP socket
+   Because the effect of SHUT_RD varies across implementations
+
+12.The TIME_WAIT state
+   TCP performing an active close goes through this state
+   The TIME_WAIT state differs from the other state in that the event that causes the transition out of this state to CLOSED is a timeout
+   Timeout has a duration of 2MSL
+   MSL:maximum segment lifetimein the network
+
+   It exits to serve two purposes
+   1)To implement reliable connection termination
+     Four segments are exchanged during the termination of TCP connetion
+     The last of these is an ACK sent from the TCP performing the active close to TCP performing the passive close
+     If the last ACK gets lost,then passive TCP will eventually retransmits its FIN
+     Having the active TCP in TIME_WAITE state for a fixed period ensures that it is avaliable to resend the ACK in this case
+     If the active TCP doesn't exist,then since it has no state information,the protocol would respond to the resent FIN by sending an RST segment to the passive TCP and this RST would be interpreted as an error
+     This explains why the duration of TIME_WAIT state is 2MSL:one for the final ACK toe reach the peer TCP,plus a furthur MSL in case a furthur FIN must be sent
+
+   2)To allow expiration of old duplicate segments in the network so that they won't be accepted by the new incarnation of the connetion
+     Duplicate segments may be generated,and that,depending on the routing decisions,these duplicates could arrive after the connection has been closed
+     
+     New incarnation of the connection:The former connection has closed and later a new connection is established using exactly the same IP address and ports
+
+     In this case TCP must ensure no segments from the old incarnation are accepted  as valid data in new incarnation 
+
+     It is done by preventing a new incarnation from being established while there is an existing TCP in the TIME_WAIT state on one of the endpoints
+
+13.Monitoring Sockets:netstat
+   It displays the state of Internet and UNIX domain sockets on a system
+   It's a useful debugging tool when writing socket apps
+   Options for netstat cmd
+   -a : all sockets
+   -e : extended informaion .include userID of socket owner
+   -c : continuously display.(each second)
+   -l : listening socket
+   -n : numerical form
+   -p : process ID and name of program
+   --inet : internet domain sockets
+   --tcp  : Internet domain TCP sockets
+   --udp  : Internet domain UDP sockets
+   --unix : UNIX domain sockets
+   
+   Some fields for internet domain socket 
+   1)Recv-Q
+     It's the number of bytes in the socket receive buffer that are as yet unread by local app
+   2)Send-Q
+     It's the number of bytes queued for transmission in socket send buffer
+   
+   For UDP sockets,above fields include UDP headers and metadata
+   3)Local address
+     An asterisk(*) in the host part means wildcard address
+   4)Foreign address
+     The address of peer socket to which the socket is bound 
+
+14.Using tcpdump to monitor TCP traffic
+   It's possible to select packet to be monitored by protocol type,port number,IP address 
+   Ex:
+   tcpdump -t -N "port 55555"
+   For each TCP segment,tcpdump displays a line of the following form
+
+src>dest:flags data-seqno ack window urg<options>
+   
+   flags:letters corresponding to TCP control bits
+   S-SYN F-FIN P-PSH R-RST E-ECE C-CWR
+
+   data-seqno:It's the range of sequence-number space covered by bytes in this packet
+
+   ack:It's a string of the form "ack num" indicating the sequence number of next byte expected from the other direction on this connection
+
+   window:It's a string of the form "win num" indicatin the number of bytes of the receive buffer space avaliable for transmission in the opposite direction on the connection
+
+   urg:It's a string of the form "urg num" indicating this segment has urgent data the specified offset within the segment
+
+15.Socket Options
+   They affect various features of the opration of the socket
+   Funcs provided for setting and retriving socket options
+   int getsockopt(int sockfd,int level,int optname,void* optval,socklen_t* optlen)
+
+   int setsockopt(int sockfd,int level,int optname,const void* optval,socklen_t* optlen)
+
+   1)level
+     Specify the protocol to which the socket option applies.Ex:IP or TCP
+     SOL_SOCKET means option that applies at sockets API level
+   
+   2)optname
+     It identifies the option whose value we wish to retrive or set
+   3)optval
+     It's a pointer to a buffer that specifies or return hte option value
+   
+   The socket fd returned by a call to accept() inherits the values of settable socket options from the listening socket
+
+   Socket options are associated with open file description
+   It means fds duplicated by dup() or fork() share the same set of socket options
+
+   Ex: SO_TYPE option is used to find out the type of the socket
+   int optval;
+   socklen_t optlen = sizeof(optval);
+   if(getsockopt(sfd,SOL_SOCKET,SO_TYPE,&optval,&optlen)== -1) 
+     errExit("getsockopt");
+   optval contains the socket type:SOCK_STRAM or SOCK_DGRAM
+
+16.SO_REUSEADDR socket option
+   When a TCP server is restarted and tries to bind the socket to a port that currently has an associated TCP,we will fail with error=EADDRINUSE
+   It occurs in the following scenarios 
+   1)A previous invocation of server that was connected to a client performed an active close,either by close() or by crashing.
+     This leaves a TCP endpoint remain TIME_WAIT state until the 2MSL timeout expires
+   
+   2)A previous invocation of server created a child process to handler a connection to a client
+     Later the server terminated while the child continue to serve the client,and thus maintain a TCP endpoint using the server's well-known port
+    In both scenarios,the outstanding TCP endpoint is unable to accept new connection
+
+   By default,most TCP implementations prevent a new listening socket being bound to a server's well-known port
+
+   The EADDRINUSE error usually doesn't occur with clients,since they typically use an ephemeral port 
+   It the client bound to a specific port,then it may also encounter this error
+
+   Each time we accept a socket connetion on a listening socket,a new socket is created 
+   As these sockets are associated with some local address as the listening socket
+   The only way to distinguish them is via their connections to different peer sockets
+   A connected TCP socket is distinguished by a 4-tuple
+local-IP-address,local-port,foreign-IP-address,foreign-port
+   
+   A tcp specification requires such tuple be unique
+   Thus only one corresponding connection incarnation can exist
+   But most implementation enfores a stricter constraint:port can't be reused 
+   Enabling SO_REUSEADDR socket option relaxes this constraint,bringing it closer to TCP specification --> make the port can be reused
+
+   We enable this option by giving it a nonzero value before binding a socket
+   
+   Ex:
+   int sockFd = socket(AF_INET,SOCK_STREAM,0);
+   if(sockFd == -1)
+     errExit("socket");
+   int optval = 1;
+   if(setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&optval) == -1)
+     errExit("socket");
+   
+   if(bind(sockfd,&addr,addrlen) == -1)
+     errExit("bind");
+   if(listen(sockfd,backlog)== -1)
+     errExit("listen");
+
+17.Inheritance of flags and options across accept()
+   Normally the following attributes are not inherited by fd returned by accept()
+   1)The status flags associated with a opne file description.Such as O_NONBLOCK and O_ASYNC.They can be set by fcntl() F_SETFL option
+   2)The close-on-exec flag which can be altered by fcntl() F_SETFL option
+   3)The fcntl() F_SETOWN and F_SETSIG fd attributes associated with siganl-driven I/O
+
+   The new fd returned by accept() inherits a copy of most of socket options that can be set using setsockopt()
+
+18.Some points that lead us to choose UDP over TCP
+   1)A UDP server can receive datagrams from multiple clients without needing to create and terminate the connection
+     Transmission of single message using UDP has lower overhead than is required when using TCP
+   
+   2)For simple request-response communication,UDP can be faster than TCP
+     In the best-case scenario,the time using TCP is 
+     2*RTT + SPT
+     RTT:round-trip time.the time required to send and receive a response
+     SPT:time spent by server processing the requirests
+     
+     For UDP,the best-case scenario for a single request-response communication is 
+     RTT + SPT
+     This is one RTT less than the time required for TCP
+     
+     Since the RTT between hosts separated by large distance or many intervening routers is typically several tength of a second,this can make UDP attractive for some single request-response communication
+     DNS server is an app that uses UPD,which allows the name lookup to be performered by a single packet in each direction between servers
+
+    3)UDP sockets permit broadcasting and multicasting
+      Broadcasting allows a sender to transmit a datagram to the same destination port on all the hosts connected to the network
+      Multicasting is similar,but allows datagram to be transmitted to a specific set of hosts
+
+    4)Certain types of app(streaming vedio and audio transmission) can function acceptably without the reliablity provided by TCP
+      A delay in the streaming media transmission may be worse than a brief loss of the transmission stream
+
+    An app that uses UDP,but neverthless requires reliability,must implement the reliability features itself
+    This requires at least sequence numbers,acknowledgements,retransmission of lost packets and duplicate detection
+
+19.Out-of-band data
+   It's a feature of stream sockets that allows a sender to mark transmitted data as high priority
+   The revceiver can obtain the notification of avaliablity of out-of-band data without reading all of the intervening data in the stream 
+   This feature is used in programs such as telnet,ftp to make it possible to abort the previously transmitted CMDs
+   out-of-band data is sent and received using the MSG_OOB flag in send() and recv()
+   When a socket receives the avaliablity of the out-of-band data,the kernel generates the SIGURG signal for the socket owner
+
+   When employed with TCP sockets,at most 1 byte of data can be marked as being out-of-band data at any one time
+   If the sender transmits an additionaly byte of out-of-band data before the receiver has processed the previsou byte,then the indication for earlier byte is lost
+
+   TCP indicates the presence of urgent data(out-of-band data) by setting URG bit in TCP header and setting the urgent data pointer point to the urgent data
+   However,TCP has no way of indicating the length of the urgent data sequence,so the urgent data is considered to consist of single byte
+
+20.The sendmsg() and recvmsg() are the most general purpose of socket I/O sysCalls
+   The sendmsg() can do everything that is done by write(),send() and sendto()
+   The recvmsg() can do everything that is done by read(),recv() and recvfrom()
+   They also provide the following:
+   1)Perform scatter-gather IO as with readv() and recv()
+     When we use sendmsg() to perform gather output on  datagram socket,a single datagram is created
+   
+   2)We can transmit messages containing domain-specific ancillary data
+     Ancillary data can be passed via both stream and datagram sockets
+
+     recvmmsg() is similar to recvmsg() but allows multiple datagrams to be received in a single sysCalls
+     It can reduce the sysCall's overhead in apps that deal with high level of network traffic
+
+21.Ancillary data Exs
+   1)Passing fds
+     Using sendmsg() and recvmsg(),we can pass ancillary data containing fds from one process to another noe on the same host via UNIX domain socket
+     A master server can accept client connection on a TCP listening socket and passes the fd to one member of the server pool which can then handle the client request
+     What is really passes between two processes is a referrence to the same open file description
+     The fd number employed in receiving process is typically different from the one in sender
+    
+    2)Receiving sender credentials via a UNIX domain socket
+      Credential consist of the userID,groupID,and the processID of the sending process
+
+22.Sequenced-packet socket
+   It combines of both stream and datagram sockets
+   1)Like stream socket,it's connection-oritented
+     Connetion is established in the same way as for stram sockets.Using bind(),listen(),accept() and connect()
+   
+   2)Like datagram sockets,message boundaries are preserved
+     A read() from the sequenced-packet socket returns exactly one message
+     Once the message is longer than the buffer provided by the caller,the excess data are discarded
+
+    3)It's reliable.
+      Messages are delivered to the peer app error-free,in-order,unduplicated and they are guranteed to arrive
+
+    A sequenced-packet is created by socket() with the type argument specified as SOCK_SEQPACKET
+
+22.SCTP and DDCP Transport-layer protocols
+   In pdf 1286

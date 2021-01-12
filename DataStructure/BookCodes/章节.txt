@@ -1,0 +1,41 @@
+Chapter 1          C++ Review 
+
+Chapter 2          Performance Analysis 
+
+Chapter 3          Asymptotic Notation 
+
+Chapter 4          Performance Measurement 
+
+Chapter 5          Linear Lists--Array Representation 
+
+Chapter 6          Linear Lists--Linked Representation 
+
+Chapter 7          Arrays and Matrices 
+
+Chapter 8          Stacks 
+
+Chapter 9          Queues 
+
+Chapter 10        Skip Lists and Hashing 
+
+Chapter 11        Binary and Other Trees 
+
+Chapter 12        Priority Queues 
+
+Chapter 13        Tournament Trees 
+
+Chapter 14        Binary Search Trees 
+
+Chapter 15        Balanced Search Trees 
+
+Chapter 16        Graphs 
+
+Chapter 17        The Greedy Method 
+
+Chapter 18        Divide and Conquer 
+
+Chapter 19        Dynamic Programming 
+
+Chapter 20        Backtracking 
+
+Chapter 21        Branch and Bound 

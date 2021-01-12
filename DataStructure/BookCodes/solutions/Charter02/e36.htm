@@ -1,0 +1,54 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 36<BR>
+<BR>
+</H1>
+(a)
+<pre class=var>
+t(n) = 2 + t(n-1)
+     = 4 + t(n-2)
+     = 6 + t(n-3)
+     .
+     .
+     .
+     = 2n + t(0)
+     = 2n + 2
+     = 2(n+1)
+</pre>
+
+<br><br>
+(c)
+<pre class=var>
+t(n) = 2n + t(n-1)
+     = 2n + 2(n-1) + t(n-2)
+     = 2n + 2(n-1) + 2(n-2) + t(n-3)
+     .
+     .
+     .
+     = 2(n + n-1 + n-2 + ... + 1) + t(0)
+     = 2n(n+1)/2 + 0
+     = n(n+1)
+</pre>
+
+<br><br>
+(e)
+<br>
+<pre class=var>
+t(n) = 3 * t(n-1)
+     = 9 * t(n-2)
+     = 27 * t(n-3)
+     .
+     .
+     .
+     = 3<sup>n</sup> * t(0)
+     = 3<sup>n</sup>
+</pre>
+</FONT>
+</BODY>
+</HTML>

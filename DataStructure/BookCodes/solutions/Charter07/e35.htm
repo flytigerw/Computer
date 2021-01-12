@@ -1,0 +1,118 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 7, Exercise 35<BR>
+<BR>
+</H1>
+<dl compact>
+<dt> (a)
+<dd>
+A sample antidiagonal matrix is given below:
+<br><br><code class=math>
+0 0 0 1<br>
+0 0 3 0<br>
+0 0 0 0<br>
+6 0 0 0<br>
+</code><br><br>
+<dt> (b)
+<dd>
+In an antidiagonal matrix there can be at most one nonzero
+entry in each row; for row <code class=var>i</code>, this
+nonzero entry is in column <code class=var>n+1-i</code>.  Therefore,
+an <code class=var>n x n</code> antidiagonal matrix can have at most
+<code class=var>n</code> nonzero entries.
+A test program and output appear in the files
+<code class=code>AntidiagonalMatrix.*</code>.
+<br><br>
+<dt> (c)
+<dd>
+We can put the antidiagonal element <code class=var>M(i, n+1-j)</code>
+in position <code class=var>i-1</code> of a one-dimensional array.
+<br><br>
+<!--
+<dt> (d)
+<dd>
+The code for the class is given below.
+<HR class = coderule>
+<PRE class = code>
+public class AntidiagonalMatrix
+{
+   // data members
+   int rows;            // matrix dimension
+   int rowsPlus1;       // rows + 1
+   Object zero;         // zero element
+   Object [] element;   // element array
+
+   // constructor
+   public AntidiagonalMatrix(int theRows, Object theZero)
+   {
+      // validate theRows
+      if (theRows &lt; 1)
+         throw new IllegalArgumentException
+               ("number of rows must be &gt; 0");
+   
+      // create and initialize the matrix
+      rows = theRows;
+      zero = theZero;
+      rowsPlus1 = rows + 1;
+      element = new Object [rows];
+      for (int i = 0; i &lt; rows; i++)
+         element[i] = zero;
+   }
+   
+   // methods
+   /** throws IndexOutOfBoundsException when i &lt; 1
+     * or j &lt; 1 or i &gt; rows or j &gt; rows */
+   void checkIndex(int i, int j)
+   {
+      if (i &lt; 1 || j &lt; 1 || i &gt; rows || j &gt; rows)
+         throw new IndexOutOfBoundsException
+                   ("i = " + i + " j = " + j +
+                    " rows = " + rows + " cols = " + rows);
+   }
+
+   /** return the element this(i,j)
+     * throws IndexOutOfBoundsException when i or j invalid */
+   public Object get(int i, int j)
+   {
+      checkIndex(i, j);
+
+      // determine element to return
+      if (i + j == rowsPlus1)
+         return element[i - 1];  // antidiagonal element
+      else return zero;          // nonantidiagonal element
+   }
+   
+   /** set this(i,j) = newValue
+     * throws IndexOutOfBoundsException when i or j invalid */
+   public void set(int i, int j, Object newValue)
+   {
+      checkIndex(i, j);
+
+      if (i + j == rowsPlus1)
+         // save the antidiagonal element
+         element[i - 1] = newValue;
+      else
+         // newValue should be zero
+         if (!((Zero) newValue).equalsZero())
+            throw new IllegalArgumentException
+                  ("nonantidiagonal elements must be zero");
+   }
+}
+</pre>
+<HR class=coderule><BR><br>
+<dt>(e)
+<dd>
+The complexity of each statement of the store and retrieve methods
+is <code class=var>O(1)</code>.  Since neither of these methods has
+a loop in it, the complexity of each method is also
+<code class=var>O(1)</code>.
+--!>
+
+</FONT>
+</BODY>
+</HTML>

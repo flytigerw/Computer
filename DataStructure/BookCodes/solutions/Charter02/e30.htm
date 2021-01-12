@@ -1,0 +1,89 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 2, Exercise 30<BR>
+<BR>
+</H1>
+<code class=code>
+Exercise 30(a) Part (d)
+</code><br>
+The best-case step count for <code class=code>n &gt;= 0</code> is as below.
+<pre class=table>
+________________________________________________________________________
+Statement                       s/e       Frequency          Total Steps
+________________________________________________________________________
+int indexOfMax(...)              0                0                    0
+{                                0                0                    0
+   if (n <= 0)                   1                1                    1
+      throw ...                  1                0                    0
+
+   int indexOfMax = 0;           1                1                    1
+   for (int i = 1; i < n; i++)   1                n                    n
+      if (a[indexOfMax] < a[i])  1              n-1                  n-1
+         indexOfMax = i;         1                0                    0
+   return indexOfMax;            1                1                    1
+}                                0                0                    0
+________________________________________________________________________
+Total                                                             2n + 2
+________________________________________________________________________
+</pre>
+<br><br>
+The worst-case step count for <code class=code>n &gt;= 0</code> is as below.
+<pre class=table>
+________________________________________________________________________
+Statement                       s/e       Frequency          Total Steps
+________________________________________________________________________
+int indexOfMax(...)              0                0                    0
+{                                0                0                    0
+   if (n <= 0)                   1                1                    1
+      throw ...                  1                0                    0
+
+   int indexOfMax = 0;           1                1                    1
+   for (int i = 1; i < n; i++)   1                n                    n
+      if (a[indexOfMax] < a[i])  1              n-1                  n-1
+         indexOfMax = i;         1              n-1                  n-1
+   return indexOfMax;            1                1                    1
+}                                0                0                    0
+________________________________________________________________________
+Total                                                             3n + 1
+________________________________________________________________________
+</pre>
+<br><br><br>
+<code class=code>
+Exercise 30(k) Part (d)
+</code><br>
+To simplify the analysis, count the <code class=code>if</code>-<code class=code>else</code> as a single step.
+When <em class=math>n = 1</em>,
+the outer <code class=code>for</code> loop is not entered and the best- and worst-case
+step counts are 2.
+Best- and worst-case counts for <em class=math>n &gt; 1</em>
+are computed below.
+<pre class=table>
+_________________________________________________________________________________________
+Statement                                  s/e            Frequency           Total Steps
+_________________________________________________________________________________________
+void selectionSort(...)                      0                    0                     0
+{                                            0                    0                     0
+   bool    sorted = false;                   1                    1                     1
+   for (int size = n; ...)                   1                 2, n                  2, n
+   {                                         0                    0                     0
+      int indexOfMax = 0;                    1             1, n - 1              1, n - 1
+      sorted = true;                         1             1, n - 1              1, n - 1
+      // find largest                        0                    0                     0
+      for (int i = 1; i < size; i++)         1    n, n(n + 1)/2 - 1      n, n(n + 1)/2 - 1
+         if (...) indexOfMax = i;            1    n - 1, n(n - 1)/2      n - 1, n(n - 1)/2
+         else sorted = false; // out of order
+     swap(a, pos, size - 1);                 1             1, n - 1               1, n - 1
+   }                                         0                    0                      0
+}                                            0                    0                      0
+__________________________________________________________________________________________
+Total                                                                  2n + 5, n<sup>2</sup>  + 4n - 3
+__________________________________________________________________________________________
+</pre>
+</FONT>
+</BODY>
+</HTML>

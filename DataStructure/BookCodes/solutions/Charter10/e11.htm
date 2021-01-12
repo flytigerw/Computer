@@ -1,0 +1,31 @@
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 10, Exercise 11<BR>
+<BR>
+</H1>
+
+Each <code class=code>char</code>, in C++, is <code class=var>8</code> bits.
+Therefore, the two left shifts and adds of Program 10.13 essentially
+concatenate the binary representations of the rightmost three characters of
+<code class=code>s</code>.
+Further, since a <code class=code>long</code> is <code class=var>32</code>
+bits and the concatenation of the three characters affects only the
+least significant <code class=var>3 * 8 = 24</code> bits of
+<code class=code>answer</code>, no bits are lost during the left shifts
+and there is no overflow during the adds. Therefore, at the end,
+the least significant <code class=var>24</code> bits of
+<code class=code>answer</code> faithfully represent the concatenation
+of the <code class=var>8</code> bits in each of the three characters
+of the input string <code class=code>s</code>.
+Consequently, different three-character strings
+<code class=code>u</code> and <code class=code>v</code>
+are converted into different numbers.
+</FONT>
+</BODY>
+</HTML>

@@ -1,0 +1,304 @@
+
+1.A device special file corresponds to device on the system
+  Each device type has a corresponding device driver,whihc handles all I/O requests for the device
+  A device driver is a unit of kernel code that implements a set of operations that correspond to input and outout operations on an associated device 
+  Each device driver provides a consistent interface,hiding the difference in operation of individual devices
+  Some devices are real such as mice,disks ...
+  Some are virtual,meaning that there is no corresponding hardware.But kernel provides an abstract device with the API that is the same as real
+
+  Devices can be devided to two types
+  1)Character devices
+    Handle data on character-by-character basis
+    Terminals and KeyBoards
+  2)Block devices
+    Hanld data on block at a time
+    The size of block depends on the type of device,but is typically some multiple of 512bytes
+    Disks and Tape disk
+  
+  Device files appear under the /dev 
+  The superuser can use mknod to create a device file
+  In earlier versions of Linux,/dev contained entries for all possible devices on the system,even if such devices were not actually connected to system
+  It means /dev can contain literally thousands of unused entries,slowing the task of program that needs to scan the contents of the dir and making it impossible to use the contents of the dir to find which devices are present on the system
+  Now these problems are solved by udev program which relies on sysfs file system that exports information about devices and kernle objects into user space via a pseduo-file system mounted under /sys
+ 
+  Each device file has a major ID and minor ID
+  Major ID identifies the general class of device and is used by kernel to find appropriate device driver for this type of device
+  The minor ID uniquely identifies a particular device within a general class 
+  Each device driver register its associtation with a specific major device ID and this connection provides an connection between device special file with device driver
+  The name of device file has no relevance when the kernel looks up for the device driver
+
+2.Regular files and dirs typically reside on hard disk, but can also reside on CD-ROMS,flash memory card,virtual disks
+  A hard disk drive is a mechanical device consisting of one or more platters that rotate at high speed
+  Magnetically encoded information on the disk surface is retrieved or modified by read/wirte heads that move radially across the disk
+  Information on the disk surface is located on the concentric circles called tracks
+  Tracks are devided into sectors,each of which consists of a series of blocks which are typically 512 bytes and represent the smallest unit of information that drive can read or write
+  Although moden disks are fast,reading and writing information on the disk takes signigicant time
+  Three steps to access disk
+   1)The disk head must first move to the appropriate track --> seek time
+   2)Then the drive must wait until the appropriate sector rotates under the head --> rotationaly latency
+   3)Finally the required block must be transferred  ---> transferred time
+  The total time is typically of the order of the millseconds during which modern CPU can execute millions of instructions
+
+  Each disk is deviced into one or more partitions
+  Each partition is treated by kernel as a separate device residing under /dev
+  The system administor determines the number,type and size of partitions on a disk using fdisk
+  fdisk -l lists all partitions on a disk
+  A disk partition typically holds one of the three types of information
+   1)File System
+     Regular files and dirs
+   2)Data Area
+     Raw-mode device
+     Some DBMS use this technique
+   3)Swap Area
+     It's used by kernel for memory management
+     A swap area is created using mkswap cmd 
+     A privileged process can use swapopen() sysCall to notify the kernel that a disk partition is to be used as a swap area
+     swapoff() performs the converse function
+  Linux-specific /proc/partitions lists the major and minor device number,size and name of each disk partition on the system
+
+3.A file system is an organized collection of regular files and dirs
+  It's created by mkfs cmd
+  Linux supports a wide variety of file systems
+  The file system types currently known by kernel can be viewed in /proc/filesystems
+  ext2 file system structure can be seen in pdf 255
+
+4.Each file in the file system corresponds to an inode
+  The information maintained in the inode includes the following
+   1)File type
+     Regular file,dir,symbolic link,character device ....
+   2)Owner,Group for the file
+   3)Access for three catgories of user:owner,group and other
+   4)Three timestamps ---> atime,mtime,ctime
+   5)Number of hard links to file
+   6)Size of the file
+   7)Number of blocks actually allocated to the file,measured in units of 512-byte blocks
+     There may not be a simple correspondence between this number and the size of file in bytes,since a file can contain holes and thus require fewer allocated blocks than woule be expected according to its normal size in bytes
+   8)Pointers to data blocks of the files
+
+5.The ext2 file system doesn't store the data blocks of a file contiguously or even in sequential order
+  To locate the file blocks,the kernel maintains a set of block pointers in the inode
+  There are four types of data block pointers and more can be seen in pdf 257
+  This design satisfies a set of requirements
+   1)It allows inode structure to be at fixed size,while at the same time allowing for files of arbitrary size
+   2)It allows file system to store file data blocks uncontiguously while also allowing the file data to be accessed randomly via lseek() ---> the kernel just needs to calculate which pointer to follow
+   3)For small files,which form overwhelming majority of the files on most system,this scheme allows data to be accessed rapidly via direct pointer of the inode
+   4)It also allows for enormous file size
+
+6.Each of the file system differs in details in its implementation
+  Such differences include,for example,the way in which file blocks are located and the manner in which the dirs are organized
+  The virtual file system(VFS) is a kernel feature that shields the differences from users by creating an abstraction layer for file-system operations
+  Key ideas:
+   1)The VFS defines a generic interface for file-system operations
+     All programs that works with files specify their operations in terms of this generic interface
+   2)Each file system provides an implementation for the VFS interface
+  Under this scheme,programs need to understand only the VFS interface and can ignore details of individual file-system implementation 
+  The interface inludes operations:open(),read(),write(),stat(),and more can be seen in pdf 259
+  If the underlying file-system doesn't support a particular operation,then it passes an error back to VFS layer indicating the lack of support,and the VFS in turn passes the error back to the app
+
+7.Journaling file system
+  The ext2 is a good example of traditional UNIX file system and suffers a classic limitation of such file system:After a system crash,the file-system consistency check must be performed on reboot in order to ensure the integrity of the file system
+  This is necessary,because at the time of system crash,the file update may have partially completed and the file meta data(Dir entries,inode info,file data block pointers) may be in an inconsistent state
+  The file-system may be furthur damaged if the inconsistencies are not repaired
+  The problem is that the consistency checks require examining the entire system
+  For large file-system,this may require several hours
+
+  Journaling file system eliminates the need for lengthy file-system consistency check after a system crash
+  It logs all meta updates to a specail disk journal file before they are actullay carried out
+  The updates are logged in groups of related medata updates
+  In the event of system crash in the middle of a transaction,the logs can be used rapidly redo any incomplete updates and bring the file system to a consistent state
+  Like database,a journaling file system ensures that the file metadata transactions are committed as a complete unit
+  Large file system can be repaired within seconds after as crash
+  The most notable disadvantage of journaling system is that it adds time to file updates
+  Instances of journaling system can be see in pdf 260
+
+8.All files from all dirs reside under a single dir tree
+  A file-system can be mounted under a dir using mount cmd and unmounted using umount by superuser
+  Ex: mount device(file-system named device) dir(mount point)
+      unmount device
+  It's possible to change where a file-system is located
+  
+  The kernel supports per-process mount namespaces
+  It means each process potentially has its own set of file-system mount points and thus may see a different single dir tree from other processes
+  /proc/PID/mounts files list the mount points constituting the mount namespace 
+
+  We can use cmd mount with no option to list the currently mounted file systems
+  Priviledged process can also use mount() and unmount() sysCalls to mount and unmount file systems
+
+  Three files that contain information about file-systems that are currently mounted or can be mounted
+   a./proc/mounts 
+     It contains a list of currently mounted file-systems
+     It's just a symbol link to /proc/self/mounts
+  b./etc/mstab
+    It contains information similar to /proc/mounts but slightly more detailed
+    It includes file system-specific options that are not included in /etc/mounts 
+    CMD mount and unmount automatically maintain the file /etc/mtab
+    But sysCalls mount() and unmount() don't update this file
+  c./etc/fstab 
+    It contains descriptions about all of the available file systems on a system
+    It's maintained manually by system administrator and is used by mount,unmount,fsck cmds
+    Every lines include the following fields
+     a.The name or the UUID of the mounted devices
+     b.The mount point
+     c.The file-system type
+     d.Mount flags
+       Ex:rw ---> read and write
+     e.A number used to control the operation of file-system backups by dump()
+     f.A number used to control the order in which fsck() check file systems at system boot
+
+9.int mount(const char* source,const char* target,const char* fstype,unsigned long mountflags,const void* data)
+  It mounts a file system contained on the device specified by source under the dir specified by target and can do more work than this
+  1)data
+    It's pointer to a buffer of information whose interpretation depends on the file system
+    For most file-system types,it's string containing comma-separated options settings
+    A full list of these options can be found in the mount() manual pages
+
+  2)Flags
+    a.MS_BIND
+      It creates a bind mount
+    If it's specified,then the fstype,other mountflags and data arguments are ignored
+
+  3)MS_DIRSYNC 
+    It makes dir update synchronously
+    It's similar to the effect of open() O_SYNC flag,but applies to only dir updates
+    It allows an app to ensure dir updates(open(O_CREAT,),rename(),link()....)  are synchronized without incurring the expense of synchronizing all file updates
+    The FD_DIRSYNC_FL serves a similar purpose to MS_DIRSYNC with the difference that FD_DIRSYNC_FL can be applied to individual dirs
+    Calling fsync() on a fd that refers to a dir also provides a means of synchronizing dir updates on per-dir basis
+  
+  4)MS_MANDLOCK
+    It permits mandatory record locking on files in this system 
+
+  5)MS_MOVE
+    Automatically move the existing mount point specified by source to a new point specified by target
+    It corresponds to --move option
+    This is equivalent to unmounting a subtree and then immediately remounting at a different location
+    If it's specified,then the fstype,other mountflags and data arguments are ignored
+
+  6)MS_NOATIME
+    Don't update last access time for files in this file system
+    The purpose of this flag is to eliminate the extra access to disk to update the file inode each time a file is accessed
+    In some apps,maintaining this timestamp is not critical and avoid doing so can significantly improve performance
+    FS_NOATIME_FL serves a similar purpose to MS_NOATIME with the difference that FS_NOATIME_FL can be applied to a sinle files
+    O_NOATIME open() flag provides similar functionality for individual open files
+  
+  7)MS_NODEV
+    Don't allow access to block and character devices on this file system
+    This is a security feature designed to prevent users from inserting a removable disk containing device special files that would allow arbitrary access to the system
+   
+   8)MS_NODIRATIME
+     Don't update the last access time for dirs on this file system 
+   
+   9)MS_NOEXEC
+     Don't allow programs to be executed from this file system
+   
+   10)MS_NOSUID
+      Disable set-user-ID and set-group-ID programs on this file system
+   
+   11)MS_RDONLY
+      Mount this file system read-only,so that no new files can be created and no existing file can be modified
+   
+   12)MS_REC
+     It's used in conjunction with other flags to recursively apply the mount action to all of the mounts in a subtree
+   13)MS_RELATIME
+      Update the last access timestamp only if the current setting of this timestamp is <= either last modification or last status change timestamp 
+      It's useful for programs that need to know if a file has been read since it was updated
+      The last atime is always updated if its current value is more than 24 hours in the past even if it's > mtime and ctime
+   
+   14)MS_REMOUNT
+      Alter the mountflags and data for a file system that is already mounted
+      Ex:To make a read-only file system to be writable
+      The soure and target arguments should be the same and fstype argument is ingored
+      This flag avoid the needs to unmount and remount the disk which may not be possible in some cases
+      Ex:We can't unmount file system if any process has files open on or its working dir is located within it
+         tmpfs file system can't be unmounted without losing their contents
+      Not all mountflags are modifiable.
+      See the mount manual pages for details
+
+   15)MS_SYNCHRNOUS
+      Make all file and dir updates on this file system synchronous
+   
+   Linux provides four new flags to support the notation of shared subtrees
+   MS_PRIVATE,MS_SHARED,MS_SLAVE,MS_UNBINDABLE
+   These flags can be used in conjunction with MS_REC to propagate their effects to all of the submounts under a mount tree
+   Share subtree can be used for per-process namespace nad Filesystem in Userspace facility(FUSE)
+   An Ex using mount can be seen in pdf 268
+
+10.int umount(const chat* target)
+   It unmounts a file system specified by target ---> mount point
+   It's not possible to unmount a FS that is busy ---> There are any open files on the FS or a process's current working dir in the FS
+   
+   int umount2(const char* target,int flags)
+   It allows finer control over the unmount operation via flags
+   1)MNT_DETACH
+     Perform a lazy unmount
+     The mount point is marked so that no process can make new access to it but processes that are already using it can continue to do so
+     The FS is actually unmounted when all processes cease using it
+
+   2)MNT_EXPIRE
+     Mark the mount point as expired
+     If an initial umount2() is called specifying this flag,and the mount point is not busy,then the call fails with error EAGAIN,but the mount point is marked to expire
+     If the mount point is busy,then the call fails with error EBUSY and the mount point is not marked to expire
+     A mount point remains expired as long as no process subsequetially makes use of it
+     A second umount2() specifying MNT_EXPIRE will unmount an expired mount point
+     It provides a mechanism to unmount a file system that has't been used for some period of time
+   
+   3)MNT_FORCE
+     Force an unmount even if the device is busy
+     Employing this option may cause data loss
+   
+   4)UMOUNT_NOFOLLOW
+     Don't deference the target if it's a symbolic link
+
+
+11.Advanced mount features
+   1)Mounting a file system at multiple points
+     Because each mount point shares the same subtree,changes made via one point is avaliable through others
+     An Ex can be seen in pdf 271
+   2)Stacking multiple mounts at the same mount point
+     When the mount at the top of the stack is unmounted,the previously hidden mount becomes visiable
+     An Ex can be seen in pdf 271
+     One use of mount stacking is to stack a new mount on an existing mount point that is busy
+     Processes that hold files open,that are chroot-jailed,or that have the working dir within the old mount point can continue to operate,but the new accesses to the mount point wiil use the new mount 
+     Combine with a MNT_DETACH unmount,this can provide a smooth migration off the file system without needing to take the system into sinle-user mode
+   
+   3)Mount flags that are per-mount option
+     Some of the mountflags described above can be set on per-mount basis,including MS_NOATIME,MS_NODEV,MS_NODIRATIME,MS_NOEXEC,MS_RDONLY,MS_RELATIME
+     An Ex can be seen in pdf 272
+
+  4)Bind mounts
+    It allows a dir or file to be mounted at some other location in the file-system hierachy
+    It results in the file or the dir to be visible in both locations
+    It' somewhat like a hard link but differs in two respects
+     a.A bind mount can across mount points,even chroot jails
+     b.It's possible to make bind mount for a dir 
+    We create bind mount using --bind option
+    An Ex can be seen in pdf 272
+
+  5)Recursive bind mounts
+    By default,if we create a bind mount for dir using MS_BIND,then only that dir is mounted at the new location
+    If there are any submounts under the source dir,then they are not replicated under the target
+    We can use MS_REC and MS_BIND in mount() sysCall or --rbind option in mount cmd to achieve the effect
+    An Ex can be seen in pdf 274
+    
+12.Linux supports the notion of virtual file system that resides in memory
+   To apps,it just look like any other FS
+   The same operations(open(),write(),link()....) can be applied to files and dirs in such FS and they are faster since no disk access is involved
+
+   tmpfs uses not only RAM,but also swap space if RAM is exhausted
+   To create tmpfs,we can use following cmd
+   mount -t tmpfs source target
+   The source can be any name.Its only significance is that it appears in /proc/mounts and is displayed by the mount and df cmds
+   We can use tmpfs with mount stacking
+   Ex:
+    mount -t tmpfs newtmp /tmp     ---> mount on /tmp
+   Such cmd is used to improve the performance of apps that make heavy use of the /tmp dir for creating temporary files
+   If we umount a tmpfs or the system crash,then all data in the file is lost
+   Aside from use by user app,tmpfs also serves two purposes:
+    1)There is an invisiable tmpfs,internally mounted by the kernel,is used for implementing System V shared memory and shared anonymous memory mappings
+    2)A tmpfs file system mounted under /dev/shm is used for the glibc implementation of POSIX shared memory and POSIX semaphores
+
+13.Obtain information about a FS 
+   int statvfs(const char* pathname,struct statvfs* statvfsbuf);
+   int fstatvfs(int fd,struct statvfs* statvfsbuf);
+   
+   The only difference between these two functions is how the FS is identified
+   The fileds of struct statvfs can be seen in pdf 276

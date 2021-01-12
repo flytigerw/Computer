@@ -1,0 +1,12 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/root/MyServer/tiger/src/MyGo/context/jump_x86_64_sysv_elf_gas.S
+
+/root/MyServer/tiger/src/MyGo/context/make_x86_64_sysv_elf_gas.S
+

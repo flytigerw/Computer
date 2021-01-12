@@ -1,0 +1,135 @@
+
+1.int getrusage(int who,struct rusage* res_usage)
+  Retrieve the statistics about the system resources used by calling process or by all of its children
+  1)who
+    a.RUSAGE_SELF
+      The calling process
+    b.RUSAGE_CHILDREN
+      All children of the calling process
+    c.RUSAGE_THREAD
+      The calling thread
+  2)res_usage
+     struct rusage is defined in pdf 754
+  3)The rusage structure returned by getrusage() RUSAGE_CHILDREN operation includes the resource usage statistics of all of the descendents of the calling process 
+  
+2.Each process has a set of resource limits
+
+  We can set the RLIMIT of the shell using ulimit CMD
+  These limits are inherited by processes that shell creates to exec the user CMD
+
+  Fetch and Modify the calling process's RLIMIT
+  int getrlimit(int resource,struct rlimit* rlim)
+  int setrlimit(int resource,const struct rlimit* rlim)
+  
+  1)rim
+   struct rlimit{
+     rlimi_t  rlim_cur;   //Soft limit
+     rlimt_t  rlim_max;   //Hard limit(ceiling)
+   }
+
+  2)resource 
+   Defined in pdf 757
+
+  3)soft limit
+    It governs the amount of the resources that can be consumed by the process
+    A process can adjust the soft limit to any value from 0 up to hard limit
+
+  4)hard limit
+    The sole purpose is to provide ceiling for soft limt 
+    A priviledged process can adjust its hard limit in either direction as long as it is greater than the soft limit
+    An unpriviledged process can adjust its hard limit only to a lower value
+    RLIM_INFINITY --> infinity --> no limit on the resource
+  
+  5)Although the resource limit is per-process attribute,in some cases,it's measured against not just the calling process's consumption of corresponding resource,but also against the sum of resources consumed by all processes with the same real userID
+    The RLIMIT_NPROC places a limit on the number of processes related
+    The resource limit is checked only in the processes where it has been set
+
+3.Two constants are specified to indicate unpresentable limit values:RLIM_SAVED_CUR and RLIM_SAVED_MAX
+  If a soft resource limit can't be represented in rlim_t,then getrlimit() will return RLIM_SAVED_CUR in the rlim_cur field and the hard resource limit is RLIM_SAVED_MAX 
+
+4.Details of Linux specific resource limit
+  1)RLIMIT_AS
+    Maximum size of process's virtual memory size,in bytes
+    Attempts(brk(),sbrk(),mmap(),mremap(),and shmat()) to exceed this limit will fail with errno ENOMEM
+    Upon encountering this limit,stack growth can also fail with the consequence RLIMIT_STACK
+
+  2)RLIMIT_CORE
+    Maximux size of core dump file produced when a process is termianted by certain signals
+    Specifying it as 0 to prevent the creation of dump core file
+    It's sometimes useful because core dump file can be very large and users don't know what to do with them and it can prevent program's memory from being dumped into disk ---> It's secure
+    If the RLIMIT_FSILE limit is lower than this,then core dump files are dumped to RLIMIT_FSILE bytes
+
+  3)RLIMIT_CPU
+    Maximum number of seconds of CPU time that can be consumed by process in both system and user mode
+    SIGXCPU will be sent when the soft limit is reached.By default,it terminates the process with a core dump.But user can establish a handler for SIGXCPU
+    SIGKILL will be sent when the hard limit is reached.It will always kill the process
+
+  4)RLIMIT_DATA
+    Maximum size of data segment(initialized data,uninitialized data,heap)
+    Attemps(brk() and sbrk()) to extend data segment beyond this limit fail with errno ENOMEM
+
+  5)RLIMIT_FSIZE
+    Maximum size of file that process can create
+    If a process attempts to extend file size beyond this limit,it will be sent SIGXFSZ which terminates a process with core dump and the sysCall fails with errno EFBIG
+    It's possible instead to catch the signal and return control to main program
+
+  6)RLIMIT_MEMLOCK
+    Maximum number of virtual memory that can be locked into physical memory,to prevent memory from being swapped out
+    It affects mlock() and mlockall() and the locking operations for mmap() and shmctl()
+    If the MCL_FUTURE flag is set when calling mlockcall(),RLIMIT_MEMLOCK may also cause later brk() sbrk() mmap() or mremap() to fail
+  
+  7)RLIMIT_MSGQUEUE
+    Maximum numer of bytes that can be allocated for POSIX message queue for the real userID of the calling process
+    When a POSIX message queue is created using mq_open(),bytes are deducted against the limit according the formula
+    bytes = attr.mq_maxmsg * sizeof(struct msg_msg*) + attr.mq_maxmsg * attr.mq_msgsize;
+    
+    attr is the mq_attr structrue that is passed as argument to mq_open()
+    sizeof(struct msg_msg*) ensures that the user can't quue an unlimited number of zero-length messages
+    It's necessary because although zero-lenth messages contains no data,they do consume system memory for bookkeeping overhead
+  
+  8)RLIMIT_NICE
+    A ceiling on the nice value that may be set for this process using sched_setcheduler()
+    The ceiling is caculated as 20-rlim_cur where rlim_cur is current RLIMIT_NICE 
+
+  9)RLIMIT_NOFILE
+    Maximum number of fd that a process can allocate
+    Attempts(open(),pipe(),socket(),accept(),shm_open(),dup(),dup2(),fcntl(F_DUPFD) and epoll_create()) to allocate fd beyond this limit fail
+    In most cases,the errno is EMFILE
+    But for dup2(fd,newfd) --->EBADF   fcntl(fd,F_DUPFD,newfd)-->EINVAL
+
+    Changes to RLIMIT_NOFILE are reflected in value returned by sysconf(_SC_OPEN_MAX)
+
+    On Linux,we can check which fds that a process has open by using readdir() to scan the contents of /proc/PID/fd dir which contains the symbolic links for each of the fds currently opened by the process
+
+    There is also a system-wide limit on the total number of the fds that can be opend by all the processes
+    This limit can be retrieved and modified via Linux-specific /proc/sys/fs/file-max
+    Only priviledged process can exceed the file-max limit
+    An unpriviledged process's sysCall that attempts the file-max limit will fail with errno ENOFILE
+
+  10)RLIMIT_NPROC
+     Maximum number of processes that can be created for real userID of this process 
+     Attempts(fork(),vfork(),clone()) to exceed this limit fail with errno EAGAIN
+     The RLIMIT_NPROC affects only the calling process
+
+     There is also a system-wide limit on the number of processes that all users can create that can be retrieved and modified in Linux-specific /proc/sys/kernel/threads-max file
+     To be precise,the RLIMIT_NPROC and threads-max file are actually limits on the number of threads that can that be created
+
+     On Linux we can try scanning all of the /proc/PID/status files and examining the information under Uid entry in order to estimate the number of process currently owned by a user
+     Be aware,by the time we have completed the scan,the information may have already changed
+   
+   11)RLIMIT_PTRRIO
+      A ceiling on the realtiem priority that may be set for this process using sched_setscheduler()
+
+   12)RLIMIT_RTTIME
+      Maximum amount of CPU time in microseconds that a process running under a realtime scheduling policy may consume without sleeping
+      The behaviour if this limit is reached is the same as for RLIMIT_CPU
+
+   13)RLIMIT_SIGPENDING
+      Maximum numer of signals that may queued for the real userID of the calling process
+      Attempts(sigqueue()) to exceed this limit fail with errno EAGAIN
+
+   14)RLIMIT_STACK
+      Maximum size of process stack
+      Attempts to grow stack beyond this limit result in the generation of SIGSEGV to process
+      Since the stack is exhausted,the only way to catch signal is to establish an alternate signal stack
+

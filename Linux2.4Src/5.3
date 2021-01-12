@@ -1,0 +1,60 @@
+
+1.文件系统的访问权限为二维结构
+  1)就同一个用户而言:文件的访问方式分为: rwx
+  2)就同一种访问方式而言,访问者的身份分为:user group other
+  共有9种组合,可使用9个二进制位表示
+
+  用户包括 用户名,uid,gid,密码..  --> 记录在/etc/passwd  --> 其文件主为root用户 --> 其他用户只能读，不能修改该文件
+  那么普通用户如何才能修改自己的口令呢?
+  1)在一些特殊用途的可执行文件上加一个标记
+    使得任何用户在执行该 可执行文件时，就暂时拥有与该文件的文件主(通常为root)相同的权限
+    一旦执行完毕，就又恢复到原来的权限
+    这种可执行文件就是set_uid文件.
+    这种文件上的标记就是S_ISUID标记
+
+
+  文件的inode节点中记录了文件的访问模式:共16位
+                                        低9位:二维结构
+                                        高4位:文件的类型(编码见pdf483)
+                                        中间位:S_USUID..
+
+  task_struct中的用户id:
+  1)uid和gid
+  2)euid和egid      :   当前进程的有效用户
+    suid和sgid      :   原来的有效用户
+  3)fsuid和fsgid    :   专用于文件访问时的有效用户
+
+  当用户登录到系统 并创立第一个shell进程时
+  就从/etc/passwd中根据用户名查到其uid和gid
+  并将其设置到shell进程的task_struct中
+  此后便代代相传
+
+  内核在执行 用户进程的文件访问请求时 会对比 进程的fsuid,fsgid以及文件的访问方式，以确定该进程是否有相应的文件访问权限
+  函数为permission(inode,mask)  -->   pdf484
+  若文件系统有自己的permission比较函数，则调用之.否则就采用通用的vfs_permission() --> pdf485
+  
+  根据 访问者的身份 来分别决定其 文件访问权限 的方案为:DAC(Discretionary Access Control)
+  另外可以通过 对进程进行授权的方式 来控制 进程对文件的访问权限.授权方式凌驾于DAC之上
+  task_struct中的cap_effective,cap_inheritable,cap_permitted就揭示了进程被授予的权力
+  权限标志位见pdf 492
+  授权检查通过函数capable(int cap)来完成
+  还有一种方式:ACL(Access Control List).即每个文件都有一份 访问控制列表.其灵活地规定了不同用户对于该文件的访问权限
+
+
+  /bin/su程序属于root用户
+  普通用户进程在执行该程序时，其会fork()出一个新的shell进程，其会继承父进程su的超级用户身份
+  原来的shell进程和su进程都会睡眠等待至新shell进程exit()
+
+
+2.set_uid文件容易被黑客利用，发起缓冲区溢出攻击
+  比如有程序:
+  main(int argc, char** argv){
+    char options[128];
+    ..................
+    if(argc > 1)
+      strcpy(options,argv[1])
+  }
+
+
+
+

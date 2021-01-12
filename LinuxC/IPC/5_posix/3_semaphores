@@ -1,0 +1,109 @@
+
+1.Two types of POSIX semaphores
+  1)Named semaphores
+    The semaphore has a name and unrelated processes can access the same semaphore
+  2)Unnamed semaphores 
+    The semaphore doesn't have a name
+    It resides at an agree-upon in memory
+    When shared by processes,it must reside in a region of shared memory(System V,POSIX or mmap())
+    When shared between threads,it may reside in an area shared by threads(heap or global variable)
+
+2.Named semaphores 
+  On Linux,they are created as samll POSIX shared memory object with the name of the form sem.name,in a dedicated tmpfs file system,mounted under /dev/shm
+  1)Create and open 
+    sem*t sem_open(const char* name,int oflag,... /*mode_t mode,unsigned int value*/)
+    It's similar to mq_open.Argument details can be seen in mq_open
+    Differences
+    a.mode
+      Since most apps using semaphore employ both sme_post() and sem_wait() to modify semaphore value,both read and write permission are granted.O_RDWR
+    b.value
+      The initial value to be assigned to the new semaphore 
+      The creation and initialization of a semaphore are performered atuomatically
+    c.Upon successful call,it returns a pointer to sem_t value
+      The results are undefined if we attempt to perform operations on a copy of the sem_t variable pointed to by the return value of sem_open()
+      Ex: sem_t* sp,sem; 
+          sp = sem_open(xx);
+          sem = *sp;
+          sem_wait(sem);      ///undefined
+      On error,it returns the value SEM_FAILED
+    d.If a child is created via fork(),it herits all references to the named semaphores opened in its parent
+      So parent and child can use these semaphores to synchronize theri actions
+  
+  2)Close
+    When a process opens a named semaphore,the kernel records the association between the process and semaphore 
+    The sem_close() terminates this association,releases any resources that the kernel has associated with the semaphores for the process and decreases the referrence count of this semaphore 
+    int sem_close(sem_t sem)
+    Open named semaphores are automatically closed on processes termination and during the exec()
+
+  3)Remove
+    int sem_unlink(const char* name)
+    It marks the semaphore for deletion once all processes cease using it
+
+  4)Operations
+    Differences from System V semaphores 
+     a.sem_post() and sem_wait() change the semaphore's value and they just operate one semaphore at a time
+       By contrast,System V semop() can operate multiple semaphores in a set
+     b.sem_post() and sem_wait() increase and decrease the semaphore value by exactly one
+       By contrast,System V semop() can add and substract arbitrary values
+     c.There is no equivalent of wait-for-zero provided by System V semaphores 
+   
+    int sem_wait(sem_t* sem)
+     It decreases the semaphore value by 1
+     If the semaphore value is currently =0,then it blocks until the semaphore value rises above 0
+     If a blocked sem_wait() is interrupted by a signal handler,regardless of whether the SA_RESTART flag was specified when establishing handler with sigaction()
+   
+   int sem_trywait(sem_t* sem)
+    Nonblocking version
+    It instead fails with errno EAGAIN
+   
+   int sem_timedwait(set_t* sem,const struct timespec* abs_timeout)
+    It specifies a timeout for which the call will block
+    If the sem_timedwait() times out without being able to decrease the semaphore,it fails with errno ETIMEDOUT
+    Relative timeout?
+   
+  int sem_post(sem_t sem)
+   It increases the semaphore by 1
+   If the semaphore value is 0 before the call and some processes are blocked waiting to decrease the semaphore,then one process is awoken(It depends on scheduling mechanism) and its sem_wait() proceeds to decrease by 1
+   Eventually,the semaphore is still 0
+   
+  int sem_getvalue(sem* sem,int* sval)
+    It retrieves the current semaphore value and stores it at location pointed to by sval
+    If some processes are currently blocked waiting to decrease the semaphore value,then the value returned in sval depends on implementation.On Linux,it's 0
+    By the time sem_getvalue() returns,the value returned in sval may be already out-of-date
+    A program that depends on the information returned by sem_getvalue() being unchanged by the time of a subsequent operation will subject to time-of-check and race conditons
+
+
+3.Unnamed semaphores 
+  It avoids the work of creating a name for the semaphore 
+  If we are building a dynamic data structure(binary tree),each of those items requires an associated semaphore 
+  The simpliest approach is to create an unnamed semaphore in each item 
+  Opening a named semaphore for each item would require us to design a convention for generating a semaphore name for each item and to manage those names 
+  
+  1)int sem_init(sem_t* sem,int pshared,unsigned int value)
+    a.pshared 
+      It indicates whether the semaphore is shared between process or between threads
+      1)0
+        The semaphore is to be shared between threads of the calling process
+        The sem is typically specified as the address of either global variable or a variable on the heap
+        A thread-semaphore has process persistence.It's destroyed when the process terminates
+      
+      2)Nonzero
+        The semaphore is shared between processes
+        The sem must the address of a location of shared memory(shared memory object,shared mapping created using mmap())
+        The semaphore persists as long as the shared memory in which it resides
+        process-shared memory is inherits by the child of fork() ---> parent and child can use the semaphores to synchronize theit actions
+      b.There are permission settings with an unnamed semaphore 
+        Access to unnamed semaphore is governed by the permissions that are granted to the process for the underlying shared memory region
+      c.Initializing an already initialized unnamed semaphore results in undefiend behaviour
+        The result is also undefined if we perform operations on a copy of the sem_t variable whose address is passed to sem_init()
+     
+     2)int sem_destroy(sem_t* sem)
+       It's safe to destroy a semaphore only if no process or threads are waiting on it
+       After an unnamed semaphore has been destroyed,it can be reinitialized
+       An unnamed semaphore should be destroyed before its underlying memory is deallocated
+
+
+4.Comparisons between System V semaphores,POSIX semaphores,mutex ---> The synchronizaion techniques
+  See in pdf 1103
+5.POSIX semaphores limits
+  See in pdf 1104

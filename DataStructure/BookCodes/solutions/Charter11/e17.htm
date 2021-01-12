@@ -1,0 +1,41 @@
+
+
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 11, Exercise 17<BR>
+<BR>
+</H1>
+We can build the tree in the following way. The last element in postorder is
+the tree root. Everything to the left of the tree root in inorder is in
+the left subtree and everything to the right is in the right subtree. 
+
+<br><br>
+The tree root is <code class=var>h</code>. Therefore, <code class=var>aedbc</code>
+is the inorder of the left subtree and <code class=var>gf</code> is the
+inorder of the right subtree. The next element in postorder is <code class=var>g</code>.
+Since <code class=var>g</code> has already been determined to be in the
+right subtree, it must the root of the right subtree.
+Proceeding in this way, we get:
+<pre class=figure>
+                                   h
+                                /     \
+                               e       g
+                              / \        \
+                             a   d        f
+                                  \         
+                                   c          
+                                  /
+                                 b
+</pre>
+<br>
+The preorder listing is <code class=var>headcbgf</code><br><br>
+The level order listing is <code class=var>hegadfcb</code><br><br>
+
+</FONT>
+</BODY>
+</HTML>

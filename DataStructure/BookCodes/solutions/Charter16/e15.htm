@@ -1,0 +1,61 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 16, Exercise 15<BR>
+<BR>
+</H1>
+
+
+
+<dl compact>
+<dt> (a)
+<dd>
+This can be proved by construction.  For
+any <code class=var>n</code>,
+<code class=var>n &gt;= 2</code>, consider the digraph
+<code class=var>G<sub>n</sub> =
+({1, 2, ..., n}, {(1, 2), (2, 3), (3, 4), ...,
+(n-1,
+n),
+(n, 1)})</code>.
+<code class=var>G<sub>n</sub></code>
+is simply an <code class=var>n</code> vertex directed cycle.
+<code class=var>G<sub>n</sub></code>
+is readily seen to be strongly connected.  Also, <code class=var>|E| =
+n</code>.
+<dt>(b)
+<dd>
+Let <code class=var>G =
+(V,E)</code> be any
+<code class=var>n</code> vertex strongly connected
+digraph.  Since <code class=var>G</code> contains a directed path
+from <code class=var>i</code>
+to <code class=var>j</code>
+and from <code class=var>j</code>
+to <code class=var>i</code> for every pair of
+vertices <code class=var>i</code>
+and <code class=var>j</code>,
+<code class=var>d<sub>i</sub><sup>in</sup> &gt;= 1</code> and
+<code class=var>d<sub>i</sub><sup>out</sup> &gt;= 1, 1 &lt;=
+i
+&lt;= n</code>.  Hence, the sum of the in-degrees and out-degrees of all
+vertices is
+<code class=var>&gt;= 2n</code>.  If
+<code class=var>|E| =
+e</code>,
+then the sum of the in-degrees and out-degrees is
+<code class=var>2e</code> (Property 17.2).  So,
+<code class=var>2e &gt;=
+2n</code> or
+<code class=var>e &gt;=
+n</code>.
+
+
+
+</FONT>
+</BODY>
+</HTML>

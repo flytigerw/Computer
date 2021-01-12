@@ -1,0 +1,70 @@
+1.dl库
+ 1)void* dlopen(const char* pathname,int mode)
+   打开一个动态库文件(xx.so),返回句柄给调用进程
+
+ 2)void* dlsym(void* handle,const char* symbol)
+   获取动态库(由句柄handle指向)中符号symbol的地址   --> 函数或者全局变量地址 
+   There are two special pseudo-handles
+   RTLD_DFAULT:It will find the first occurrence of the desired symbol using the default library search order
+   RTLD_NEXT  :It will find the next occurrence of a function in the search order afer the current library 
+
+ 
+ 3)vod dlclose(void* hanlde)
+   动态库文件的关闭
+ 
+2.用dl库实现hook
+ 比如sleep
+ 目标:得到sleep函数地址，将其赋给变量sleep_f.其中sleep_f和sleep函数签名一致
+ 再定义自己版本的sleep(),保持函数签名不变.
+ 那么程序中至少有两个sleep符号.
+ 程序调用时会优先选择自定义的符号
+ 若要调用原生版本的sleep(),则只需调用sleep_f()即可
+
+ EX:
+  using sleep_fun = unsigned int(*)(unsigned int);
+  extern sleep_fun sleep_f;     //extern变量声明 --> 变量的定义在其他文件中
+  定义:sleep_fun sleep_f = nullptr
+  赋值:sleep_f = (sleep_fun) dlsym(RTLD_NEXT,"sleep")
+
+  使用宏简化hook代码
+  #define HOOK_FUN(XX) \
+    XX(sleep) \
+    XX(usleep) \ 
+  ......
+  HOOK_FUN在给定的数据集上进行回调XX ---> 对数据集进行批量操作
+  比如:
+#define XX(name) name ## _fun name ## _f = nullptr 
+  HOOK_FUN(XX);
+#undef XX
+  
+  在程序启动前就要完成hook ----> 在静态对象的构造函数中进行hook即可
+
+3.int libgo_poll(struct pollfd* fds,nfds_t nfds,int timeout,bool nonblocking_check)
+  poll hook : Fiber在调用poll来来处理阻塞式IO
+  1)pollfd全为负数 ---> 相当于Fiber进行slepp
+  2)否则,先进行一次poll的非阻塞调用，查看是否有ready fds 
+  3)若没有，则需要将Fiber挂起，将Fiber添加到各个pollfd的相关事件等待队列中，将fd添加到reactor的监听范围内  ---> 使用epoll代理poll进行fd的监听
+  4)Fiber挂起返回后
+    a.挂起时间已到 
+    b.有事件到来 ---> 在reactor中的epoll_wait()监听到有事件到来，然后调用trigger()唤醒fd的事件队列的Fiber
+  将到达事件类型写入pollfd.revents，然后返回 
+  难点:在reactor的epoll_wait()返回后才能拿到事件类型，怎样将事件类型传输到poll()的调用中呢? ---> 采用共享内存进行通信 ---> 在poll()中分配堆空间，并委托给智能指针防止内存泄露.reactor将事件类型写入到该堆空间即可 ---> poll和reactor之间的桥梁为Fiber ---> poll()会挂起Fiber,，Reactor会唤醒Fiber
+
+4.会open fd的函数(比如socket)的hook
+  创建出对应的FdContext,并纳入到FdCtxManager中 
+  这样后续的IO hook都可以利用reactor + FdContext来完成
+
+5.通用IO函数的模板
+  //F表示原本的函数
+  template<class F,class ...Args>
+   static ssize_t read_write_mode(int fd,F f,const char* hook_f_name,
+                               short int event_type,int timeout_type,
+                               ssize_t buf,Args&& ...args)
+  read的调用 read_write_mode(fd, read_f, "read", POLLIN, SO_RCVTIMEO, count, buf, count);
+  1)获取fd对应的FdContext --> 就可以得到fd的事件属性+其他基础属性
+  2)检测fd是否设置了O_NONBLOCK
+    若已设置，则直接调用原生版本的函数即可
+  3)否则需要阻塞式的调用 ----> 如何处理阻塞式IO的调用呢? ----> 将其交给hook后poll
+  5)从poll中返回，说明fd上的IO已经就绪
+    此时再调用原生版本的IO函数即可
+

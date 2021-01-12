@@ -1,0 +1,99 @@
+<HTML>
+<HEAD>
+<LINK rel="stylesheet" href="../exer.css">
+</HEAD>
+<BODY>
+<H1>
+Data Structures, Algorithms, & Applications in C++<BR>
+Chapter 18, Exercise 41<BR>
+<BR>
+</H1>
+
+
+<dl compact>
+<dt>(a)
+<dd>
+<ol>
+<li>
+<code class=var>a = 10, b = 3</code>,
+and <code class=var>g(n) = 11n</code>.
+<li>
+<code class=var>log<sub>b</sub>a = log<sub>3</sub>10 &gt; 2</code> and
+<code class=var>h(n) = 11n/n<sup>log<sub>3</sub>10</sup> =
+O(n<sup>r</sup>)</code> where <code class = var>r < 0</code>.
+Therefore, <code class=var>f(n) = O(1)</code>.
+<li>
+<code class=var>t(n) = n<sup>log<sub>3</sub>10</sup>[t(1) + O(1)]
+= Theta(n<sup>log<sub>3</sub>10</sup>)</code>
+</ol>
+<br><br>
+<dt>(c)
+<dd>
+<ol>
+<li>
+<code class=var>a = 27, b = 3</code>,
+and <code class=var>g(n) = 11n<sup>3</sup></code>.
+<li>
+<code class=var>log<sub>b</sub>a = log<sub>3</sub>27 = 3</code> and
+<code class=var>h(n) = 11n<sup>3</sup>/n<sup>3</sup> =
+11 = Theta((log n)<sup>0</sup>)</code>.
+Therefore, <code class=var>f(n) = Theta(log n)</code>.
+<li>
+<code class=var>t(n) = n<sup>3</sup>[t(1) + Theta(log n)]
+= Theta(n<sup>3</sup>log n)</code>
+</ol>
+<br><br>
+<dt>(e)
+<dd>
+<ol>
+<li>
+<code class=var>a = 9, b = 2</code>,
+and <code class=var>g(n) = n<sup>2</sup>2<sup>n</sup></code>.
+<li>
+<code class=var>log<sub>b</sub>a = log<sub>2</sub>9 &lt; 4</code> and
+<code class=var>h(n) = n<sup>2</sup>2<sup>n</sup>/n<sup>log<sub>2</sub>9</sup>
+=
+Omega(n<sup>r</sup>)</code> for some <code class=var>r &gt; 0</code>.
+Therefore, <code class=var>f(n) = Theta(
+n<sup>2</sup>2<sup>n</sup>/n<sup>log<sub>2</sub>9</sup>)</code>.
+<li>
+<code class=var>t(n) = n<sup>log<sub>2</sub>9</sup>[t(1) + Theta(
+n<sup>2</sup>2<sup>n</sup>/n<sup>log<sub>2</sub>9</sup>)]
+= Theta(n<sup>2</sup>2<sup>n</sup>)</code>
+</ol>
+<br><br>
+<dt>(g)
+<dd>
+<ol>
+<li>
+<code class=var>a = 128, b = 2</code>,
+and <code class=var>g(n) = 6n</code>.
+<li>
+<code class=var>log<sub>b</sub>a = log<sub>2</sub>128 = 7</code> and
+<code class=var>h(n) = 6n/n<sup>7</sup> =
+6n<sup>-6</sup></code>.
+Therefore, <code class=var>f(n) = O(1)</code>.
+<li>
+<code class=var>t(n) = n<sup>7</sup>[t(1) + O(1)]
+= Theta(n<sup>7</sup>)</code>
+</ol>
+<br><br>
+<dt>(i)
+<dd>
+<ol>
+<li>
+<code class=var>a = 128, b = 2</code>,
+and <code class=var>g(n) = 2<sup>n</sup>/n</code>.
+<li>
+<code class=var>log<sub>b</sub>a = log<sub>2</sub>128 = 7</code> and
+<code class=var>h(n) = 2<sup>n</sup>/n/n<sup>7</sup> =
+Omega(n<sup>r</sup>)</code> for some <code class=var>r &gt; 0</code>.
+Therefore, <code class=var>f(n) = Theta(2<sup>n</sup>/n<sup>8</sup>)</code>.
+<li>
+<code class=var>t(n) = n<sup>7</sup>[t(1) + Theta(2<sup>n</sup>/n<sup>8</sup>)]
+= Theta(2<sup>n</sup>/n)</code>
+</ol>
+
+</FONT>
+</BODY>
+</HTML>
